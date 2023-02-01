@@ -284,7 +284,13 @@ Resource? UploadFile(FhirClient clientFhir, Resource resource)
                     Console.ForegroundColor = oldColor;
                     return null;
                 }
-                if (others.Entry[0].Resource.Id != resource.Id)
+                if (string.IsNullOrEmpty(resource.Id))
+                {
+                    // Use the same resource ID
+                    // (as was expecting to use the server assigned ID - don't expect to hit here as standard packaged resources have an ID from the IG publisher)
+                    resource.Id = others.Entry[0].Resource.Id;
+                }
+                else if (others.Entry[0].Resource.Id != resource.Id)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
