@@ -84,6 +84,11 @@ else
     sourceStream = System.IO.File.OpenRead(localPackagePath);
 }
 
+using (var md5 = MD5.Create())
+{
+    Console.WriteLine($"MD5 Checksum: {BitConverter.ToString(md5.ComputeHash(sourceStream)).Replace("-", string.Empty)}");
+    sourceStream.Seek(0, SeekOrigin.Begin);
+}
 
 Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
 MemoryStream ms = new MemoryStream();
