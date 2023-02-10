@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using SharpCompress.Readers;
 using System.Diagnostics;
 using System.Text;
+using UploadFIG.Helpers;
 
 Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
 Console.WriteLine("--------------------------------------");
@@ -161,6 +162,26 @@ while (reader.MoveToNextEntry())
                         // DebugDumpOutputXml(resource);
                         errFiles.Add(exampleName);
                         continue;
+                    }
+                }
+
+                // Workaround for loading packages with invalid xhmtl content - strip them
+                if (resource is DomainResource dr && resource is IVersionableConformanceResource)
+                {
+                    // lets validate this xhtml content before trying
+                    if (!string.IsNullOrEmpty(dr.Text?.Div))
+                    {
+                        var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+                        if (messages.Any())
+                        {
+                            Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+                            //Console.WriteLine(dr.Text?.Div);
+                            //Console.WriteLine("----");
+
+                            // strip out the narrative as we don't really need that for the purpose
+                            // of validations.
+                            dr.Text = null;
+                        }
                     }
                 }
 

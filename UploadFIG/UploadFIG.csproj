@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.0.1" />
     <PackageReference Include="Firely.Fhir.Packages" Version="3.0.2" />
     <PackageReference Include="Hl7.Fhir.R4B" Version="4.3.0" />
     <PackageReference Include="SharpCompress" Version="0.32.2" />
