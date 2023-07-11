@@ -1,4 +1,4 @@
-# UploadFIG - Sample FHIR Implementation Guide (FIG) Uploader
+# UploadFIG - Sample FHIR Implementation Guide (FIG) Uploader R4B
 This is a quick c# POC to demonstrate how a FHIR Implementation Guide can be downloaded from the web
 (using either a direct download, or the Firely Package Manager NuGet package)
 And then upload the executable resource types contained into a FHIR Server.
@@ -11,20 +11,58 @@ During the upload step the utility will:
 	* verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)
 	* verify that the version hasn't been messed with
 
-## Using the project (change code before running)
-At this stage to use this project you'll need to tweak a few values in the program.cs
-Find the variables near the top and tweak to what you want to use.
-(the packageId and version are there to see if they are in the fhir registry.
-if the package is private, you can skip that part and just go direct to your own TGZ)
+During the processing this utility will:
+* Validate any fhirpath invariants in profiles
+* Validate any search parameters included
 
-```c#
-// Server address to upload the content to (and check for consistency)
-string fhirServerAddress = "https://localhost:44391/";
 
-// package ID and version (for reading from a registry)
-string fhirPackageId = "hl7.fhir.au.base";
-string fhirPackageVersion = "4.0.0";
+## Running the utility
+``` txt
+Usage:
+  UploadFIG [options]
 
-// Direct path to a package source (for direct download approach)
-string fhirPackageSource = "https://hl7.org.au/fhir/4.0.0/package.tgz";
+Options:
+  -s, --sourcePackagePath <sourcePackagePath>                The explicit path of a package to process (over-rides
+                                                             PackageId/Version) []
+  -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
+                                                             Registry) []
+  -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
+                                                             Registry) []
+  -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader [default:
+                                                             StructureDefinition|ValueSet|CodeSystem|SearchParameter|ConceptMap|Stru
+                                                             ctureMap]
+  -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
+                                                             package []
+  -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
+                                                             processing the package []
+  -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to []
+  -h, --destinationServerHeaders <destinationServerHeaders>  Headers to add to the request to the destination FHIR Server []
+  -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
+                                                             Does not require a DestinationServerAddress, will not try to connect
+                                                             to one if provided [default: False]
+  -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
+                                                             FHIR Server,
+                                                              but do not update any of the contents of the FHIR Server [default:
+                                                             False]
+  --verbose                                                  Provide verbose diagnostic output while processing
+                                                             (e.g. Filenames processed) [default: False]
+  --version                                                  Show version information
+  -?, -h, --help                                             Show help and usage information
 ```
+
+## Examples
+### Review the SDOH Clinical Care IG Package
+Test the pacakge content and not try and upload any data to a server, and will grab the latest
+version from the HL7 FHIR Package Registry
+> UploadFIG -pid hl7.fhir.us.sdoh-clinicalcare  -t
+
+
+### Verify an installation of the US Core v6.1.0
+Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and if any content has changed
+> UploadFIG -pid hl7.fhir.us.core -pv 6.1.0 -c -d https://localhost:44348 --verbose
+
+### Skip processing of a specific file
+> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 --verbose -if package/StructureDefinition-medication-brand-name.json
+
+### Direct download a specific package
+> UploadFIG -d https://localhost:44348 -s https://example.org/demo-package.tgz -t --verbose

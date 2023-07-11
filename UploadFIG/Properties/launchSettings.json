@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "UploadFIG": {
+      "commandName": "Project",
+      "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.us.sdoh-clinicalcare -iddf package.json -t -if package/StructureDefinition-medication-brand-name.json",
+      // "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -if package.json -t --verbose -if package/StructureDefinition-medication-brand-name.json"
+      // "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 --sourcePackagePath https://packages.simplifier.net/hl7.fhir.au.base/4.0.0 -if package.json -t --verbose -if package/StructureDefinition-medication-brand-name.json"
+    }
+  }
+}

@@ -1,351 +1,532 @@
 ﻿// See https://aka.ms/new-console-template for more information
+// using AngleSharp;
 using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Serialization;
 using Hl7.Fhir.Utility;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using SharpCompress.Readers;
+using System.CommandLine;
+using System.CommandLine.NamingConventionBinder;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using UploadFIG.Helpers;
 
-Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
-Console.WriteLine("--------------------------------------");
-
-// Server address to upload the content to (and check for consistency)
-string fhirServerAddress = "https://localhost:44391/";
-
-// package ID and version (for reading from a registry)
-string fhirPackageId = "hl7.fhir.au.base";
-string fhirPackageVersion = "4.0.0";
-
-// Direct path to a package source (for direct download approach)
-string fhirPackageSource = "https://hl7.org.au/fhir/4.0.0/package.tgz";
-
-var importResourceTypes = new[] {
-    "StructureDefinition",
-    "ValueSet",
-    "CodeSystem",
-    "SearchParameter",
-    "ConceptMap",
-    "StructureMap",
-};
-
-// Prepare a temp working folder to hold this downloaded package
-string tempFIGpath = Path.Combine(Path.GetTempPath(), "FIG");
-string localPackagePath = Path.Combine(tempFIGpath, "demo-upload.tgz");
-if (!Directory.Exists(tempFIGpath))
+namespace UploadFIG
 {
-    Directory.CreateDirectory(tempFIGpath);
-}
-
-// Server to upload the resources to
-FhirClient clientFhir = new FhirClient(fhirServerAddress);
-// clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
-
-
-// Check with the registry (for all versions of the package)
-PackageClient pc = PackageClient.Create();
-var examplesPkg = await pc.GetPackage(new PackageReference(fhirPackageId, null));
-string contents = Encoding.UTF8.GetString(examplesPkg);
-var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
-Console.WriteLine($"{pl?.Name} {String.Join(", ", pl.Versions.Keys)}");
-if (!pl.Versions.ContainsKey(fhirPackageVersion))
-{
-    Console.Error.WriteLine($"Version {fhirPackageVersion} was not in the registered versions");
-    return;
-}
-Console.WriteLine($"Package is for FHIR version: {pl.Versions[fhirPackageVersion].FhirVersion}");
-Console.WriteLine($"Canonical URL: {pl.Versions[fhirPackageVersion].Url}");
-Console.WriteLine($"{pl.Versions[fhirPackageVersion].Description}");
-Console.WriteLine($"Direct location: {pl.Versions[fhirPackageVersion].Dist?.Tarball}");
-
-// Download the file from the HL7 registry/or other location
-Stream sourceStream;
-if (!System.IO.File.Exists(localPackagePath))
-{
-    Console.WriteLine($"Downloading to {localPackagePath}");
-
-    // Firely Package Manager approach (this will download into the users profile .fhir folder)
-    // var pr = new Firely.Fhir.Packages.PackageReference(fhirPackageId, fhirPackageVersion);
-    // examplesPkg = await pc.GetPackage(pr);
-
-    // Direct download approach
-    HttpClient client = new HttpClient();
-    examplesPkg = await client.GetByteArrayAsync(fhirPackageSource);
-    System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
-    sourceStream = new MemoryStream(examplesPkg);
-}
-else
-{
-    // Local package was already downloaded
-    Console.WriteLine($"Reading {localPackagePath}");
-    sourceStream = System.IO.File.OpenRead(localPackagePath);
-}
-
-using (var md5 = MD5.Create())
-{
-    Console.WriteLine($"MD5 Checksum: {BitConverter.ToString(md5.ComputeHash(sourceStream)).Replace("-", string.Empty)}");
-    sourceStream.Seek(0, SeekOrigin.Begin);
-}
-
-Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
-MemoryStream ms = new MemoryStream();
-using (gzipStream)
-{
-    // Unzip the tar file into a memory stream
-    await gzipStream.CopyToAsync(ms);
-    ms.Seek(0, SeekOrigin.Begin);
-}
-var reader = ReaderFactory.Open(ms);
-
-long successes = 0;
-long failures = 0;
-var sw = Stopwatch.StartNew();
-
-
-// disable validation during parsing (not its job)
-var jsparser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
-var xmlParser = new FhirXmlParser();
-
-var errs = new List<String>();
-var errFiles = new List<String>();
-
-while (reader.MoveToNextEntry())
-{
-    if (SkipFile(reader.Entry.Key))
-        continue;
-    if (!reader.Entry.IsDirectory)
+    public class Settings
     {
-        var exampleName = reader.Entry.Key;
-        var stream = reader.OpenEntryStream();
-        using (stream)
+        /// <summary>
+        /// The explicit path of a package to process (over-rides PackageId/Version)
+        /// </summary>
+        /// <remarks>Optional: If not provided, will use the PackageId/Version from the HL7 FHIR Package Registry</remarks>
+        public string SourcePackagePath { get; set; }
+
+        /// <summary>
+        /// The Package ID of the package to upload (from the HL7 FHIR Package Registry)
+        /// </summary>
+        /// <remarks>Optional if using the PackagePath - will check that it's registered and has this package ID</remarks>
+        public string PackageId { get; set; }
+
+        /// <summary>
+        /// The version of the Package to upload (from the HL7 FHIR Package Registry)
+        /// </summary>
+        /// <remarks>Optional if using the PackagePath, Required if using PackageID</remarks>
+        public string PackageVersion { get; set; }
+
+        /// <summary>
+        /// Which resource types should be processed by the uploader
+        /// </summary>
+        public List<string> ResourceTypes { get; set; }
+
+        /// <summary>
+        /// Any specific files that should be ignored/skipped when processing the package
+        /// </summary>
+        public List<string> IgnoreFiles { get; set; }
+
+        /// <summary>
+        /// Any specific Canonical URls that should be ignored/skipped when processing the package
+        /// </summary>
+        public List<string> IgnoreCanonicals { get; set; }
+
+        /// <summary>
+        /// The URL of the FHIR Server to upload the package contents to
+        /// </summary>
+        /// <remarks>If the TestPackageOnly is used, this is optional</remarks>
+        public string DestinationServerAddress { get; set; }
+
+        /// <summary>
+        /// Headers to add to the request to the destination FHIR Server
+        /// </summary>
+        public List<string> DestinationServerHeaders { get; set; }
+
+        /// <summary>
+        /// Only perform download and static analysis checks on the Package.
+        /// Does not require a DestinationServerAddress, will not try to connect to one if provided
+        /// </summary>
+        public bool TestPackageOnly { get; set; }
+
+        /// <summary>
+        /// Download and check the package and compare with the contents of the FHIR Server,
+        /// but do not update any of the contents of the FHIR Server
+        /// </summary>
+        public bool CheckPackageInstallationStateOnly { get; set; }
+
+        /// <summary>
+        /// Provide verbose output while processing (i.e. All filenames)
+        /// </summary>
+        public bool Verbose { get; set; }
+    }
+
+    public class Program
+    {
+        /// <summary>Main entry-point for this application.</summary>
+        /// <param name="args">An array of command-line argument strings.</param>
+        public static async Task<int> Main(string[] args)
         {
-            Resource resource;
-            try
+            // setup our configuration (command line > environment > appsettings.json)
+            IConfiguration configuration = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true)
+                .AddEnvironmentVariables()
+                .Build();
+            var settings = configuration.Get<Settings>();
+
+            // Provide defaults if not provided
+            if (settings.ResourceTypes?.Any() != true)
+                settings.ResourceTypes = new[] {
+                    "StructureDefinition",
+                    "ValueSet",
+                    "CodeSystem",
+                    "SearchParameter",
+                    "ConceptMap",
+                    "StructureMap",
+                }.ToList();
+
+
+            Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
+            Console.WriteLine("--------------------------------------");
+
+            var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
-                if (exampleName.EndsWith(".xml"))
+                new Option<string>(new string[]{ "-s", "--sourcePackagePath"}, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)"),
+                new Option<string>(new string[]{ "-pid", "--packageId"}, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)"),
+                new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
+                new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
+                new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
+                new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package"),
+                new Option<string>(new string[]{ "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to"),
+                new Option<List<string>>(new string[]{ "-h", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
+                new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
+                new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+                new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
+            };
+            rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
+            {
+                try
                 {
-                    using (var xr = SerializationUtil.XmlReaderFromStream(stream))
-                    {
-                        resource = xmlParser.Parse<Resource>(xr);
-                    }
+                    return await UploadPackage(context);
+                }catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    return -1;
+                }
+            });
+            return await rootCommand.InvokeAsync(args);
+        }
+
+        public static async Task<int> UploadPackage(Settings settings)
+        {
+            // Prepare a temp working folder to hold this downloaded package
+            string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
+            string localPackagePath = Path.Combine(tempFIGpath, "demo-upload.tgz");
+            if (!Directory.Exists(tempFIGpath))
+            {
+                Directory.CreateDirectory(tempFIGpath);
+            }
+
+            byte[] examplesPkg;
+
+            // Check with the registry (for all versions of the package)
+            if (!string.IsNullOrEmpty(settings.PackageId))
+            {
+                PackageClient pc = PackageClient.Create();
+                examplesPkg = await pc.GetPackage(new PackageReference(settings.PackageId, null));
+                string contents = Encoding.UTF8.GetString(examplesPkg);
+                var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
+                Console.WriteLine($"Package ID: {pl?.Name}");
+                Console.WriteLine($"Available Versions: {String.Join(", ", pl.Versions.Keys)}");
+                if (!string.IsNullOrEmpty(settings.PackageVersion) && !pl.Versions.ContainsKey(settings.PackageVersion))
+                {
+                    Console.Error.WriteLine($"Version {settings.PackageVersion} was not in the registered versions");
+                    return -1;
                 }
                 else
                 {
-                    using (var jr = SerializationUtil.JsonReaderFromStream(stream))
+                    settings.PackageVersion = pl.Versions.LastOrDefault().Key;
+                    Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
+                }
+                Console.WriteLine($"Package is for FHIR version: {pl.Versions[settings.PackageVersion].FhirVersion}");
+                Console.WriteLine($"Canonical URL: {pl.Versions[settings.PackageVersion].Url}");
+                Console.WriteLine($"{pl.Versions[settings.PackageVersion].Description}");
+                Console.WriteLine($"Direct location: {pl.Versions[settings.PackageVersion].Dist?.Tarball}");
+                localPackagePath = Path.Combine(tempFIGpath, $"{settings.PackageId}.tgz");
+            }
+
+            // Download the file from the HL7 registry/or other location
+            Stream sourceStream;
+            if (!System.IO.File.Exists(localPackagePath))
+            {
+                if (settings.Verbose)
+                    Console.WriteLine($"Downloading to {localPackagePath}");
+
+                if (!string.IsNullOrEmpty(settings.SourcePackagePath))
+                {
+                    if (settings.Verbose)
+                        Console.WriteLine($"Downloading from {settings.SourcePackagePath}");
+                    // Direct download approach
+                    using (HttpClient client = new HttpClient())
                     {
-                        resource = jsparser.Parse<Resource>(jr);
+                        examplesPkg = await client.GetByteArrayAsync(settings.SourcePackagePath);
+                    }
+                    System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
+                }
+                else
+                {
+                    PackageClient pc = PackageClient.Create();
+                    if (settings.Verbose)
+                        Console.WriteLine($"Downloading from {pc}");
+
+                    // Firely Package Manager approach (this will download into the users profile .fhir folder)
+                    var pr = new Firely.Fhir.Packages.PackageReference(settings.PackageId, settings.PackageVersion);
+                    examplesPkg = await pc.GetPackage(pr);
+                    System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
+                }
+                sourceStream = new MemoryStream(examplesPkg);
+            }
+            else
+            {
+                // Local package was already downloaded
+                Console.WriteLine($"Reading (pre-downloaded) {localPackagePath}");
+                sourceStream = System.IO.File.OpenRead(localPackagePath);
+            }
+
+            using (var md5 = MD5.Create())
+            {
+                Console.WriteLine($"MD5 Checksum: {BitConverter.ToString(md5.ComputeHash(sourceStream)).Replace("-", string.Empty)}");
+                sourceStream.Seek(0, SeekOrigin.Begin);
+            }
+
+            Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
+            MemoryStream ms = new MemoryStream();
+            using (gzipStream)
+            {
+                // Unzip the tar file into a memory stream
+                await gzipStream.CopyToAsync(ms);
+                ms.Seek(0, SeekOrigin.Begin);
+            }
+            var reader = ReaderFactory.Open(ms);
+
+            long successes = 0;
+            long failures = 0;
+            var sw = Stopwatch.StartNew();
+
+            ExpressionValidator expressionValidator = new ExpressionValidator();
+
+            // disable validation during parsing (not its job)
+            var jsparser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
+            var xmlParser = new FhirXmlParser();
+
+            var errs = new List<String>();
+            var errFiles = new List<String>();
+
+            // Server to upload the resources to
+            FhirClient clientFhir = null;
+            if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
+            {
+                clientFhir = new FhirClient(settings.DestinationServerAddress);
+                // clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
+            }
+
+            while (reader.MoveToNextEntry())
+            {
+                if (SkipFile(settings, reader.Entry.Key))
+                    continue;
+                if (!reader.Entry.IsDirectory)
+                {
+                    var exampleName = reader.Entry.Key;
+                    if (settings.Verbose)
+                        Console.WriteLine($"Processing: {exampleName}");
+                    var stream = reader.OpenEntryStream();
+                    using (stream)
+                    {
+                        Resource resource;
+                        try
+                        {
+                            if (exampleName.EndsWith(".xml"))
+                            {
+                                using (var xr = SerializationUtil.XmlReaderFromStream(stream))
+                                {
+                                    resource = xmlParser.Parse<Resource>(xr);
+                                }
+                            }
+                            else
+                            {
+                                using (var jr = SerializationUtil.JsonReaderFromStream(stream))
+                                {
+                                    resource = jsparser.Parse<Resource>(jr);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+                            System.Threading.Interlocked.Increment(ref failures);
+                            if (!errs.Contains(ex.Message))
+                                errs.Add(ex.Message);
+                            errFiles.Add(exampleName);
+                            continue;
+                        }
+
+                        // Skip resource types we're not intentionally importing
+                        // (usually examples)
+                        if (!settings.ResourceTypes.Contains(resource.TypeName))
+                        {
+                            if (settings.Verbose)
+                                Console.WriteLine($"    ----> Ignoring {exampleName} because {resource.TypeName} is not a requested type");
+                            continue;
+                        }
+
+                        try
+                        {
+                            // Workaround for loading packages with invalid xhmtl content - strip them
+                            if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+                            {
+                                if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
+                                {
+                                    if (settings.Verbose)
+                                        Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
+                                    continue;
+                                }
+                                if (settings.Verbose)
+                                    Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
+                                // lets validate this xhtml content before trying
+                                if (!string.IsNullOrEmpty(dr.Text?.Div))
+                                {
+                                    var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+                                    if (messages.Any())
+                                    {
+                                        Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+                                        //Console.WriteLine(dr.Text?.Div);
+                                        //Console.WriteLine("----");
+
+                                        // strip out the narrative as we don't really need that for the purpose
+                                        // of validations.
+                                        dr.Text = null;
+                                    }
+                                }
+                            }
+
+                            if (resource is SearchParameter sp)
+                            {
+                                if (!sp.Base.Any())
+                                {
+                                    // Quietly skip them
+                                    Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
+                                    System.Threading.Interlocked.Increment(ref failures);
+                                    // DebugDumpOutputXml(resource);
+                                    errFiles.Add(exampleName);
+                                    continue;
+                                }
+                                expressionValidator.ValidateSearchExpression(sp);
+                            }
+
+                            if (resource is StructureDefinition sd)
+                            {
+                                expressionValidator.ValidateInvariants(sd);
+                            }
+
+                            if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
+                            {
+                                Resource result = UploadFile(settings, clientFhir, resource);
+                                if (result != null)
+                                    System.Threading.Interlocked.Increment(ref successes);
+                                else
+                                    System.Threading.Interlocked.Increment(ref failures);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+                            System.Threading.Interlocked.Increment(ref failures);
+                            // DebugDumpOutputXml(resource);
+                            errFiles.Add(exampleName);
+                        }
                     }
                 }
             }
-            catch (Exception ex)
+
+            sw.Stop();
+            Console.WriteLine("Done!");
+            Console.WriteLine();
+
+            if (errs.Any() || errFiles.Any())
             {
-                Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-                System.Threading.Interlocked.Increment(ref failures);
-                if (!errs.Contains(ex.Message))
-                    errs.Add(ex.Message);
-                errFiles.Add(exampleName);
-                continue;
+                Console.WriteLine("-----------------------------------");
+                Console.WriteLine(String.Join("\r\n", errs));
+                Console.WriteLine("-----------------------------------");
+                Console.WriteLine(String.Join("\r\n", errFiles));
+                Console.WriteLine("-----------------------------------");
             }
+            Console.WriteLine($"Success: {successes}");
+            Console.WriteLine($"Failures: {failures}");
+            Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
+            Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 
-            // Skip resource types we're not intentionally importing
-            // (usually examples)
-            if (!importResourceTypes.Contains(resource.TypeName))
-                continue;
+            return 0;
+        }
 
+        static bool SkipFile(Settings settings, string filename)
+        {
+            if (settings.IgnoreFiles.Contains(filename))
+            {
+                if (settings.Verbose)
+                    Console.WriteLine($"Ignoring:   {filename}    because it is in the ignore list");
+                return true;
+            }
+            // Schematron files typically included in the package are not wanted
+            if (filename.EndsWith(".sch"))
+                return true;
+
+            // The package index file isn't to be uploaded
+            if (filename.EndsWith("package.json"))
+                return true;
+            if (filename.EndsWith(".index.json"))
+                return true;
+            if (filename.EndsWith(".openapi.json"))
+                return true;
+
+            // Other internal Package files aren't to be considered either
+            if (filename.EndsWith("spec.internals"))
+                return true;
+            if (filename.EndsWith("validation-summary.json"))
+                return true;
+            if (filename.EndsWith("validation-oo.json"))
+                return true;
+
+            return false;
+        }
+
+        static Resource? UploadFile(Settings settings, FhirClient clientFhir, Resource resource)
+        {
+            // Check to see if the resource is the same on the server already
+            // (except for text/version/modified)
+            var oldColor = Console.ForegroundColor;
             try
             {
-                if (resource is SearchParameter sp)
+                // reset properties that are set on the server anyway
+                if (resource.Meta == null) resource.Meta = new Meta();
+                resource.Meta.LastUpdated = null;
+                resource.Meta.VersionId = null;
+
+                Resource? current = null;
+                if (!string.IsNullOrEmpty(resource.Id))
+                    current = clientFhir.Get($"{resource.TypeName}/{resource.Id}");
+                if (current != null)
                 {
-                    if (!sp.Base.Any())
+                    Resource original = (Resource)current.DeepCopy();
+                    current.Meta.LastUpdated = null;
+                    current.Meta.VersionId = null;
+                    if (current is DomainResource dr)
+                        dr.Text = (resource as DomainResource)?.Text;
+                    if (current.IsExactly(resource))
                     {
-                        // Quietly skip them
-                        Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
-                        System.Threading.Interlocked.Increment(ref failures);
-                        // DebugDumpOutputXml(resource);
-                        errFiles.Add(exampleName);
-                        continue;
+                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} unchanged");
+                        return original;
                     }
                 }
 
-                // Workaround for loading packages with invalid xhmtl content - strip them
-                if (resource is DomainResource dr && resource is IVersionableConformanceResource)
-                {
-                    // lets validate this xhtml content before trying
-                    if (!string.IsNullOrEmpty(dr.Text?.Div))
-                    {
-                        var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
-                        if (messages.Any())
-                        {
-                            Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
-                            //Console.WriteLine(dr.Text?.Div);
-                            //Console.WriteLine("----");
 
-                            // strip out the narrative as we don't really need that for the purpose
-                            // of validations.
-                            dr.Text = null;
+                // Update narratives to strip relatives?
+                // https://chat.fhir.org/#narrow/stream/179166-implementers/topic/Narrative.20image.20sources
+                // ensure has the generated tag before just deleting
+
+                if (resource is IVersionableConformanceResource vcs)
+                {
+                    // Also search to see if there is another canonical version of this instance that would clash with it
+                    var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
+                    if (others.Entry.Count > 1)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                        Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has multiple copies loaded");
+                        Console.ForegroundColor = oldColor;
+                        return null;
+                    }
+                    // And check that the one we're loading in has the same ID
+                    if (others.Entry.Count == 1)
+                    {
+                        var currentFound = others.Entry[0].Resource as IVersionableConformanceResource;
+                        if (others.Entry[0].Resource?.TypeName != resource.TypeName)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} returned a different type");
+                            Console.ForegroundColor = oldColor;
+                            return null;
+                        }
+                        if (currentFound.Version != vcs.Version)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
+                            Console.ForegroundColor = oldColor;
+                            return null;
+                        }
+                        if (string.IsNullOrEmpty(resource.Id))
+                        {
+                            // Use the same resource ID
+                            // (as was expecting to use the server assigned ID - don't expect to hit here as standard packaged resources have an ID from the IG publisher)
+                            resource.Id = others.Entry[0].Resource.Id;
+                        }
+                        else if (others.Entry[0].Resource.Id != resource.Id)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has id {others.Entry[0].Resource.Id} on the server, can't also load id {resource.Id}");
+                            Console.ForegroundColor = oldColor;
+                            return null;
                         }
                     }
                 }
 
-                Resource result = UploadFile(clientFhir, resource);
-                if (result != null)
-                    System.Threading.Interlocked.Increment(ref successes);
-                else
-                    System.Threading.Interlocked.Increment(ref failures);
             }
-            catch (Exception ex)
+            catch (FhirOperationException fex)
             {
-                Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-                System.Threading.Interlocked.Increment(ref failures);
-                // DebugDumpOutputXml(resource);
-                errFiles.Add(exampleName);
+                if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+                {
+                    Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
+                }
             }
-        }
-    }
-}
-
-sw.Stop();
-Console.WriteLine("Done!");
-Console.WriteLine();
-
-if (errs.Any() || errFiles.Any())
-{
-    Console.WriteLine("-----------------------------------");
-    Console.WriteLine(String.Join("\r\n", errs));
-    Console.WriteLine("-----------------------------------");
-    Console.WriteLine(String.Join("\r\n", errFiles));
-    Console.WriteLine("-----------------------------------");
-}
-Console.WriteLine($"Success: {successes}");
-Console.WriteLine($"Failures: {failures}");
-Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
-Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 
 
-
-bool SkipFile(string filename)
-{
-    // Schematron files typically included in the package are not wanted
-    if (filename.EndsWith(".sch"))
-        return true;
-
-    // The package index file isn't to be uploaded
-    if (filename.EndsWith("package.json"))
-        return true;
-    if (filename.EndsWith(".index.json"))
-        return true;
-
-    // Other internal Package files aren't to be considered either
-    if (filename.EndsWith("spec.internals"))
-        return true;
-    if (filename.EndsWith("validation-summary.json"))
-        return true;
-    if (filename.EndsWith("validation-oo.json"))
-        return true;
-
-    return false;
-}
-
-Resource? UploadFile(FhirClient clientFhir, Resource resource)
-{
-    // Check to see if the resource is the same on the server already
-    // (except for text/version/modified)
-    var oldColor = Console.ForegroundColor;
-    try
-    {
-        // reset properties that are set on the server anyway
-        if (resource.Meta == null) resource.Meta = new Meta();
-        resource.Meta.LastUpdated = null;
-        resource.Meta.VersionId = null;
-
-        Resource? current = null;
-        if (!string.IsNullOrEmpty(resource.Id))
-            current = clientFhir.Get($"{resource.TypeName}/{resource.Id}");
-        if (current != null)
-        {
-            Resource original = (Resource)current.DeepCopy();
-            current.Meta.LastUpdated = null;
-            current.Meta.VersionId = null;
-            if (current is DomainResource dr)
-                dr.Text = (resource as DomainResource)?.Text;
-            if (current.IsExactly(resource))
-            {
-                Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} unchanged");
-                return original;
-            }
-        }
-
-        if (resource is IVersionableConformanceResource vcs)
-        {
-            // Also search to see if there is another canonical version of this instance that would clash with it
-            var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
-            if (others.Entry.Count > 1)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has multiple copies loaded");
-                Console.ForegroundColor = oldColor;
+            // Now that we've established that it is new/different, upload it
+            if (settings.CheckPackageInstallationStateOnly)
                 return null;
-            }
-            // And check that the one we're loading in has the same ID
-            if (others.Entry.Count == 1)
-            {
-                var currentFound = others.Entry[0].Resource as IVersionableConformanceResource;
-                if (others.Entry[0].Resource?.TypeName != resource.TypeName)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                    Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} returned a different type");
-                    Console.ForegroundColor = oldColor;
-                    return null;
-                }
-                if (currentFound.Version != vcs.Version)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                    Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
-                    Console.ForegroundColor = oldColor;
-                    return null;
-                }
-                if (string.IsNullOrEmpty(resource.Id))
-                {
-                    // Use the same resource ID
-                    // (as was expecting to use the server assigned ID - don't expect to hit here as standard packaged resources have an ID from the IG publisher)
-                    resource.Id = others.Entry[0].Resource.Id;
-                }
-                else if (others.Entry[0].Resource.Id != resource.Id)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                    Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has id {others.Entry[0].Resource.Id} on the server, can't also load id {resource.Id}");
-                    Console.ForegroundColor = oldColor;
-                    return null;
-                }
-            }
-        }
 
-    }
-    catch (FhirOperationException fex)
-    {
-        if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
-        {
-            Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
+            Resource result;
+            if (!string.IsNullOrEmpty(resource.Id))
+                result = clientFhir.Update(resource);
+            else
+                result = clientFhir.Create(resource);
+
+            Console.ForegroundColor = ConsoleColor.DarkGreen;
+            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} uploaded");
+            Console.ForegroundColor = oldColor;
+            return result;
         }
     }
-
-
-    // Now that we've established that it is new/different, upload it
-    Resource result;
-    if (!string.IsNullOrEmpty(resource.Id))
-        result = clientFhir.Update(resource);
-    else
-        result = clientFhir.Create(resource);
-
-    Console.ForegroundColor = ConsoleColor.DarkGreen;
-    Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} uploaded");
-    Console.ForegroundColor = oldColor;
-    return result;
 }
