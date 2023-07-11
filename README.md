@@ -66,3 +66,6 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 
 ### Direct download a specific package
 > UploadFIG -d https://localhost:44348 -s https://example.org/demo-package.tgz -t --verbose
+
+### Test a locally built package
+> UploadFIG -s E:\git\HL7\fhir-sdoh-clinicalcare-publish\output\package.r4b.tgz -t --verbose
