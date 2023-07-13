@@ -3,7 +3,8 @@
     "UploadFIG": {
       "commandName": "Project",
       // "commandLineArgs": "-t --verbose -s E:\\git\\HL7\\fhir-sdoh-clinicalcare-publish\\output\\package.r4b.tgz"
-      "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.us.sdoh-clinicalcare -iddf package.json -t -if package/StructureDefinition-medication-brand-name.json"
+      // "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.us.sdoh-clinicalcare --verbose -if package.json -t -if package/StructureDefinition-medication-brand-name.json",
+      "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.us.core -pv 6.1.0 -if package.json -t"
       // "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -if package.json -t --verbose -if package/StructureDefinition-medication-brand-name.json"
       // "commandLineArgs": "-d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 --sourcePackagePath https://packages.simplifier.net/hl7.fhir.au.base/4.0.0 -if package.json -t --verbose -if package/StructureDefinition-medication-brand-name.json"
     }
