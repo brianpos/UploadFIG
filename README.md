@@ -23,29 +23,32 @@ Usage:
 
 Options:
   -s, --sourcePackagePath <sourcePackagePath>                The explicit path of a package to process (over-rides
-                                                             PackageId/Version) []
+                                                             PackageId/Version)
   -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
-                                                             Registry) []
+                                                             Registry)
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
-                                                             Registry) []
-  -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader [default:
-                                                             StructureDefinition|ValueSet|CodeSystem|SearchParameter|ConceptMap|Stru
-                                                             ctureMap]
+                                                             Registry)
+  -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
+                                                             [default: StructureDefinition|ValueSet|CodeSystem|SearchParameter
+                                                             |ConceptMap|StructureMap]
   -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
-                                                             package []
+                                                             package
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
-                                                             processing the package []
-  -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to []
-  -h, --destinationServerHeaders <destinationServerHeaders>  Headers to add to the request to the destination FHIR Server []
+                                                             processing the package
+  -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
+  -h, --destinationServerHeaders <destinationServerHeaders>  Headers to add to the request to the destination FHIR Server
   -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
                                                              Does not require a DestinationServerAddress, will not try to connect
-                                                             to one if provided [default: False]
+                                                             to one if provided
+                                                             [default: False]
   -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
-                                                             FHIR Server,
-                                                              but do not update any of the contents of the FHIR Server [default:
-                                                             False]
+                                                             FHIR Server, but do not update any of the contents of the FHIR Server
+                                                             [default: False]
+  --includeExamples                                          Also include files in the examples sub-directory
+                                                             (Still needs resource type specified)
   --verbose                                                  Provide verbose diagnostic output while processing
-                                                             (e.g. Filenames processed) [default: False]
+                                                             (e.g. Filenames processed)
+                                                             [default: False]
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```
