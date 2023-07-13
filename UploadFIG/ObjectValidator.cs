@@ -1,7 +1,7 @@
 ﻿using Hl7.Fhir.FhirPath.Validator;
 using Hl7.Fhir.Introspection;
 using Hl7.Fhir.Model;
-using Hl7.Fhir.Serialization;
+using Hl7.Fhir.Support;
 using Hl7.Fhir.Utility;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Expressions;
@@ -47,7 +47,7 @@ namespace UploadFIG
                         {
                             if (!string.IsNullOrEmpty(c.Expression))
                             {
-                                VerifyInvariant(ed.Path, c.Key, c.Expression);
+                                VerifyInvariant(sd.Url, ed.Path, c.Key, c.Expression);
                             }
                         }
                     }
@@ -55,11 +55,11 @@ namespace UploadFIG
             }
         }
 
-        private void VerifyInvariant(string path, string key, string expression)
+        private void VerifyInvariant(string canonicalUrl, string path, string key, string expression)
         {
             if (expression.Contains("descendants()"))
             {
-                Console.WriteLine($"Fhirpath invariant testing does not support the descendants() function skipping this expression");
+                Console.WriteLine($"Warning: Fhirpath invariant testing does not support the descendants() function skipping this expression");
                 return;
             }
 
@@ -70,142 +70,98 @@ namespace UploadFIG
 
             if (!visitor.Outcome.Success || "boolean" != r.ToString())
             {
+                Console.WriteLine($"    #---> Error validating invariant {canonicalUrl}: {key}");
                 // Console.WriteLine(visitor.ToString());
-                AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
-                Console.WriteLine($"Context: {path}");
-                Console.WriteLine($"Invariant key: {key}");
-                Console.WriteLine($"Expression:\r\n{expression}");
-                Console.WriteLine("---------");
-                Console.WriteLine($"Result: {r}");
-                Console.WriteLine("---------");
+                // AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
+                AssertIsTrue(false, $"Context: {path}");
+                AssertIsTrue(false, $"Expression: {expression}");
+                AssertIsTrue(false, $"Return type: {r}");
                 ReportOutcomeMessages(visitor.Outcome);
                 // Console.WriteLine(visitor.Outcome.ToXml(new FhirXmlSerializationSettings() { Pretty = true }));
                 AssertIsTrue("boolean" == r.ToString(), "Invariants must return a boolean");
+                Console.WriteLine();
             }
         }
 
+        VersionAgnosticSearchParameter ToVaSpd(ModelInfo.SearchParamDefinition spd)
+        {
+            return new VersionAgnosticSearchParameter()
+            {
+                Resource = spd.Resource,
+                Type = spd.Type,
+                Expression = spd.Expression,
+                Url = spd.Url,
+                Name = spd.Name,
+                Target = spd.Target?.Select(t => t.GetLiteral()).ToArray(),
+                Component = spd.Component?.Select(c => new SearchParamComponent()
+                {
+                    Definition = c.Definition,
+                    Expression = c.Expression,
+                }).ToArray(),
+            };
+        }
+
+        IEnumerable<VersionAgnosticSearchParameter> ToVaSpd(SearchParameter sp)
+        {
+            List<VersionAgnosticSearchParameter> result = new();
+            foreach (var resource in sp.Base)
+            {
+                result.Add(new VersionAgnosticSearchParameter()
+                {
+                    Resource = resource.GetLiteral(),
+                    Type = sp.Type.Value,
+                    Expression = sp.Expression,
+                    Url = sp.Url,
+                    Name = sp.Name,
+                    Target = sp.Target?.Select(t => t.GetLiteral()).ToArray(),
+                    Component = sp.Component?.Select(c => new SearchParamComponent()
+                    {
+                        Definition = c.Definition,
+                        Expression = c.Expression,
+                    }).ToArray(),
+                });
+            }
+            return result;
+        }
 
         public void ValidateSearchExpression(SearchParameter sp)
         {
-            foreach (var resource in sp.Base)
+            var outcome = new OperationOutcome();
+            var vaSps = ToVaSpd(sp);
+            foreach (var vaSp in vaSps)
             {
-                var spd = new ModelInfo.SearchParamDefinition()
-                {
-                    Resource = resource?.GetLiteral(),
-                    Name = sp.Name,
-                    Type = sp.Type ?? SearchParamType.Special, // Huh?
-                    Expression = sp.Expression,
-                    Url = sp.Url,
+                SearchExpressionValidator v = new SearchExpressionValidator(_mi,
+                      Hl7.Fhir.Model.ModelInfo.SupportedResources,
+                      Hl7.Fhir.Model.ModelInfo.OpenTypes,
+                      (url) =>
+                      {
+                          return ModelInfo.SearchParameters.Where(sp => sp.Url == url)
+                          .Select(v => ToVaSpd(v))
+                          .FirstOrDefault();
+                      });
+                v.IncludeParseTreeDiagnostics = true;
+                var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
+                outcome.Issue.AddRange(issues);
+            }
 
-                };
-                if (spd.Type == SearchParamType.Composite)
-                {
-                    // Populate the compisite fields
-                }
-                ValidateSearchExpression(spd, ModelInfo.SearchParameters);
+            if (!outcome.Success)
+            {
+                Console.WriteLine($"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
+                ReportOutcomeMessages(outcome);
+                Console.WriteLine();
             }
         }
 
-
-        public void ValidateSearchExpression(ModelInfo.SearchParamDefinition spd, IEnumerable<ModelInfo.SearchParamDefinition> allSearchParams)
-        {
-            var visitor = new FhirPathExpressionVisitor();
-            var t = _mi.GetTypeForFhirType(spd.Resource);
-            if (t != null)
-            {
-                visitor.RegisterVariable("context", t);
-                visitor.AddInputType(t);
-                visitor.RegisterVariable("resource", t);
-                VerifySearchExpression(t, spd.Expression, spd.Type, spd, visitor, allSearchParams);
-            }
-            else
-            {
-                // can't locate the type the search expression is trying to evaluate against
-                Console.WriteLine($"Cannot resolve resource type {spd.Resource} for search {spd.Url}");
-            }
-        }
-
+        const string diagnosticPrefix = "            ";
         private void ReportOutcomeMessages(OperationOutcome outcome)
         {
             foreach(var issue in outcome.Issue)
             {
-                Console.WriteLine($"{issue.Severity?.GetLiteral()}: {issue.Details.Text}");
-            }
-        }
-
-        private void VerifySearchExpression(Type resourceType, string expression, SearchParamType searchType, ModelInfo.SearchParamDefinition spd, FhirPathExpressionVisitor visitor, IEnumerable<ModelInfo.SearchParamDefinition> allSearchParams)
-        {
-            var pe = _compiler.Parse(expression);
-            var r = pe.Accept(visitor);
-            if (!visitor.Outcome.Success)
-            {
-                Console.WriteLine($"Context: {spd.Resource}");
-                Console.WriteLine($"Search Param Name: {spd.Name}");
-                Console.WriteLine($"Search Param Type: {spd.Type}");
-                Console.WriteLine($"Expression:\r\n{spd.Expression}");
-                Console.WriteLine($"Canonical:\r\n{spd.Url}");
-                Console.WriteLine("---------");
-                Console.WriteLine($"Result: {r}");
-                Console.WriteLine("---------");
-                // Console.WriteLine(visitor.ToString());
-                ReportOutcomeMessages(visitor.Outcome);
-                // Console.WriteLine(visitor.Outcome.ToXml(new FhirXmlSerializationSettings() { Pretty = true }));
-            }
-            // Assert.IsTrue(visitor.Outcome.Success == expectSuccessOutcome);
-
-            // Assert.IsTrue(r.ToString().Length > 0);
-            foreach (var returnType in r.ToString().Replace("[]", "").Split(", "))
-            {
-                switch (searchType)
+                Console.WriteLine($"    *---> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
+                if (!string.IsNullOrEmpty(issue.Diagnostics))
                 {
-                    case SearchParamType.Number:
-                        AssertIsTrue(NumberTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Date:
-                        AssertIsTrue(DateTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.String:
-                        AssertIsTrue(StringTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Token:
-                        AssertIsTrue(TokenTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Reference:
-                        AssertIsTrue(ReferenceTypes.Contains(returnType) || _mi.IsKnownResource(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Quantity:
-                        AssertIsTrue(QuantityTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Uri:
-                        AssertIsTrue(UriTypes.Contains(returnType), $"Search Type mismatch {searchType} type on {returnType} for {resourceType} - {spd.Name}");
-                        break;
-                    case SearchParamType.Composite:
-                        // Need to feed this back into itself to verify
-                        foreach (var cp in spd.Component)
-                        {
-                            // resolve the composite canonical to work out what type it should be
-                            var componentSearchParameterType = allSearchParams.Where(sp => sp.Url == cp.Definition).FirstOrDefault()?.Type;
-                            AssertIsTrue(componentSearchParameterType != null, $"Failed to resolve component URL: {cp.Definition} for {resourceType} - {spd.Name}");
-                            foreach (var type in r.Types)
-                            {
-                                var visitorComponent = new FhirPathExpressionVisitor();
-                                visitorComponent.RegisterVariable("resource", resourceType);
-                                visitorComponent.RegisterVariable("context", type.ClassMapping);
-                                visitorComponent.AddInputType(type.ClassMapping);
-                                VerifySearchExpression(
-                                    resourceType,
-                                    cp.Expression,
-                                    componentSearchParameterType.Value,
-                                    null,
-                                    visitorComponent,
-                                    allSearchParams);
-                            }
-                        }
-                        break;
-                    case SearchParamType.Special:
-                        // No real way to verify this special type
-                        // Assert.Inconclusive($"Need to verify search {searchType} type on {returnType}");
-                        break;
+                    var diag = issue.Diagnostics.Replace("\r\n\r\n", "\r\n").Trim();
+                    Console.WriteLine($"{diagnosticPrefix}{diag.Replace("\r\n", "\r\n  " + diagnosticPrefix)}");
                 }
             }
         }
@@ -213,60 +169,7 @@ namespace UploadFIG
         private void AssertIsTrue(bool testResult, string message)
         {
             if (!testResult)
-                Console.WriteLine(message);
+                Console.WriteLine($"{diagnosticPrefix}{message.Replace("\r\n", "\r\n  " + diagnosticPrefix)}");
         }
-
-        readonly string[] QuantityTypes = {
-            "Quantity",
-            "Money",
-            "Range",
-            "Duration",
-            "Age",
-        };
-
-        readonly string[] TokenTypes = {
-            "Identifier",
-            "code",
-            "CodeableConcept",
-            "Coding",
-            "string",
-            "boolean",
-            "id",
-            "ContactPoint",
-            "uri",
-            "canonical",
-        };
-
-        readonly string[] StringTypes = {
-            "markdown",
-            "string",
-            "Address",
-            "HumanName",
-        };
-
-        readonly string[] NumberTypes = {
-            "decimal",
-            "integer",
-        };
-
-        readonly string[] ReferenceTypes = {
-            "Reference",
-            "canonical",
-            "uri",
-        };
-
-        readonly string[] UriTypes = {
-            "uri",
-            "url",
-            "canonical",
-        };
-
-        readonly string[] DateTypes = {
-            "dateTime",
-            "date",
-            "Period",
-            "instant",
-            "Timing",
-        };
     }
 }

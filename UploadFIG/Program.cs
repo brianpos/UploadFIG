@@ -79,6 +79,11 @@ namespace UploadFIG
         /// Provide verbose output while processing (i.e. All filenames)
         /// </summary>
         public bool Verbose { get; set; }
+
+        /// <summary>
+        /// Specifically include processing of examples folder
+        /// </summary>
+        public bool IncludeExamples { get; set; }
     }
 
     public class Program
@@ -121,6 +126,7 @@ namespace UploadFIG
                 new Option<List<string>>(new string[]{ "-h", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+                new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
             };
             rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
@@ -401,6 +407,8 @@ namespace UploadFIG
 
         static bool SkipFile(Settings settings, string filename)
         {
+            if (!settings.IncludeExamples && filename.StartsWith("package/example/"))
+                return true;
             if (settings.IgnoreFiles?.Contains(filename) == true)
             {
                 if (settings.Verbose)
