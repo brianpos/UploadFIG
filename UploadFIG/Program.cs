@@ -183,8 +183,15 @@ namespace UploadFIG
                     }
                     else
                     {
+                        if (string.IsNullOrEmpty(settings.PackageVersion))
+                        {
                         settings.PackageVersion = pl.Versions.LastOrDefault().Key;
                         Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
+                    }
+                        else
+                        {
+                            Console.WriteLine($"Using package version: {settings.PackageVersion}");
+                        }
                     }
                     Console.WriteLine($"Package is for FHIR version: {pl.Versions[settings.PackageVersion].FhirVersion}");
                     Console.WriteLine($"Canonical URL: {pl.Versions[settings.PackageVersion].Url}");
@@ -247,6 +254,7 @@ namespace UploadFIG
 
             long successes = 0;
             long failures = 0;
+            long validationErrors = 0;
             var sw = Stopwatch.StartNew();
 
             ExpressionValidator expressionValidator = new ExpressionValidator();
@@ -357,12 +365,15 @@ namespace UploadFIG
                                     errFiles.Add(exampleName);
                                     continue;
                                 }
-                                expressionValidator.ValidateSearchExpression(sp);
+                                if (!expressionValidator.ValidateSearchExpression(sp))
+                                    validationErrors++;
+
                             }
 
                             if (resource is StructureDefinition sd)
                             {
-                                expressionValidator.ValidateInvariants(sd);
+                                if (!expressionValidator.ValidateInvariants(sd))
+                                    validationErrors++;
                             }
 
                             if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
@@ -399,6 +410,7 @@ namespace UploadFIG
             }
             Console.WriteLine($"Success: {successes}");
             Console.WriteLine($"Failures: {failures}");
+            Console.WriteLine($"Validation Errors: {validationErrors}");
             Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
             Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 
