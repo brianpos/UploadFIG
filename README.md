@@ -24,6 +24,9 @@ Usage:
 Options:
   -s, --sourcePackagePath <sourcePackagePath>                The explicit path of a package to process (over-rides
                                                              PackageId/Version)
+  -fd, --forceDownload                                       Force the download of the package from the source package path
+                                                             (If not specified, will use the last downloaded package)
+                                                             [default: False]
   -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
                                                              Registry)
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package

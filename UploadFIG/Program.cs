@@ -26,6 +26,11 @@ namespace UploadFIG
         public string SourcePackagePath { get; set; }
 
         /// <summary>
+        /// Always download the file even if there is a local copy
+        /// </summary>
+        public bool ForceDownload { get; set; }
+
+        /// <summary>
         /// The Package ID of the package to upload (from the HL7 FHIR Package Registry)
         /// </summary>
         /// <remarks>Optional if using the PackagePath - will check that it's registered and has this package ID</remarks>
@@ -117,6 +122,7 @@ namespace UploadFIG
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
                 new Option<string>(new string[]{ "-s", "--sourcePackagePath"}, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)"),
+                new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
                 new Option<string>(new string[]{ "-pid", "--packageId"}, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
@@ -201,7 +207,7 @@ namespace UploadFIG
                 }
 
                 // Download the file from the HL7 registry/or other location
-                if (!System.IO.File.Exists(localPackagePath))
+                if (!System.IO.File.Exists(localPackagePath) || settings.ForceDownload)
                 {
                     if (settings.Verbose)
                         Console.WriteLine($"Downloading to {localPackagePath}");
