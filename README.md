@@ -71,7 +71,8 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 > UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 --verbose -if package/StructureDefinition-medication-brand-name.json
 
 ### Direct download a specific package
-> UploadFIG -d https://localhost:44348 -s https://example.org/demo-package.tgz -t --verbose
+(Note that you should include the forceDownload flag here to ensure that it doesn't use a locally saved file)
+> UploadFIG -d https://localhost:44348 -s https://example.org/demo-package.tgz -t --verbose --forceDownload
 
 ### Test a locally built package
 > UploadFIG -s E:\git\HL7\fhir-sdoh-clinicalcare-publish\output\package.r4b.tgz -t --verbose
