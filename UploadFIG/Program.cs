@@ -141,6 +141,17 @@ namespace UploadFIG
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
             };
+
+            // Include the conditional validation rules to check that there is a source for the package to load from
+            rootCommand.AddValidator((result) =>
+            {
+                List<string> conditionalRequiredParams = new List<string>();
+                conditionalRequiredParams.AddRange(rootCommand.Options[0].Aliases);
+                conditionalRequiredParams.AddRange(rootCommand.Options[1].Aliases);
+                if (!args.Any(a => conditionalRequiredParams.Contains(a)))
+                    result.ErrorMessage = "The sourcePackagePath and packageId are both missing, please provide one or the other to indicate where to load the package from";
+            });
+
             rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
             {
                 try
