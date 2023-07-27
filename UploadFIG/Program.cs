@@ -75,6 +75,11 @@ namespace UploadFIG
         public bool TestPackageOnly { get; set; }
 
         /// <summary>
+        /// Check and clean any narratives in the package and remove suspect ones (based on the MS FHIR Server's rules)
+        /// </summary>
+        public bool CheckAndCleanNarratives { get; set; }
+
+        /// <summary>
         /// Download and check the package and compare with the contents of the FHIR Server,
         /// but do not update any of the contents of the FHIR Server
         /// </summary>
@@ -129,8 +134,9 @@ namespace UploadFIG
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
                 new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package"),
                 new Option<string>(new string[]{ "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to"),
-                new Option<List<string>>(new string[]{ "-h", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
+                new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
+                new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
@@ -276,7 +282,20 @@ namespace UploadFIG
             FhirClient clientFhir = null;
             if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
             {
-                clientFhir = new FhirClient(settings.DestinationServerAddress);
+                // Need to pass through the destination header too
+                HttpClient client = new HttpClient();
+                if (settings.DestinationServerHeaders?.Any() == true)
+                {
+                    foreach (var header in settings.DestinationServerHeaders)
+                    {
+                        if (header.Contains(":"))
+                        {
+                            var kv = header.Split(new char[] { ':' }, 2);
+                            client.DefaultRequestHeaders.Add(kv[0], kv[1]);
+                        }
+                    }
+                }
+                clientFhir = new FhirClient(settings.DestinationServerAddress, client);
                 // clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
@@ -340,12 +359,12 @@ namespace UploadFIG
                                         Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
                                     continue;
                                 }
-                                if (settings.Verbose)
-                                    Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
-
                                 // lets validate this xhtml content before trying
-                                if (!string.IsNullOrEmpty(dr.Text?.Div))
+                                if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
                                 {
+                                    if (settings.Verbose)
+                                        Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
                                     var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
                                     if (messages.Any())
                                     {
@@ -390,6 +409,10 @@ namespace UploadFIG
                                 else
                                     System.Threading.Interlocked.Increment(ref failures);
                             }
+                            else
+                            {
+                                System.Threading.Interlocked.Increment(ref successes);
+                        }
                         }
                         catch (Exception ex)
                         {
@@ -414,11 +437,19 @@ namespace UploadFIG
                 Console.WriteLine(String.Join("\r\n", errFiles));
                 Console.WriteLine("-----------------------------------");
             }
+            if (settings.TestPackageOnly)
+            {
+                Console.WriteLine($"Checked: {successes}");
+                Console.WriteLine($"Validation Errors: {validationErrors}");
+            }
+            else
+            {
             Console.WriteLine($"Success: {successes}");
             Console.WriteLine($"Failures: {failures}");
             Console.WriteLine($"Validation Errors: {validationErrors}");
             Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
             Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
+            }
 
             return 0;
         }

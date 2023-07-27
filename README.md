@@ -5,11 +5,11 @@ And then upload the executable resource types contained into a FHIR Server.
 
 During the upload step the utility will:
 * GET the resource ID directly
-	* compare if the resource has changed (excluding meta.versionId, meta.lastUpdated and text)
-	* skip if the resource is the same
+    * compare if the resource has changed (excluding meta.versionId, meta.lastUpdated and text)
+    * skip if the resource is the same
 * search for the resource by canonical URL (if it is a canonical resource)
-	* verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)
-	* verify that the version hasn't been messed with
+    * verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)
+    * verify that the version hasn't been messed with
 
 During the processing this utility will:
 * Validate any fhirpath invariants in profiles
@@ -39,10 +39,14 @@ Options:
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
                                                              processing the package
   -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
-  -h, --destinationServerHeaders <destinationServerHeaders>  Headers to add to the request to the destination FHIR Server
+  -dh, --destinationServerHeaders <destinationServerHeaders> Headers to add to the request to the destination FHIR Server
+                                                             e.g. `Authentication: Bearer xxxxxxxxxxx`
   -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
                                                              Does not require a DestinationServerAddress, will not try to connect
                                                              to one if provided
+                                                             [default: False]
+  -cn, --checkAndCleanNarratives                             Check and clean any narratives in the package and remove suspect ones
+                                                             (based on the MS FHIR Server's rules)
                                                              [default: False]
   -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
                                                              FHIR Server, but do not update any of the contents of the FHIR Server
@@ -76,3 +80,7 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 
 ### Test a locally built package
 > UploadFIG -s E:\git\HL7\fhir-sdoh-clinicalcare-publish\output\package.r4b.tgz -t --verbose
+
+### Upload AU Base to a Microsoft FHIR Server
+(Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
+> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn
