@@ -128,12 +128,51 @@ namespace UploadFIG
             return result;
         }
 
+        const string ErrorNamespace = "http://fhirpath-lab.com/CodeSystem/search-exp-errors";
+        readonly static Coding SearchCodeMissing = new(ErrorNamespace, "SE0101", "No 'code' property in search parameter");
+        readonly static Coding SearchExpressionMissing = new(ErrorNamespace, "SE0101", "No 'expression' property in search parameter");
+
+        private void LogError(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
+        {
+            // Console.WriteLine(message);
+            var issue = new Hl7.Fhir.Model.OperationOutcome.IssueComponent()
+            {
+                Severity = Hl7.Fhir.Model.OperationOutcome.IssueSeverity.Error,
+                Code = issueType,
+                Details = new Hl7.Fhir.Model.CodeableConcept(detail.System, detail.Code, detail.Display, message)
+            };
+            if (!string.IsNullOrEmpty(diagnostics))
+                issue.Diagnostics = diagnostics;
+            results.Add(issue);
+        }
+        private void LogWarning(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
+        {
+            // Console.WriteLine(message);
+            var issue = new Hl7.Fhir.Model.OperationOutcome.IssueComponent()
+            {
+                Severity = Hl7.Fhir.Model.OperationOutcome.IssueSeverity.Warning,
+                Code = issueType,
+                Details = new Hl7.Fhir.Model.CodeableConcept(detail.System, detail.Code, detail.Display, message)
+            };
+            if (!string.IsNullOrEmpty(diagnostics))
+                issue.Diagnostics = diagnostics;
+            results.Add(issue);
+        }
+
         public bool ValidateSearchExpression(SearchParameter sp)
         {
             var outcome = new OperationOutcome();
             var vaSps = ToVaSpd(sp);
             foreach (var vaSp in vaSps)
             {
+                if (string.IsNullOrEmpty(vaSp.Code))
+                {
+                    LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchCodeMissing, $"Search parameter {sp.Url} does not define the 'code' property which defines the value to use on the request URL");
+                }
+                if (string.IsNullOrEmpty(vaSp.Expression) && vaSp.Type != SearchParamType.Special)
+                    LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchExpressionMissing, $"Serach parameter does not contain a fhirpath expression to define it's behaviour");
+                else
+                {
                 SearchExpressionValidator v = new SearchExpressionValidator(_mi,
                       Hl7.Fhir.Model.ModelInfo.SupportedResources,
                       Hl7.Fhir.Model.ModelInfo.OpenTypes,
@@ -146,6 +185,7 @@ namespace UploadFIG
                 v.IncludeParseTreeDiagnostics = true;
                 var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
                 outcome.Issue.AddRange(issues);
+            }
             }
 
             if (!outcome.Success)
@@ -161,7 +201,7 @@ namespace UploadFIG
         const string diagnosticPrefix = "            ";
         private void ReportOutcomeMessages(OperationOutcome outcome)
         {
-            foreach(var issue in outcome.Issue)
+            foreach (var issue in outcome.Issue)
             {
                 Console.WriteLine($"    *---> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
                 if (!string.IsNullOrEmpty(issue.Diagnostics))
