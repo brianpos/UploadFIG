@@ -69,6 +69,11 @@ namespace UploadFIG
         public List<string> DestinationServerHeaders { get; set; }
 
         /// <summary>
+        /// The format of the content to upload to the destination FHIR server
+        /// </summary>
+        public upload_format? DestinationFormat { get; set; }
+
+        /// <summary>
         /// Only perform download and static analysis checks on the Package.
         /// Does not require a DestinationServerAddress, will not try to connect to one if provided
         /// </summary>
@@ -94,6 +99,12 @@ namespace UploadFIG
         /// Specifically include processing of examples folder
         /// </summary>
         public bool IncludeExamples { get; set; }
+    }
+
+    public enum upload_format
+    {
+        xml,
+        json
     }
 
     public class Program
@@ -127,14 +138,15 @@ namespace UploadFIG
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
                 new Option<string>(new string[]{ "-s", "--sourcePackagePath"}, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)"),
-                new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
                 new Option<string>(new string[]{ "-pid", "--packageId"}, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)"),
+                new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
                 new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package"),
                 new Option<string>(new string[]{ "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to"),
                 new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
+                new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
                 new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
                 new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
@@ -307,7 +319,10 @@ namespace UploadFIG
                     }
                 }
                 clientFhir = new FhirClient(settings.DestinationServerAddress, client);
-                // clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
+                if (settings.DestinationFormat == upload_format.json)
+                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
+                if (settings.DestinationFormat == upload_format.xml)
+                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
             while (reader.MoveToNextEntry())

@@ -1,7 +1,9 @@
-# UploadFIG - Sample FHIR Implementation Guide (FIG) Uploader R4B
-This is a quick c# POC to demonstrate how a FHIR Implementation Guide can be downloaded from the web
-(using either a direct download, or the Firely Package Manager NuGet package)
-And then upload the executable resource types contained into a FHIR Server.
+# UploadFIG - FHIR Implementation Guide (FIG) Uploader R4B
+This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.
+The content can be loaded from:
+    * (-pid) the fhir registry via packageID
+    * (-s) an explicit web location (complete source URL including filename where applicable)
+    * (-s) a file on the local filesystem
 
 During the upload step the utility will:
 * GET the resource ID directly
@@ -14,7 +16,7 @@ During the upload step the utility will:
 During the processing this utility will:
 * Validate any fhirpath invariants in profiles
 * Validate any search parameters included
-
+(Note: These validation results should be verified as correct and investigate if they would impact the operation of the guide in your environment/toolchain)
 
 ## Running the utility
 ``` txt
@@ -41,6 +43,8 @@ Options:
   -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
   -dh, --destinationServerHeaders <destinationServerHeaders> Headers to add to the request to the destination FHIR Server
                                                              e.g. `Authentication: Bearer xxxxxxxxxxx`
+  -df, --destinationFormat                                   The format to upload to the destination server
+                                                             [default: xml]
   -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
                                                              Does not require a DestinationServerAddress, will not try to connect
                                                              to one if provided
@@ -84,3 +88,9 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 ### Upload AU Base to a Microsoft FHIR Server
 (Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
 > UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn
+
+### Upload the latest version of the SDC IG to a FHIR Server in JSON format
+Some fhir servers may only be able to support a single format, so you can specify xml or json explicitly to use while uploading.
+This is indepent of the format of the content that is native inside the IG package.
+> UploadFIG -pid hl7.fhir.au.base -d https://localhost:44348 -df json
+
