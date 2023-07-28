@@ -92,6 +92,7 @@ namespace UploadFIG
             return new VersionAgnosticSearchParameter()
             {
                 Resource = spd.Resource,
+                Code = spd.Code,
                 Type = spd.Type,
                 Expression = spd.Expression,
                 Url = spd.Url,
@@ -114,6 +115,7 @@ namespace UploadFIG
                 {
                     Resource = resource.GetLiteral(),
                     Type = sp.Type.Value,
+                    Code = sp.Code,
                     Expression = sp.Expression,
                     Url = sp.Url,
                     Name = sp.Name,
