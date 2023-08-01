@@ -172,7 +172,7 @@ namespace UploadFIG
                     LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchCodeMissing, $"Search parameter {sp.Url} does not define the 'code' property which defines the value to use on the request URL");
                 }
                 if (string.IsNullOrEmpty(vaSp.Expression) && vaSp.Type != SearchParamType.Special)
-                    LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchExpressionMissing, $"Search parameter does not contain a fhirpath expression to define it's behaviour");
+                    LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchExpressionMissing, $"Search parameter does not contain a fhirpath expression to define its behaviour");
                 else
                 {
                 SearchExpressionValidator v = new SearchExpressionValidator(_mi,

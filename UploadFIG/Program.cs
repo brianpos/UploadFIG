@@ -430,7 +430,7 @@ namespace UploadFIG
                             if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
                             {
                                 Resource result = UploadFile(settings, clientFhir, resource);
-                                if (result != null)
+                                if (result != null || settings.CheckPackageInstallationStateOnly)
                                     System.Threading.Interlocked.Increment(ref successes);
                                 else
                                     System.Threading.Interlocked.Increment(ref failures);
