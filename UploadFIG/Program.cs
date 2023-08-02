@@ -474,11 +474,19 @@ namespace UploadFIG
                     var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
                     if (others.Entry.Count > 1)
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                        Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has multiple copies loaded");
+                        var versionList = others.Entry.Select(e => (e.Resource as IVersionableConformanceResource)?.Version).ToList();
+                        if (settings.PreventDuplicateCanonicalVersions)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has multiple copies loaded - {string.Join(", ", versionList)}");
+                            Console.ForegroundColor = oldColor;
+                            return null;
+                        }
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} warning");
+                        Console.Error.WriteLine($"Warning: Canonical {vcs.Url}|{vcs.Version} has other versions {string.Join(", ", versionList)} already loaded");
                         Console.ForegroundColor = oldColor;
-                        return null;
                     }
                     // And check that the one we're loading in has the same ID
                     if (others.Entry.Count == 1)
@@ -505,7 +513,7 @@ namespace UploadFIG
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} warning");
-                            Console.Error.WriteLine($"Warning: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
+                            Console.Error.WriteLine($"Warning: Canonical {vcs.Url}|{vcs.Version} has another version {currentFound.Version} already loaded, adding may cause issues if the server can't determine which is the latest to use");
                             Console.ForegroundColor = oldColor;
                         }
                         if (string.IsNullOrEmpty(resource.Id))
