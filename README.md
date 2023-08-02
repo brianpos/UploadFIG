@@ -35,7 +35,7 @@ Options:
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
                                                              Registry)
   -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
-                                                             [default: StructureDefinition|ValueSet|CodeSystem|SearchParameter
+                                                             [default: StructureDefinition|ValueSet|CodeSystem|SearchParameter|Library
                                                              |ConceptMap|StructureMap]
   -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
                                                              package

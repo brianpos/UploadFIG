@@ -45,6 +45,7 @@ namespace UploadFIG
                     "SearchParameter",
                     "ConceptMap",
                     "StructureMap",
+                    "Library",
                 }.ToList();
 
 
