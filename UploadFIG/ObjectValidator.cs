@@ -70,9 +70,30 @@ namespace UploadFIG
             var pe = _compiler.Parse(expression);
             var r = pe.Accept(visitor);
 
-            if (!visitor.Outcome.Success || "boolean" != r.ToString())
+            if (!visitor.Outcome.Success
+                || "boolean" != r.ToString())
             {
+                var ocolor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"    #---> Error validating invariant {canonicalUrl}: {key}");
+                Console.ForegroundColor = ocolor;
+                // Console.WriteLine(visitor.ToString());
+                // AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
+                AssertIsTrue(false, $"Context: {path}");
+                AssertIsTrue(false, $"Expression: {expression}");
+                AssertIsTrue(false, $"Return type: {r}");
+                ReportOutcomeMessages(visitor.Outcome);
+                // Console.WriteLine(visitor.Outcome.ToXml(new FhirXmlSerializationSettings() { Pretty = true }));
+                AssertIsTrue("boolean" == r.ToString(), "Invariants must return a boolean");
+                Console.WriteLine();
+                return false;
+            }
+            else if (visitor.Outcome.Warnings > 0)
+            {
+                var ocolor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"    #---> Warning validating invariant {canonicalUrl}: {key}");
+                Console.ForegroundColor = ocolor;
                 // Console.WriteLine(visitor.ToString());
                 // AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
                 AssertIsTrue(false, $"Context: {path}");
@@ -208,8 +229,11 @@ namespace UploadFIG
                 Console.WriteLine($"    *---> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
                 if (!string.IsNullOrEmpty(issue.Diagnostics))
                 {
+                    var oldColor = Console.ForegroundColor;
                     var diag = issue.Diagnostics.Replace("\r\n\r\n", "\r\n").Trim();
+                    Console.ForegroundColor = ConsoleColor.Gray;
                     Console.WriteLine($"{diagnosticPrefix}{diag.Replace("\r\n", "\r\n  " + diagnosticPrefix)}");
+                    Console.ForegroundColor = oldColor;
                 }
             }
         }
