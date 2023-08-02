@@ -53,8 +53,11 @@ namespace UploadFIG
 
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
+                // Mandatory parameters
                 new Option<string>(new string[]{ "-s", "--sourcePackagePath"}, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)"),
                 new Option<string>(new string[]{ "-pid", "--packageId"}, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)"),
+
+                // Optional parameters
                 new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
@@ -64,6 +67,7 @@ namespace UploadFIG
                 new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
                 new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
+                new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
                 new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
@@ -136,9 +140,9 @@ namespace UploadFIG
                     {
                         if (string.IsNullOrEmpty(settings.PackageVersion))
                         {
-                        settings.PackageVersion = pl.Versions.LastOrDefault().Key;
-                        Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
-                    }
+                            settings.PackageVersion = pl.Versions.LastOrDefault().Key;
+                            Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
+                        }
                         else
                         {
                             Console.WriteLine($"Using package version: {settings.PackageVersion}");
@@ -354,7 +358,7 @@ namespace UploadFIG
                             else
                             {
                                 System.Threading.Interlocked.Increment(ref successes);
-                        }
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -386,11 +390,11 @@ namespace UploadFIG
             }
             else
             {
-            Console.WriteLine($"Success: {successes}");
-            Console.WriteLine($"Failures: {failures}");
-            Console.WriteLine($"Validation Errors: {validationErrors}");
-            Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
-            Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
+                Console.WriteLine($"Success: {successes}");
+                Console.WriteLine($"Failures: {failures}");
+                Console.WriteLine($"Validation Errors: {validationErrors}");
+                Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
+                Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
             }
 
             return 0;
@@ -479,6 +483,7 @@ namespace UploadFIG
                     if (others.Entry.Count == 1)
                     {
                         var currentFound = others.Entry[0].Resource as IVersionableConformanceResource;
+                        // Don't know how this could ever be tripped on, the search is on the resource type
                         if (others.Entry[0].Resource?.TypeName != resource.TypeName)
                         {
                             Console.ForegroundColor = ConsoleColor.Red;
@@ -489,11 +494,18 @@ namespace UploadFIG
                         }
                         if (currentFound.Version != vcs.Version)
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
+                            if (settings.PreventDuplicateCanonicalVersions)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
+                                Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
+                                Console.ForegroundColor = oldColor;
+                                return null;
+                            }
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} warning");
+                            Console.Error.WriteLine($"Warning: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
                             Console.ForegroundColor = oldColor;
-                            return null;
                         }
                         if (string.IsNullOrEmpty(resource.Id))
                         {

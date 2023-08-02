@@ -10,7 +10,8 @@ During the upload step the utility will:
     * compare if the resource has changed (excluding meta.versionId, meta.lastUpdated and text)
     * skip if the resource is the same
 * search for the resource by canonical URL (if it is a canonical resource)
-    * verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)
+    * verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)<br/>
+    *(can be disabled via -pdv false)*
     * verify that the version hasn't been messed with
 
 During the processing this utility will:
@@ -49,6 +50,15 @@ Options:
                                                              Does not require a DestinationServerAddress, will not try to connect
                                                              to one if provided
                                                              [default: False]
+  -pdv, --preventDuplicateCanonicalVersions                  Permit the tool to upload canonical resources even if
+                                                             they would result in the server having multiple canonical
+                                                             versions of the same resource after it runs
+                                                             The requires the server to be able to handle resolving
+                                                             canonical URLs to the correct version of the resource
+                                                             desired by a particular call. Either via the versioned
+                                                             canonical reference, or using the logic defined in the
+                                                             $current-canonical operation
+                                                             [default: True]
   -cn, --checkAndCleanNarratives                             Check and clean any narratives in the package and remove suspect ones
                                                              (based on the MS FHIR Server's rules)
                                                              [default: False]

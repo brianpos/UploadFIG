@@ -196,19 +196,19 @@ namespace UploadFIG
                     LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchExpressionMissing, $"Search parameter does not contain a fhirpath expression to define its behaviour");
                 else
                 {
-                SearchExpressionValidator v = new SearchExpressionValidator(_mi,
-                      Hl7.Fhir.Model.ModelInfo.SupportedResources,
-                      Hl7.Fhir.Model.ModelInfo.OpenTypes,
-                      (url) =>
-                      {
-                          return ModelInfo.SearchParameters.Where(sp => sp.Url == url)
-                          .Select(v => ToVaSpd(v))
-                          .FirstOrDefault();
-                      });
-                v.IncludeParseTreeDiagnostics = true;
-                var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
-                outcome.Issue.AddRange(issues);
-            }
+                    SearchExpressionValidator v = new SearchExpressionValidator(_mi,
+                          Hl7.Fhir.Model.ModelInfo.SupportedResources,
+                          Hl7.Fhir.Model.ModelInfo.OpenTypes,
+                          (url) =>
+                          {
+                              return ModelInfo.SearchParameters.Where(sp => sp.Url == url)
+                              .Select(v => ToVaSpd(v))
+                              .FirstOrDefault();
+                          });
+                    v.IncludeParseTreeDiagnostics = true;
+                    var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
+                    outcome.Issue.AddRange(issues);
+                }
             }
 
             if (!outcome.Success)
