@@ -74,6 +74,29 @@ Options:
   -?, -h, --help                                             Show help and usage information
 ```
 
+## Installation
+As a dotnet tool installation is done through the commandline which will download the latest version from nuget.org
+(I've included the command to install it into the global dotnet application folder, but you can install it into a local folder if you prefer)
+``` ps
+PS C:\Users\brian> dotnet tool install uploadfig --global
+You can invoke the tool using the following command: UploadFIG
+Tool 'uploadfig' (version '2023.8.2.2') was successfully installed.
+PS C:\Users\brian> 
+```
+
+### Updating
+``` ps
+PS C:\Users\brian> dotnet tool update uploadfig --global
+Tool 'uploadfig' was successfully updated from version '2023.8.2.2' to version '2023.8.3.15'.
+PS C:\Users\brian> 
+```
+
+### Unistalling
+``` ps
+PS C:\Users\brian> dotnet tool uninstall uploadfig --global
+Tool 'uploadfig' (version '2023.8.3.15') was successfully uninstalled.
+```
+
 ## Examples
 ### Review the SDOH Clinical Care IG Package
 Test the package content and not try and upload any data to a server, and will grab the latest
