@@ -1,5 +1,5 @@
 # UploadFIG - FHIR Implementation Guide (FIG) Uploader R4B
-![alt text](logo_small.png "UploadFIG logo")
+![](logo_small.png "UploadFIG logo")
 
 This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.
 The content can be loaded from:
