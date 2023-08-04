@@ -11,6 +11,7 @@
     <PackageOutputPath>..\nupkg</PackageOutputPath>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
+    <PackageIcon>images\logo_256.png</PackageIcon>
     <PackageProjectUrl>https://github.com/brianpos/UploadFIG</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/brianpos/UploadFIG</RepositoryUrl>
@@ -21,6 +22,7 @@
     <None Include="..\README.md" Pack="true" PackagePath="\">
       <Link>README.md</Link>
     </None>
+    <None Include="..\logo_256.png" Pack="true" PackagePath="\images"/>
   </ItemGroup>
 
   <ItemGroup>

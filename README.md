@@ -1,4 +1,6 @@
 # UploadFIG - FHIR Implementation Guide (FIG) Uploader R4B
+![alt text](logo_small.png "UploadFIG logo")
+
 This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.
 The content can be loaded from:
 * (-pid) the fhir registry via packageID
@@ -18,6 +20,8 @@ During the processing this utility will:
 * Validate any fhirpath invariants in profiles
 * Validate any search parameters included
 (Note: These validation results should be verified as correct and investigate if they would impact the operation of the guide in your environment/toolchain)
+
+
 
 ## Running the utility
 ``` txt
