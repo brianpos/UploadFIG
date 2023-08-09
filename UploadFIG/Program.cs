@@ -398,7 +398,11 @@ namespace UploadFIG
         static bool SkipFile(Settings settings, string filename)
         {
             if (!settings.IncludeExamples && filename.StartsWith("package/example/"))
+            {
+                if (settings.Verbose)
+                    Console.WriteLine($"Ignoring:   {filename}    (example)");
                 return true;
+            }
             if (settings.IgnoreFiles?.Contains(filename) == true)
             {
                 if (settings.Verbose)
