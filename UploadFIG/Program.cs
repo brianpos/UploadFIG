@@ -17,12 +17,6 @@ using UploadFIG.Helpers;
 
 namespace UploadFIG
 {
-    public enum upload_format
-    {
-        xml,
-        json
-    }
-
     public class Program
     {
         /// <summary>Main entry-point for this application.</summary>
