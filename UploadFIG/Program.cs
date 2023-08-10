@@ -240,8 +240,28 @@ namespace UploadFIG
                     clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
+            PackageManifest manifest = null;
             while (reader.MoveToNextEntry())
             {
+                // Read the package definition file
+                if (reader.Entry.Key == "package/package.json")
+                {
+                    var stream = reader.OpenEntryStream();
+                    using (stream)
+                    {
+                        try
+                        {
+                            StreamReader sr = new StreamReader(stream);
+                            var content = sr.ReadToEnd();
+                            manifest = PackageParser.ParseManifest(content);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error reading package.json: {ex.Message}");
+                            return -1;
+                        }
+                    }
+                }
                 if (SkipFile(settings, reader.Entry.Key))
                     continue;
                 if (!reader.Entry.IsDirectory)
@@ -366,6 +386,13 @@ namespace UploadFIG
                 }
             }
 
+            if (manifest != null)
+            {
+                Console.WriteLine("");
+                Console.WriteLine("Package dependencies:");
+                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+            }
+
             sw.Stop();
             Console.WriteLine("Done!");
             Console.WriteLine();
@@ -414,7 +441,7 @@ namespace UploadFIG
                 return true;
 
             // The package index file isn't to be uploaded
-            if (filename.EndsWith("package.json"))
+            if (filename.EndsWith("/package.json"))
                 return true;
             if (filename.EndsWith(".index.json"))
                 return true;
