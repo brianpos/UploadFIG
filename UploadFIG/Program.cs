@@ -483,17 +483,23 @@ namespace UploadFIG
                         dr.Text = (resource as DomainResource)?.Text;
                     if (current.IsExactly(resource))
                     {
-                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} unchanged");
+                        Console.WriteLine($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
                         return original;
                     }
                 }
+            }
+            catch (FhirOperationException fex)
+            {
+                if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+                {
+                    Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
+                }
+            }
 
 
-                // Update narratives to strip relatives?
-                // https://chat.fhir.org/#narrow/stream/179166-implementers/topic/Narrative.20image.20sources
-                // ensure has the generated tag before just deleting
-
-                if (resource is IVersionableConformanceResource vcs)
+            if (resource is IVersionableConformanceResource vcs)
+            {
+                try
                 {
                     // Also search to see if there is another canonical version of this instance that would clash with it
                     var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
@@ -557,16 +563,14 @@ namespace UploadFIG
                         }
                     }
                 }
-
-            }
-            catch (FhirOperationException fex)
-            {
-                if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+                catch (FhirOperationException fex)
                 {
-                    Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
+                    if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+                    {
+                        Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message} {vcs.Url}|{vcs.Version}");
+                    }
                 }
             }
-
 
             // Now that we've established that it is new/different, upload it
             if (settings.CheckPackageInstallationStateOnly)
@@ -579,7 +583,10 @@ namespace UploadFIG
                 result = clientFhir.Create(resource);
 
             Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} uploaded");
+            Console.Write($"    {result.TypeName}/{result.Id} {result.VersionId} uploaded");
+            if (result is IVersionableConformanceResource vcr)
+                Console.Write($"\t{vcr.Url}|{vcr.Version}");
+            Console.WriteLine();
             Console.ForegroundColor = oldColor;
             return result;
         }
