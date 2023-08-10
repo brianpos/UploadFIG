@@ -406,6 +406,10 @@ namespace UploadFIG
                 Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
             }
 
+            // Scan through the resources and resolve any canonicals
+            List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess);
+            DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
+
             sw.Stop();
             Console.WriteLine("Done!");
             Console.WriteLine();
@@ -420,6 +424,13 @@ namespace UploadFIG
             }
             if (settings.TestPackageOnly)
             {
+                // A canonical resource review table
+                foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
+                {
+                    Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{(resource as Resource).Id ?? "(null)"}\t{resource.Name}");
+                }
+
+                // And the summary at the end
                 Console.WriteLine($"Checked: {successes}");
                 Console.WriteLine($"Validation Errors: {validationErrors}");
             }

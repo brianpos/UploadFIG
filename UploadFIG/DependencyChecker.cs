@@ -12,7 +12,7 @@ namespace UploadFIG
 
     internal static class DependencyChecker
     {
-        public static void VerifyDependenciesOnServer(Settings settings, FhirClient clientFhir, Dictionary<string, bool> requiresCanonicals)
+        public static void VerifyDependenciesOnServer(Settings settings, FhirClient clientFhir, List<string> requiresCanonicals)
         {
             if (settings.TestPackageOnly)
                 return;
@@ -21,7 +21,7 @@ namespace UploadFIG
             Console.WriteLine("Destination server canonical resource dependency verification:");
             // Verify that the set of canonicals are available on the server
             var oldColor = Console.ForegroundColor;
-            foreach (var rawCanonical in requiresCanonicals.Keys)
+            foreach (var rawCanonical in requiresCanonicals)
             {
                 var canonical = new Canonical(rawCanonical);
                 // profiles
@@ -48,8 +48,9 @@ namespace UploadFIG
             }
         }
 
-        public static void ScanForCanonicals(List<Resource> resourcesToProcess, Dictionary<string, bool> requiresCanonicals)
+        public static List<string> ScanForCanonicals(List<Resource> resourcesToProcess)
         {
+            List<string> requiresCanonicals = new List<string>();
             foreach (var resource in resourcesToProcess.OfType<StructureDefinition>())
             {
                 ScanForCanonicals(requiresCanonicals, resource);
@@ -73,12 +74,12 @@ namespace UploadFIG
             // Now check for the ones that we've internally got covered :)
             foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
             {
-                if (requiresCanonicals.ContainsKey(resource.Url))
+                if (requiresCanonicals.Contains(resource.Url))
                     requiresCanonicals.Remove(resource.Url);
             }
 
             // And the types from the core resource profiles
-            var coreCanonicals = requiresCanonicals.Keys.Where(v => Uri.IsWellFormedUriString(v, UriKind.Absolute) && ModelInfo.IsCoreModelTypeUri(new Uri(v))).ToList();
+            var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v, UriKind.Absolute) && ModelInfo.IsCoreModelTypeUri(new Uri(v))).ToList();
             foreach (var coreCanonical in coreCanonicals)
             {
                 requiresCanonicals.Remove(coreCanonical);
@@ -86,11 +87,12 @@ namespace UploadFIG
 
             // And check for any Core extensions (that are packaged in the standard zip pacakge)
             var coreSource = new CachedResolver(ZipSource.CreateValidationSource());
-            var extensionCanonicals = requiresCanonicals.Keys.Where(v => coreSource.ResolveByCanonicalUri(v) != null).ToList();
+            var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v) != null).ToList();
             foreach (var coreCanonical in coreCanonicals)
             {
                 requiresCanonicals.Remove(coreCanonical);
             }
+            return requiresCanonicals;
         }
 
         record DependansOnCanonical
@@ -103,17 +105,17 @@ namespace UploadFIG
             public string CanonicalUrl { get; init; }
         }
 
-        private static void CheckRequiresCanonical(Resource resource, string canonicalUrl, Dictionary<string, bool> requiresCanonicals)
+        private static void CheckRequiresCanonical(Resource resource, string canonicalUrl, List<string> requiresCanonicals)
         {
             if (!string.IsNullOrEmpty(canonicalUrl))
             {
-                if (!requiresCanonicals.ContainsKey(canonicalUrl))
-                    requiresCanonicals.Add(canonicalUrl, false);
+                if (!requiresCanonicals.Contains(canonicalUrl))
+                    requiresCanonicals.Add(canonicalUrl);
                 resource.AddAnnotation(new DependansOnCanonical(canonicalUrl));
             }
         }
 
-        private static void ScanForCanonicals(Dictionary<string, bool> requiresCanonicals, ConceptMap resource)
+        private static void ScanForCanonicals(List<string> requiresCanonicals, ConceptMap resource)
         {
             CheckRequiresCanonical(resource, resource.Source as Canonical, requiresCanonicals);
             CheckRequiresCanonical(resource, resource.Target as Canonical, requiresCanonicals);
@@ -144,13 +146,13 @@ namespace UploadFIG
             }
         }
 
-        private static void ScanForCanonicals(Dictionary<string, bool> requiresCanonicals, CodeSystem resource)
+        private static void ScanForCanonicals(List<string> requiresCanonicals, CodeSystem resource)
         {
             CheckRequiresCanonical(resource, resource.Supplements, requiresCanonicals);
             CheckRequiresCanonical(resource, resource.ValueSet, requiresCanonicals);
         }
 
-        private static void ScanForCanonicals(Dictionary<string, bool> requiresCanonicals, ValueSet resource)
+        private static void ScanForCanonicals(List<string> requiresCanonicals, ValueSet resource)
         {
             foreach (var include in resource?.Compose?.Include)
             {
@@ -170,7 +172,7 @@ namespace UploadFIG
             }
         }
 
-        private static void ScanForCanonicals(Dictionary<string, bool> requiresCanonicals, StructureDefinition resource)
+        private static void ScanForCanonicals(List<string> requiresCanonicals, StructureDefinition resource)
         {
             foreach (var ed in resource?.Differential?.Element)
             {
