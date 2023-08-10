@@ -1,11 +1,6 @@
 ﻿using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Source;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace UploadFIG
 {
@@ -24,14 +19,13 @@ namespace UploadFIG
             foreach (var rawCanonical in requiresCanonicals)
             {
                 var canonical = new Canonical(rawCanonical);
-                // profiles
-                var existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" });
+                var existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                 if (existing.Entry.Count(e => !(e.Resource is OperationOutcome)) == 0)
-                    existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" });
+                    existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                 if (existing.Entry.Count(e => !(e.Resource is OperationOutcome)) == 0)
-                    existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" });
+                    existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                 if (existing.Entry.Count(e => !(e.Resource is OperationOutcome)) == 0)
-                    existing = clientFhir.Search<ConceptMap>(new[] { $"url={canonical.Uri}" });
+                    existing = clientFhir.Search<ConceptMap>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                 if (existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
                 {
                     var versionList = existing.Entry.Select(e => (e.Resource as IVersionableConformanceResource)?.Version).ToList();
