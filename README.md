@@ -21,6 +21,17 @@ During the processing this utility will:
 * Validate any search parameters included
 (Note: These validation results should be verified as correct and investigate if they would impact the operation of the guide in your environment/toolchain)
 
+## Resource IDs
+While uploading the package content the utility will attempt to find the resource on the server using the following methods:
+* Example resources: simple read by Resource ID <br/>*(e.g. GET [base]/[ResourceType]/[ResourceID])*
+    - always uses PUT to update the resource
+    - This will overwrite any existing resource with the same ID
+* Canonical resources: search via canonical URL and canonical version <br/>*(e.g. GET [base]/[ResourceType]?url=[CanonicalUrl]&version=[CanonicalVersion])*
+    - PUT if the canonical resource matches a record by canonical URL/Version
+    - "refreshes" or brings the resource back to a known good state
+    - POST for any new resources
+    - Multiple resources with different canonical version numbers found with the same canonical are reported in the output
+    - Multiple resources with the same canonical version number are rejected and must be resolved manually before the resource can be processed
 
 
 ## Running the utility
@@ -143,3 +154,12 @@ This is independent of the format of the content that is native inside the IG pa
 ``` ps
 > UploadFIG -pid hl7.fhir.au.base -d https://localhost:44348 -df json
 ```
+
+## Change history
+
+### 18 August 2023
+* Package Dependencies are displayed in the output report
+* Canonical Resource dependencies are checked if they exist in the destination server
+* Example filenames that are skipped are reported in verbose mode
+* Canonical resource ID in the package is now ignored, will resolve by canonical URL/Version and create/update accordingly
+* If multiple resources with the same canonical URL/version are in the destination server, resource is skipped 

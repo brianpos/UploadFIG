@@ -533,6 +533,13 @@ namespace UploadFIG
                     // Search to locate any existing versions of this canonical resource
                     var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
                     var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
+                    if (existingResources.Count(e => (e as IVersionableConformanceResource).Version == vcs.Version) > 1)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.Error.WriteLine($"ERROR: Canonical {vcs.Url}|{vcs.Version} has multiple instances already loaded - Must be resolved manually as unable to select which to update");
+                        Console.ForegroundColor = oldColor;
+                        return null;
+                    }
                     var existingVersion = existingResources.FirstOrDefault(e => (e as IVersionableConformanceResource).Version == vcs.Version);
                     var otherCanonicalVersionNumbers = existingResources.Select(e => (e as IVersionableConformanceResource)?.Version).Where(v => v != vcs.Version).ToList();
 
