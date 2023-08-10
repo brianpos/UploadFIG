@@ -240,7 +240,11 @@ namespace UploadFIG
                     clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
+            // resource indexed by examplename
+            List<Resource> resourcesToProcess = new();
             PackageManifest manifest = null;
+
+            // Load all the content in so that it can then be re-sequenced
             while (reader.MoveToNextEntry())
             {
                 // Read the package definition file
@@ -309,80 +313,89 @@ namespace UploadFIG
                             continue;
                         }
 
-                        try
+                        resourcesToProcess.Add(resource);
+                        resource.SetAnnotation(new ExampleName() { value = exampleName });
+                    }
+                }
+            }
+
+            // We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
+            List<SearchParameter> searchParameters = resourcesToProcess.OfType<SearchParameter>().ToList();
+
+            foreach (var resource in resourcesToProcess)
+            {
+                var exampleName = resource.Annotation< ExampleName>().value;
+                try
+                {
+                    // Workaround for loading packages with invalid xhmtl content - strip them
+                    if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+                    {
+                        if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
                         {
-                            // Workaround for loading packages with invalid xhmtl content - strip them
-                            if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+                            if (settings.Verbose)
+                                Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
+                            continue;
+                        }
+                        // lets validate this xhtml content before trying
+                        if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
+                        {
+                            if (settings.Verbose)
+                                Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
+                            var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+                            if (messages.Any())
                             {
-                                if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
-                                {
-                                    if (settings.Verbose)
-                                        Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
-                                    continue;
-                                }
-                                // lets validate this xhtml content before trying
-                                if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
-                                {
-                                    if (settings.Verbose)
-                                        Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+                                Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+                                //Console.WriteLine(dr.Text?.Div);
+                                //Console.WriteLine("----");
 
-                                    var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
-                                    if (messages.Any())
-                                    {
-                                        Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
-                                        //Console.WriteLine(dr.Text?.Div);
-                                        //Console.WriteLine("----");
-
-                                        // strip out the narrative as we don't really need that for the purpose
-                                        // of validations.
-                                        dr.Text = null;
-                                    }
-                                }
-                            }
-
-                            if (resource is SearchParameter sp)
-                            {
-                                if (!sp.Base.Any())
-                                {
-                                    // Quietly skip them
-                                    Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
-                                    System.Threading.Interlocked.Increment(ref failures);
-                                    // DebugDumpOutputXml(resource);
-                                    errFiles.Add(exampleName);
-                                    continue;
-                                }
-                                if (!expressionValidator.ValidateSearchExpression(sp))
-                                    validationErrors++;
-
-                            }
-
-                            if (resource is StructureDefinition sd)
-                            {
-                                if (!expressionValidator.ValidateInvariants(sd))
-                                    validationErrors++;
-                            }
-
-                            if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
-                            {
-                                Resource result = UploadFile(settings, clientFhir, resource);
-                                if (result != null || settings.CheckPackageInstallationStateOnly)
-                                    System.Threading.Interlocked.Increment(ref successes);
-                                else
-                                    System.Threading.Interlocked.Increment(ref failures);
-                            }
-                            else
-                            {
-                                System.Threading.Interlocked.Increment(ref successes);
+                                // strip out the narrative as we don't really need that for the purpose
+                                // of validations.
+                                dr.Text = null;
                             }
                         }
-                        catch (Exception ex)
+                    }
+
+                    if (resource is SearchParameter sp)
+                    {
+                        if (!sp.Base.Any())
                         {
-                            Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+                            // Quietly skip them
+                            Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
                             System.Threading.Interlocked.Increment(ref failures);
                             // DebugDumpOutputXml(resource);
                             errFiles.Add(exampleName);
+                            continue;
                         }
+                        if (!expressionValidator.ValidateSearchExpression(sp, searchParameters))
+                            validationErrors++;
                     }
+
+                    if (resource is StructureDefinition sd)
+                    {
+                        if (!expressionValidator.ValidateInvariants(sd))
+                            validationErrors++;
+                    }
+
+                    if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
+                    {
+                        Resource result = UploadFile(settings, clientFhir, resource);
+                        if (result != null || settings.CheckPackageInstallationStateOnly)
+                            System.Threading.Interlocked.Increment(ref successes);
+                        else
+                            System.Threading.Interlocked.Increment(ref failures);
+                    }
+                    else
+                    {
+                        System.Threading.Interlocked.Increment(ref successes);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+                    System.Threading.Interlocked.Increment(ref failures);
+                    // DebugDumpOutputXml(resource);
+                    errFiles.Add(exampleName);
                 }
             }
 
@@ -420,6 +433,11 @@ namespace UploadFIG
             }
 
             return 0;
+        }
+
+        record ExampleName
+        {
+            public string value { get; init; }
         }
 
         static bool SkipFile(Settings settings, string filename)
