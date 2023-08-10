@@ -399,19 +399,19 @@ namespace UploadFIG
                 }
             }
 
-            if (manifest != null)
-            {
-                Console.WriteLine("");
-                Console.WriteLine("Package dependencies:");
-                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
-            }
-
             // Scan through the resources and resolve any canonicals
             List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess);
             DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
 
             sw.Stop();
             Console.WriteLine("Done!");
+            if (manifest != null)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Package dependencies:");
+                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+            }
+
             Console.WriteLine();
 
             if (errs.Any() || errFiles.Any())
@@ -421,16 +421,21 @@ namespace UploadFIG
                 Console.WriteLine("-----------------------------------");
                 Console.WriteLine(String.Join("\r\n", errFiles));
                 Console.WriteLine("-----------------------------------");
+                Console.WriteLine("");
             }
             if (settings.TestPackageOnly)
             {
                 // A canonical resource review table
-                foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
+                Console.WriteLine("Package content:");
+                Console.WriteLine("\tCanonical Url}\tCanonical Version\tStatus\tName");
+                foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
                 {
-                    Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{(resource as Resource).Id ?? "(null)"}\t{resource.Name}");
+                    Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
                 }
+                Console.WriteLine("-----------------------------------");
 
                 // And the summary at the end
+                Console.WriteLine("");
                 Console.WriteLine($"Checked: {successes}");
                 Console.WriteLine($"Validation Errors: {validationErrors}");
             }

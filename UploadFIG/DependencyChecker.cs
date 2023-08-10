@@ -16,7 +16,7 @@ namespace UploadFIG
             Console.WriteLine("Destination server canonical resource dependency verification:");
             // Verify that the set of canonicals are available on the server
             var oldColor = Console.ForegroundColor;
-            foreach (var rawCanonical in requiresCanonicals)
+            foreach (var rawCanonical in requiresCanonicals.OrderBy(c => c))
             {
                 var canonical = new Canonical(rawCanonical);
                 var existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
@@ -82,7 +82,7 @@ namespace UploadFIG
             // And check for any Core extensions (that are packaged in the standard zip pacakge)
             var coreSource = new CachedResolver(ZipSource.CreateValidationSource());
             var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v) != null).ToList();
-            foreach (var coreCanonical in coreCanonicals)
+            foreach (var coreCanonical in extensionCanonicals)
             {
                 requiresCanonicals.Remove(coreCanonical);
             }
