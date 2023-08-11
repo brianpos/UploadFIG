@@ -272,6 +272,9 @@ namespace UploadFIG
                     }
                 }
             }
+            // skip back to the start (for cases where the pacakge.json isn't the first resource)
+            ms.Seek(0, SeekOrigin.Begin);
+            reader = ReaderFactory.Open(ms);
 
             // Load all the content in so that it can then be re-sequenced
             Console.WriteLine("-----------------------------------");
