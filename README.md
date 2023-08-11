@@ -112,6 +112,70 @@ PS C:\Users\brian> dotnet tool uninstall uploadfig --global
 Tool 'uploadfig' (version '2023.8.3.15') was successfully uninstalled.
 ```
 
+## Understanding the output
+### Pacakge Metadata
+The first section in the output is the metadata about the package that was downloaded and is being processed.
+It finishes with the list of package dependencies in the project.
+
+### Scanning package content
+This is a sample showing several examples of the kind of output from the utility when it is processing the package contents.
+
+Here we can see that several resources have been created on the server, and some have been updated.
+Some errors were also reported while processing invariants in a StructureDefinition.
+``` txt
+Scanning package content:
+    created     StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-alcoholstatus|0.1.0-draft
+    created     StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-allergyintolerance|0.1.0-draft
+    created     StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-bloodpressure|0.1.0-draft
+    created     StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-bmi|0.1.0-draft
+    unchanged   StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-immunization|0.1.0-draft
+    unchanged   StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-lastmenstrualperiod|0.1.0-draft
+    #---> Error validating invariant http://hl7.org.au/fhir/core/StructureDefinition/au-core-lipid-result: au-core-lipid-01
+            Context: Observation
+            Expression: (code.coding.code!='32309-7' and valueQuantity.value.exists()) implies (valueQuantity.unit.exists() and valueQuantity.code.exists())
+            Return type: boolean
+    *---> error: Operator '!=' can experience unexpected behaviours when used with a collection
+            code[] != string
+    *---> error: prop 'valueQuantity' is the choice type, remove the type from the end - value
+    *---> error: prop 'valueQuantity' not found on Observation
+
+    unchanged   StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-lipid-result|0.1.0-draft
+```
+
+### Pacakge Content Summary (Test mode only)
+When run in TestMode the output will also include a table of all the canonical resources that it processed for reference.
+
+``` txt
+Package content summary:
+        Canonical Url  Canonical Version       Status  Name
+        http://hl7.org/fhir/us/davinci-ra/CodeSystem/coding-gap-annotation      2.0.0-ballot    Active  CodingGapAnnotation
+        http://hl7.org/fhir/us/davinci-ra/CodeSystem/coding-gap-task-reason     2.0.0-ballot    Draft   CodingGapTaskReason
+        http://hl7.org/fhir/us/davinci-ra/CodeSystem/evidence-status    2.0.0-ballot    Active  RiskAdjustmentEvidenceStatus
+        http://hl7.org/fhir/us/davinci-ra/CodeSystem/hierarchical-status        2.0.0-ballot    Active  RiskAdjustmenthierarchicalStatus
+        http://hl7.org/fhir/us/davinci-ra/CodeSystem/suspect-type       2.0.0-ballot    Active  RiskAdjustmentSuspectType
+```
+
+### Dependency Verification
+This section displays a summary of all the resource depencencies that were detected as required
+by the implementation guide (e.g. extensions, profiles and terminologies referenced by a profile)
+and their current state on the destination server.
+
+This is useful to know if there is missing content on the server that may be required for validation,
+or if there are some canonical resources that have multiple versions existing.
+``` txt
+Destination server canonical resource dependency verification:
+        http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1    (current)       (missing)
+        http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1010.4       (current)       (missing)
+        http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1021.103     (current)       (missing)
+        http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization    (current)       6.1.0, 3.1.1
+        http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner    (current)       6.1.0, 3.1.1
+        http://terminology.hl7.org/CodeSystem/cmshcc    (current)       (missing)
+Done!
+```
+The first column here is the canonical URL, the second column is the specific version the reference is requesting, 
+or the word 'current' if the reference is requesting the latest version of the resource.
+The final column indicates the canonical version numbers that are currently on the destination server.
+
 ## Examples
 ### Review the SDOH Clinical Care IG Package
 Test the package content and not try and upload any data to a server, and will grab the latest

@@ -240,11 +240,8 @@ namespace UploadFIG
                     clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
-            // resource indexed by examplename
-            List<Resource> resourcesToProcess = new();
+            // Locate and read the package manifest to read the package dependencies
             PackageManifest manifest = null;
-
-            // Load all the content in so that it can then be re-sequenced
             while (reader.MoveToNextEntry())
             {
                 // Read the package definition file
@@ -258,6 +255,14 @@ namespace UploadFIG
                             StreamReader sr = new StreamReader(stream);
                             var content = sr.ReadToEnd();
                             manifest = PackageParser.ParseManifest(content);
+                            if (manifest != null)
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine("Package dependencies:");
+                                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+                                Console.WriteLine();
+                        }
+                            break;
                         }
                         catch (Exception ex)
                         {
@@ -266,6 +271,15 @@ namespace UploadFIG
                         }
                     }
                 }
+            }
+
+            // Load all the content in so that it can then be re-sequenced
+            Console.WriteLine("-----------------------------------");
+            Console.WriteLine("");
+            Console.WriteLine("Scanning package content:");
+            List<Resource> resourcesToProcess = new();
+            while (reader.MoveToNextEntry())
+            {
                 if (SkipFile(settings, reader.Entry.Key))
                     continue;
                 if (!reader.Entry.IsDirectory)
@@ -324,7 +338,7 @@ namespace UploadFIG
 
             foreach (var resource in resourcesToProcess)
             {
-                var exampleName = resource.Annotation< ExampleName>().value;
+                var exampleName = resource.Annotation<ExampleName>().value;
                 try
                 {
                     // Workaround for loading packages with invalid xhmtl content - strip them
@@ -400,19 +414,14 @@ namespace UploadFIG
             }
 
             // Scan through the resources and resolve any canonicals
+            Console.WriteLine();
+            Console.WriteLine("-----------------------------------");
             List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess);
             DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
 
             sw.Stop();
             Console.WriteLine("Done!");
-            if (manifest != null)
-            {
                 Console.WriteLine();
-                Console.WriteLine("Package dependencies:");
-                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
-            }
-
-            Console.WriteLine();
 
             if (errs.Any() || errFiles.Any())
             {
@@ -421,13 +430,13 @@ namespace UploadFIG
                 Console.WriteLine("-----------------------------------");
                 Console.WriteLine(String.Join("\r\n", errFiles));
                 Console.WriteLine("-----------------------------------");
-                Console.WriteLine("");
+                Console.WriteLine();
             }
             if (settings.TestPackageOnly)
             {
                 // A canonical resource review table
-                Console.WriteLine("Package content:");
-                Console.WriteLine("\tCanonical Url}\tCanonical Version\tStatus\tName");
+                Console.WriteLine("Package content summary:");
+                Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
                 foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
                 {
                     Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
@@ -531,6 +540,7 @@ namespace UploadFIG
             }
 
 
+            string warningMessage = null;
             if (resource is IVersionableConformanceResource vcs)
             {
                 try
@@ -561,9 +571,7 @@ namespace UploadFIG
                             Console.ForegroundColor = oldColor;
                             return null;
                         }
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.Error.WriteLine($"  Warning: Canonical {vcs.Url}|{vcs.Version} has other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})");
-                        Console.ForegroundColor = oldColor;
+                        warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
                     }
 
                     if (resource.Id != null)
@@ -576,7 +584,14 @@ namespace UploadFIG
                             dr.Text = (resource as DomainResource)?.Text;
                         if (existingVersion.IsExactly(resource))
                         {
-                            Console.WriteLine($"    {existingVersion.TypeName}/{existingVersion.Id} unchanged\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+                            Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+                            if (!string.IsNullOrEmpty(warningMessage))
+                            {
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.Write($"\t{warningMessage}");
+                            }
+                            Console.ForegroundColor = oldColor;
+                            Console.WriteLine();
                             return original;
                         }
                     }
@@ -595,17 +610,24 @@ namespace UploadFIG
                 return null;
 
             Resource result;
+            string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
             if (!string.IsNullOrEmpty(resource.Id))
                 result = clientFhir.Update(resource);
             else
                 result = clientFhir.Create(resource);
 
             Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.Write($"    {result.TypeName}/{result.Id} {result.VersionId} uploaded");
-            if (result is IVersionableConformanceResource vcr)
-                Console.Write($"\t{vcr.Url}|{vcr.Version}");
-            Console.WriteLine();
+            if (result is IVersionableConformanceResource r)
+                Console.Write($"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
+            else
+                Console.Write($"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+            if (!string.IsNullOrEmpty(warningMessage))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write($"\t{warningMessage}");
+            }
             Console.ForegroundColor = oldColor;
+            Console.WriteLine();
             return result;
         }
     }
