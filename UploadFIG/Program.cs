@@ -17,12 +17,6 @@ using UploadFIG.Helpers;
 
 namespace UploadFIG
 {
-    public enum upload_format
-    {
-        xml,
-        json
-    }
-
     public class Program
     {
         /// <summary>Main entry-point for this application.</summary>
@@ -246,6 +240,44 @@ namespace UploadFIG
                     clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
             }
 
+            // Locate and read the package manifest to read the package dependencies
+            PackageManifest manifest = null;
+            while (reader.MoveToNextEntry())
+            {
+                // Read the package definition file
+                if (reader.Entry.Key == "package/package.json")
+                {
+                    var stream = reader.OpenEntryStream();
+                    using (stream)
+                    {
+                        try
+                        {
+                            StreamReader sr = new StreamReader(stream);
+                            var content = sr.ReadToEnd();
+                            manifest = PackageParser.ParseManifest(content);
+                            if (manifest != null)
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine("Package dependencies:");
+                                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+                                Console.WriteLine();
+                        }
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error reading package.json: {ex.Message}");
+                            return -1;
+                        }
+                    }
+                }
+            }
+
+            // Load all the content in so that it can then be re-sequenced
+            Console.WriteLine("-----------------------------------");
+            Console.WriteLine("");
+            Console.WriteLine("Scanning package content:");
+            List<Resource> resourcesToProcess = new();
             while (reader.MoveToNextEntry())
             {
                 if (SkipFile(settings, reader.Entry.Key))
@@ -295,86 +327,101 @@ namespace UploadFIG
                             continue;
                         }
 
-                        try
-                        {
-                            // Workaround for loading packages with invalid xhmtl content - strip them
-                            if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
-                            {
-                                if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
-                                {
-                                    if (settings.Verbose)
-                                        Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
-                                    continue;
-                                }
-                                // lets validate this xhtml content before trying
-                                if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
-                                {
-                                    if (settings.Verbose)
-                                        Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
-
-                                    var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
-                                    if (messages.Any())
-                                    {
-                                        Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
-                                        //Console.WriteLine(dr.Text?.Div);
-                                        //Console.WriteLine("----");
-
-                                        // strip out the narrative as we don't really need that for the purpose
-                                        // of validations.
-                                        dr.Text = null;
-                                    }
-                                }
-                            }
-
-                            if (resource is SearchParameter sp)
-                            {
-                                if (!sp.Base.Any())
-                                {
-                                    // Quietly skip them
-                                    Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
-                                    System.Threading.Interlocked.Increment(ref failures);
-                                    // DebugDumpOutputXml(resource);
-                                    errFiles.Add(exampleName);
-                                    continue;
-                                }
-                                if (!expressionValidator.ValidateSearchExpression(sp))
-                                    validationErrors++;
-
-                            }
-
-                            if (resource is StructureDefinition sd)
-                            {
-                                if (!expressionValidator.ValidateInvariants(sd))
-                                    validationErrors++;
-                            }
-
-                            if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
-                            {
-                                Resource result = UploadFile(settings, clientFhir, resource);
-                                if (result != null || settings.CheckPackageInstallationStateOnly)
-                                    System.Threading.Interlocked.Increment(ref successes);
-                                else
-                                    System.Threading.Interlocked.Increment(ref failures);
-                            }
-                            else
-                            {
-                                System.Threading.Interlocked.Increment(ref successes);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-                            System.Threading.Interlocked.Increment(ref failures);
-                            // DebugDumpOutputXml(resource);
-                            errFiles.Add(exampleName);
-                        }
+                        resourcesToProcess.Add(resource);
+                        resource.SetAnnotation(new ExampleName() { value = exampleName });
                     }
                 }
             }
 
+            // We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
+            List<SearchParameter> searchParameters = resourcesToProcess.OfType<SearchParameter>().ToList();
+
+            foreach (var resource in resourcesToProcess)
+            {
+                var exampleName = resource.Annotation<ExampleName>().value;
+                try
+                {
+                    // Workaround for loading packages with invalid xhmtl content - strip them
+                    if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+                    {
+                        if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
+                        {
+                            if (settings.Verbose)
+                                Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
+                            continue;
+                        }
+                        // lets validate this xhtml content before trying
+                        if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
+                        {
+                            if (settings.Verbose)
+                                Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
+                            var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+                            if (messages.Any())
+                            {
+                                Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+                                //Console.WriteLine(dr.Text?.Div);
+                                //Console.WriteLine("----");
+
+                                // strip out the narrative as we don't really need that for the purpose
+                                // of validations.
+                                dr.Text = null;
+                            }
+                        }
+                    }
+
+                    if (resource is SearchParameter sp)
+                    {
+                        if (!sp.Base.Any())
+                        {
+                            // Quietly skip them
+                            Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
+                            System.Threading.Interlocked.Increment(ref failures);
+                            // DebugDumpOutputXml(resource);
+                            errFiles.Add(exampleName);
+                            continue;
+                        }
+                        if (!expressionValidator.ValidateSearchExpression(sp, searchParameters))
+                            validationErrors++;
+                    }
+
+                    if (resource is StructureDefinition sd)
+                    {
+                        if (!expressionValidator.ValidateInvariants(sd))
+                            validationErrors++;
+                    }
+
+                    if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
+                    {
+                        Resource result = UploadFile(settings, clientFhir, resource);
+                        if (result != null || settings.CheckPackageInstallationStateOnly)
+                            System.Threading.Interlocked.Increment(ref successes);
+                        else
+                            System.Threading.Interlocked.Increment(ref failures);
+                    }
+                    else
+                    {
+                        System.Threading.Interlocked.Increment(ref successes);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+                    System.Threading.Interlocked.Increment(ref failures);
+                    // DebugDumpOutputXml(resource);
+                    errFiles.Add(exampleName);
+                }
+            }
+
+            // Scan through the resources and resolve any canonicals
+            Console.WriteLine();
+            Console.WriteLine("-----------------------------------");
+            List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess);
+            DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
+
             sw.Stop();
             Console.WriteLine("Done!");
-            Console.WriteLine();
+                Console.WriteLine();
 
             if (errs.Any() || errFiles.Any())
             {
@@ -383,9 +430,21 @@ namespace UploadFIG
                 Console.WriteLine("-----------------------------------");
                 Console.WriteLine(String.Join("\r\n", errFiles));
                 Console.WriteLine("-----------------------------------");
+                Console.WriteLine();
             }
             if (settings.TestPackageOnly)
             {
+                // A canonical resource review table
+                Console.WriteLine("Package content summary:");
+                Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
+                foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+                {
+                    Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+                }
+                Console.WriteLine("-----------------------------------");
+
+                // And the summary at the end
+                Console.WriteLine("");
                 Console.WriteLine($"Checked: {successes}");
                 Console.WriteLine($"Validation Errors: {validationErrors}");
             }
@@ -401,10 +460,19 @@ namespace UploadFIG
             return 0;
         }
 
+        record ExampleName
+        {
+            public string value { get; init; }
+        }
+
         static bool SkipFile(Settings settings, string filename)
         {
             if (!settings.IncludeExamples && filename.StartsWith("package/example/"))
+            {
+                if (settings.Verbose)
+                    Console.WriteLine($"Ignoring:   {filename}    (example)");
                 return true;
+            }
             if (settings.IgnoreFiles?.Contains(filename) == true)
             {
                 if (settings.Verbose)
@@ -416,7 +484,7 @@ namespace UploadFIG
                 return true;
 
             // The package index file isn't to be uploaded
-            if (filename.EndsWith("package.json"))
+            if (filename.EndsWith("/package.json"))
                 return true;
             if (filename.EndsWith(".index.json"))
                 return true;
@@ -458,81 +526,10 @@ namespace UploadFIG
                         dr.Text = (resource as DomainResource)?.Text;
                     if (current.IsExactly(resource))
                     {
-                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} unchanged");
+                        Console.WriteLine($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
                         return original;
                     }
                 }
-
-
-                // Update narratives to strip relatives?
-                // https://chat.fhir.org/#narrow/stream/179166-implementers/topic/Narrative.20image.20sources
-                // ensure has the generated tag before just deleting
-
-                if (resource is IVersionableConformanceResource vcs)
-                {
-                    // Also search to see if there is another canonical version of this instance that would clash with it
-                    var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
-                    if (others.Entry.Count > 1)
-                    {
-                        var versionList = others.Entry.Select(e => (e.Resource as IVersionableConformanceResource)?.Version).ToList();
-                        if (settings.PreventDuplicateCanonicalVersions)
-                        {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has multiple copies loaded - {string.Join(", ", versionList)}");
-                            Console.ForegroundColor = oldColor;
-                            return null;
-                        }
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} warning");
-                        Console.Error.WriteLine($"Warning: Canonical {vcs.Url}|{vcs.Version} has other versions {string.Join(", ", versionList)} already loaded");
-                        Console.ForegroundColor = oldColor;
-                    }
-                    // And check that the one we're loading in has the same ID
-                    if (others.Entry.Count == 1)
-                    {
-                        var currentFound = others.Entry[0].Resource as IVersionableConformanceResource;
-                        // Don't know how this could ever be tripped on, the search is on the resource type
-                        if (others.Entry[0].Resource?.TypeName != resource.TypeName)
-                        {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} returned a different type");
-                            Console.ForegroundColor = oldColor;
-                            return null;
-                        }
-                        if (currentFound.Version != vcs.Version)
-                        {
-                            if (settings.PreventDuplicateCanonicalVersions)
-                            {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                                Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has version {currentFound.Version} already loaded, can't also load {vcs.Version}");
-                                Console.ForegroundColor = oldColor;
-                                return null;
-                            }
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} warning");
-                            Console.Error.WriteLine($"Warning: Canonical {vcs.Url}|{vcs.Version} has another version {currentFound.Version} already loaded, adding may cause issues if the server can't determine which is the latest to use");
-                            Console.ForegroundColor = oldColor;
-                        }
-                        if (string.IsNullOrEmpty(resource.Id))
-                        {
-                            // Use the same resource ID
-                            // (as was expecting to use the server assigned ID - don't expect to hit here as standard packaged resources have an ID from the IG publisher)
-                            resource.Id = others.Entry[0].Resource.Id;
-                        }
-                        else if (others.Entry[0].Resource.Id != resource.Id)
-                        {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} error");
-                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} has id {others.Entry[0].Resource.Id} on the server, can't also load id {resource.Id}");
-                            Console.ForegroundColor = oldColor;
-                            return null;
-                        }
-                    }
-                }
-
             }
             catch (FhirOperationException fex)
             {
@@ -543,19 +540,94 @@ namespace UploadFIG
             }
 
 
+            string warningMessage = null;
+            if (resource is IVersionableConformanceResource vcs)
+            {
+                try
+                {
+                    // Search to locate any existing versions of this canonical resource
+                    var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
+                    var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
+                    if (existingResources.Count(e => (e as IVersionableConformanceResource).Version == vcs.Version) > 1)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.Error.WriteLine($"ERROR: Canonical {vcs.Url}|{vcs.Version} has multiple instances already loaded - Must be resolved manually as unable to select which to update");
+                        Console.ForegroundColor = oldColor;
+                        return null;
+                    }
+                    var existingVersion = existingResources.FirstOrDefault(e => (e as IVersionableConformanceResource).Version == vcs.Version);
+                    var otherCanonicalVersionNumbers = existingResources.Select(e => (e as IVersionableConformanceResource)?.Version).Where(v => v != vcs.Version).ToList();
+
+                    // Select the existing resource to "refresh" the entry to what was in the implementation guide,
+                    // or clear the ID to let the server allocate the resource ID
+                    resource.Id = existingVersion?.Id;
+
+                    if (otherCanonicalVersionNumbers.Any())
+                    {
+                        if (settings.PreventDuplicateCanonicalVersions && resource.Id == null)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.Error.WriteLine($"ERROR: Canonical {vcs.Url} already has other versions loaded - {string.Join(", ", otherCanonicalVersionNumbers)}, can't also load {vcs.Version}, adding may cause issues if the server can't determine which is the latest to use");
+                            Console.ForegroundColor = oldColor;
+                            return null;
+                        }
+                        warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
+                    }
+
+                    if (resource.Id != null)
+                    {
+                        // This is an update of the canonical version, check to see if there is a change or that we can just skip loading
+                        Resource original = (Resource)existingVersion.DeepCopy();
+                        existingVersion.Meta.LastUpdated = null;
+                        existingVersion.Meta.VersionId = null;
+                        if (existingVersion is DomainResource dr)
+                            dr.Text = (resource as DomainResource)?.Text;
+                        if (existingVersion.IsExactly(resource))
+                        {
+                            Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+                            if (!string.IsNullOrEmpty(warningMessage))
+                            {
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.Write($"\t{warningMessage}");
+                            }
+                            Console.ForegroundColor = oldColor;
+                            Console.WriteLine();
+                            return original;
+                        }
+                    }
+                }
+                catch (FhirOperationException fex)
+                {
+                    if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+                    {
+                        Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message} {vcs.Url}|{vcs.Version}");
+                    }
+                }
+            }
+
             // Now that we've established that it is new/different, upload it
             if (settings.CheckPackageInstallationStateOnly)
                 return null;
 
             Resource result;
+            string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
             if (!string.IsNullOrEmpty(resource.Id))
                 result = clientFhir.Update(resource);
             else
                 result = clientFhir.Create(resource);
 
             Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.WriteLine($"    {resource.TypeName}/{resource.Id} {resource.VersionId} uploaded");
+            if (result is IVersionableConformanceResource r)
+                Console.Write($"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
+            else
+                Console.Write($"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+            if (!string.IsNullOrEmpty(warningMessage))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write($"\t{warningMessage}");
+            }
             Console.ForegroundColor = oldColor;
+            Console.WriteLine();
             return result;
         }
     }

@@ -9,16 +9,6 @@ using Hl7.FhirPath.Sprache;
 
 namespace UploadFIG
 {
-    public class FhirPathExpressionVisitor : BaseFhirPathExpressionVisitor
-    {
-        public FhirPathExpressionVisitor()
-            : base(ModelInspector.ForAssembly(typeof(Patient).Assembly),
-                  Hl7.Fhir.Model.ModelInfo.SupportedResources,
-                  Hl7.Fhir.Model.ModelInfo.OpenTypes)
-        {
-        }
-    }
-
     internal class ExpressionValidator
     {
         private readonly ModelInspector _mi = ModelInspector.ForAssembly(typeof(Patient).Assembly);
@@ -182,7 +172,7 @@ namespace UploadFIG
             results.Add(issue);
         }
 
-        public bool ValidateSearchExpression(SearchParameter sp)
+        public bool ValidateSearchExpression(SearchParameter sp, List<SearchParameter> localSearchParameters)
         {
             var outcome = new OperationOutcome();
             var vaSps = ToVaSpd(sp);
@@ -201,9 +191,12 @@ namespace UploadFIG
                           Hl7.Fhir.Model.ModelInfo.OpenTypes,
                           (url) =>
                           {
-                              return ModelInfo.SearchParameters.Where(sp => sp.Url == url)
-                              .Select(v => ToVaSpd(v))
-                              .FirstOrDefault();
+                              return localSearchParameters.Where(sp => sp.Url == url)
+                                      .SelectMany(v => ToVaSpd(v))
+                                      .FirstOrDefault()
+                                  ?? ModelInfo.SearchParameters.Where(sp => sp.Url == url)
+                                      .Select(v => ToVaSpd(v))
+                                      .FirstOrDefault();
                           });
                     v.IncludeParseTreeDiagnostics = true;
                     var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);

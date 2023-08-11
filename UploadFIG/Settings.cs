@@ -3,6 +3,13 @@
 
 namespace UploadFIG
 {
+    public enum upload_format
+    {
+        xml,
+        json
+    }
+
+
     public class Settings
     {
         /// <summary>
