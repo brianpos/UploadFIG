@@ -221,7 +221,7 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
-### 18 August 2023
+### 11 August 2023
 * Package Dependencies are displayed in the output report
 * Canonical Resource dependencies are checked if they exist in the destination server
 * Example filenames that are skipped are reported in verbose mode
