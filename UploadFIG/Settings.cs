@@ -21,7 +21,7 @@ namespace UploadFIG
         /// <summary>
         /// Always download the file even if there is a local copy
         /// </summary>
-        public bool ForceDownload { get; set; }
+        public bool ForceDownload { get; set; } = true;
 
         /// <summary>
         /// The Package ID of the package to upload (from the HL7 FHIR Package Registry)
