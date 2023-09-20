@@ -168,6 +168,12 @@ namespace UploadFIG
 
         private static void ScanForCanonicals(List<string> requiresCanonicals, StructureDefinition resource)
         {
+            if (resource?.Differential?.Element == null)
+            {
+                // Nothing to process
+                return;
+            }
+
             foreach (var ed in resource?.Differential?.Element)
             {
                 // Type bindings

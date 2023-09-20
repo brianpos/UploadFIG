@@ -221,6 +221,10 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 20 September 2023
+* Bug fix - null reference exceptions
+* Add ".schema.json" files to the SkipFile routine so they aren't attempted to be read as FHIR json resources, and also skip non xml.json content (such as images)
+
 ### 18 August 2023
 * Change the default value for the forceDownload to be true
 

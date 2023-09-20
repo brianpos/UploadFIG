@@ -259,7 +259,10 @@ namespace UploadFIG
                             {
                                 Console.WriteLine();
                                 Console.WriteLine("Package dependencies:");
-                                Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+                                if (manifest.Dependencies != null)
+                                    Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+                                else
+                                    Console.WriteLine($"    (none)");
                                 Console.WriteLine();
                         }
                             break;
@@ -293,7 +296,7 @@ namespace UploadFIG
                     var stream = reader.OpenEntryStream();
                     using (stream)
                     {
-                        Resource resource;
+                        Resource resource = null;
                         try
                         {
                             if (exampleName.EndsWith(".xml"))
@@ -303,12 +306,18 @@ namespace UploadFIG
                                     resource = xmlParser.Parse<Resource>(xr);
                                 }
                             }
-                            else
+                            else if (exampleName.EndsWith(".json"))
                             {
                                 using (var jr = SerializationUtil.JsonReaderFromStream(stream))
                                 {
                                     resource = jsparser.Parse<Resource>(jr);
                                 }
+                            }
+                            else
+                            {
+                                // Not a file that we can process
+                                // (What about fml/map files?)
+                                continue;
                             }
                         }
                         catch (Exception ex)
@@ -492,6 +501,8 @@ namespace UploadFIG
             if (filename.EndsWith(".index.json"))
                 return true;
             if (filename.EndsWith(".openapi.json"))
+                return true;
+            if (filename.EndsWith(".schema.json"))
                 return true;
 
             // Other internal Package files aren't to be considered either
