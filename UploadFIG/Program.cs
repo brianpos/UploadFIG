@@ -249,7 +249,7 @@ namespace UploadFIG
                                         Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
                                         return -1;
                                 }
-                                if (manifest.FhirVersions.Count > 1)
+                                if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
                                     Console.WriteLine($"Detected FHIR Version {fhirVersion} from {string.Join(',', manifest.FhirVersions)}");
                                 else
                                     Console.WriteLine($"Detected FHIR Version {fhirVersion}");
