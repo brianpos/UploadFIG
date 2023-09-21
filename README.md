@@ -221,6 +221,11 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 21 September 2023
+* Support multiple FHIR Versions R4, R4B, R5
+* Verify the destination server version is compatible with the package version
+* Additional error handling
+
 ### 20 September 2023
 * Bug fix - null reference exceptions
 * Add ".schema.json" files to the SkipFile routine so they aren't attempted to be read as FHIR json resources, and also skip non xml.json content (such as images)

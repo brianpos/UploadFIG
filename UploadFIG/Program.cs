@@ -3,7 +3,6 @@
 using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
-using Hl7.Fhir.Serialization;
 using Hl7.Fhir.Utility;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -202,43 +201,14 @@ namespace UploadFIG
             }
             var reader = ReaderFactory.Open(ms);
 
+            Common_Processor versionAgnosticProcessor = null;
+            ExpressionValidator expressionValidator = null;
+            FHIRVersion? fhirVersion = null;
+
             long successes = 0;
             long failures = 0;
             long validationErrors = 0;
             var sw = Stopwatch.StartNew();
-
-            ExpressionValidator expressionValidator = new ExpressionValidator();
-
-            // disable validation during parsing (not its job)
-            var jsparser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
-            var xmlParser = new FhirXmlParser();
-
-            var errs = new List<String>();
-            var errFiles = new List<String>();
-
-            // Server to upload the resources to
-            FhirClient clientFhir = null;
-            if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
-            {
-                // Need to pass through the destination header too
-                HttpClient client = new HttpClient();
-                if (settings.DestinationServerHeaders?.Any() == true)
-                {
-                    foreach (var header in settings.DestinationServerHeaders)
-                    {
-                        if (header.Contains(":"))
-                        {
-                            var kv = header.Split(new char[] { ':' }, 2);
-                            client.DefaultRequestHeaders.Add(kv[0], kv[1]);
-                        }
-                    }
-                }
-                clientFhir = new FhirClient(settings.DestinationServerAddress, client);
-                if (settings.DestinationFormat == upload_format.json)
-                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
-                if (settings.DestinationFormat == upload_format.xml)
-                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
-            }
 
             // Locate and read the package manifest to read the package dependencies
             PackageManifest manifest = null;
@@ -258,13 +228,40 @@ namespace UploadFIG
                             if (manifest != null)
                             {
                                 Console.WriteLine();
+
+                                // Select the version of the processor to use
+                                fhirVersion = VersionSelector.SelectVersion(manifest);
+                                switch (fhirVersion)
+                                {
+                                    case FHIRVersion.N4_0:
+                                        versionAgnosticProcessor = new R4_Processor();
+                                        expressionValidator = new ExpressionValidatorR4(versionAgnosticProcessor);
+                                        break;
+                                    case FHIRVersion.N4_3:
+                                        versionAgnosticProcessor = new R4B_Processor();
+                                        expressionValidator = new ExpressionValidatorR4B(versionAgnosticProcessor);
+                                        break;
+                                    case FHIRVersion.N5_0:
+                                        versionAgnosticProcessor = new R5_Processor();
+                                        expressionValidator = new ExpressionValidatorR5(versionAgnosticProcessor);
+                                        break;
+                                    default:
+                                        Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
+                                        return -1;
+                                }
+                                if (manifest.FhirVersions.Count > 1)
+                                    Console.WriteLine($"Detected FHIR Version {fhirVersion} from {string.Join(',', manifest.FhirVersions)}");
+                                else
+                                    Console.WriteLine($"Detected FHIR Version {fhirVersion}");
+                                Console.WriteLine();
+
                                 Console.WriteLine("Package dependencies:");
                                 if (manifest.Dependencies != null)
                                     Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
                                 else
                                     Console.WriteLine($"    (none)");
                                 Console.WriteLine();
-                        }
+                            }
                             break;
                         }
                         catch (Exception ex)
@@ -278,6 +275,35 @@ namespace UploadFIG
             // skip back to the start (for cases where the pacakge.json isn't the first resource)
             ms.Seek(0, SeekOrigin.Begin);
             reader = ReaderFactory.Open(ms);
+           
+
+            var errs = new List<String>();
+            var errFiles = new List<String>();
+
+            // Server to upload the resources to
+            BaseFhirClient clientFhir = null;
+            if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
+            {
+                // Need to pass through the destination header too
+                HttpClient client = new HttpClient();
+                if (settings.DestinationServerHeaders?.Any() == true)
+                {
+                    foreach (var header in settings.DestinationServerHeaders)
+                    {
+                        if (header.Contains(":"))
+                        {
+                            var kv = header.Split(new char[] { ':' }, 2);
+                            client.DefaultRequestHeaders.Add(kv[0], kv[1]);
+                        }
+                    }
+                }
+                clientFhir = new BaseFhirClient(new Uri(settings.DestinationServerAddress), client, versionAgnosticProcessor.ModelInspector);
+                if (settings.DestinationFormat == upload_format.json)
+                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
+                if (settings.DestinationFormat == upload_format.xml)
+                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
+                clientFhir.Settings.VerifyFhirVersion = true;
+            }
 
             // Load all the content in so that it can then be re-sequenced
             Console.WriteLine("-----------------------------------");
@@ -303,14 +329,14 @@ namespace UploadFIG
                             {
                                 using (var xr = SerializationUtil.XmlReaderFromStream(stream))
                                 {
-                                    resource = xmlParser.Parse<Resource>(xr);
+                                    resource = versionAgnosticProcessor.Parse(xr);
                                 }
                             }
                             else if (exampleName.EndsWith(".json"))
                             {
                                 using (var jr = SerializationUtil.JsonReaderFromStream(stream))
                                 {
-                                    resource = jsparser.Parse<Resource>(jr);
+                                    resource = versionAgnosticProcessor.Parse(jr);
                                 }
                             }
                             else
@@ -346,7 +372,7 @@ namespace UploadFIG
             }
 
             // We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-            List<SearchParameter> searchParameters = resourcesToProcess.OfType<SearchParameter>().ToList();
+            expressionValidator.PreValidation(resourcesToProcess);
 
             foreach (var resource in resourcesToProcess)
             {
@@ -382,26 +408,8 @@ namespace UploadFIG
                         }
                     }
 
-                    if (resource is SearchParameter sp)
-                    {
-                        if (!sp.Base.Any())
-                        {
-                            // Quietly skip them
-                            Console.Error.WriteLine($"ERROR: ({exampleName}) Search parameter with no base");
-                            System.Threading.Interlocked.Increment(ref failures);
-                            // DebugDumpOutputXml(resource);
-                            errFiles.Add(exampleName);
-                            continue;
-                        }
-                        if (!expressionValidator.ValidateSearchExpression(sp, searchParameters))
-                            validationErrors++;
-                    }
-
-                    if (resource is StructureDefinition sd)
-                    {
-                        if (!expressionValidator.ValidateInvariants(sd))
-                            validationErrors++;
-                    }
+                    if (!expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
+                        continue;
 
                     if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
                     {
@@ -428,7 +436,7 @@ namespace UploadFIG
             // Scan through the resources and resolve any canonicals
             Console.WriteLine();
             Console.WriteLine("-----------------------------------");
-            List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess);
+            List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(fhirVersion.Value, resourcesToProcess, versionAgnosticProcessor);
             DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
 
             sw.Stop();
@@ -516,7 +524,7 @@ namespace UploadFIG
             return false;
         }
 
-        static Resource? UploadFile(Settings settings, FhirClient clientFhir, Resource resource)
+        static Resource? UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
         {
             // Check to see if the resource is the same on the server already
             // (except for text/version/modified)
