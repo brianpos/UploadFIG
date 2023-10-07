@@ -6,10 +6,10 @@ using Hl7.Fhir.Rest;
 using Hl7.Fhir.Utility;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-using SharpCompress.Readers;
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.Security.Cryptography;
 using System.Text;
 using UploadFIG.Helpers;
@@ -199,7 +199,7 @@ namespace UploadFIG
                 await gzipStream.CopyToAsync(ms);
                 ms.Seek(0, SeekOrigin.Begin);
             }
-            var reader = ReaderFactory.Open(ms);
+            var reader = new TarReader(ms);
 
             Common_Processor versionAgnosticProcessor = null;
             ExpressionValidator expressionValidator = null;
@@ -212,12 +212,13 @@ namespace UploadFIG
 
             // Locate and read the package manifest to read the package dependencies
             PackageManifest manifest = null;
-            while (reader.MoveToNextEntry())
+            TarEntry entry;
+            while ((entry = reader.GetNextEntry()) != null)
             {
                 // Read the package definition file
-                if (reader.Entry.Key == "package/package.json")
+                if (entry.Name == "package/package.json")
                 {
-                    var stream = reader.OpenEntryStream();
+                    var stream = entry.DataStream;
                     using (stream)
                     {
                         try
@@ -274,10 +275,10 @@ namespace UploadFIG
             }
             // skip back to the start (for cases where the pacakge.json isn't the first resource)
             ms.Seek(0, SeekOrigin.Begin);
-            reader = ReaderFactory.Open(ms);
-           
+            reader = new TarReader(ms);
 
-            var errs = new List<String>();
+
+			var errs = new List<String>();
             var errFiles = new List<String>();
 
             // Server to upload the resources to
@@ -310,16 +311,16 @@ namespace UploadFIG
             Console.WriteLine("");
             Console.WriteLine("Scanning package content:");
             List<Resource> resourcesToProcess = new();
-            while (reader.MoveToNextEntry())
-            {
-                if (SkipFile(settings, reader.Entry.Key))
+			while ((entry = reader.GetNextEntry()) != null)
+			{
+				if (SkipFile(settings, entry.Name))
                     continue;
-                if (!reader.Entry.IsDirectory)
+                if (entry.EntryType != TarEntryType.Directory)
                 {
-                    var exampleName = reader.Entry.Key;
+                    var exampleName = entry.Name;
                     if (settings.Verbose)
                         Console.WriteLine($"Processing: {exampleName}");
-                    var stream = reader.OpenEntryStream();
+                    var stream = entry.DataStream;
                     using (stream)
                     {
                         Resource resource = null;
