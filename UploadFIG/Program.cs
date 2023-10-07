@@ -191,7 +191,25 @@ namespace UploadFIG
                 sourceStream.Seek(0, SeekOrigin.Begin);
             }
 
-            Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
+			// Validate the headers being applied
+			if (settings.DestinationServerHeaders?.Any() == true)
+			{
+				Console.WriteLine("Headers:");
+				foreach (var header in settings.DestinationServerHeaders)
+				{
+					if (header.Contains(":"))
+					{
+						var kv = header.Split(new char[] { ':' }, 2);
+                        Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
+                        if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
+                            Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
+					}
+				}
+			}
+
+
+
+			Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
             MemoryStream ms = new MemoryStream();
             using (gzipStream)
             {
@@ -294,7 +312,7 @@ namespace UploadFIG
                         if (header.Contains(":"))
                         {
                             var kv = header.Split(new char[] { ':' }, 2);
-                            client.DefaultRequestHeaders.Add(kv[0], kv[1]);
+                            client.DefaultRequestHeaders.Add(kv[0].Trim(), kv[1].Trim());
                         }
                     }
                 }

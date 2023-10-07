@@ -209,9 +209,13 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 ### Upload AU Base to a Microsoft FHIR Server
 (Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
 ``` ps
-> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json
+> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json -dh "Authorization:Bearer ******"
 ```
 And also the inclusion of the `-df json` to select the json format as the hosted Microsoft FHIR Server doesn't support XML
+
+The hosted Microsoft server may require an Authorization bearer to connect too, note that you will likely need 
+to quote the content if it has spaces - which is normally there (and may be different on a different OS)
+*(also note that this is not the Authentication header which is a common mistake)*
 
 ### Upload the latest version of the SDC IG to a FHIR Server in JSON format
 Some fhir servers may only be able to support a single format, so you can specify xml or json explicitly to use while uploading.
