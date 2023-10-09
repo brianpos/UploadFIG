@@ -226,6 +226,11 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 10 October 2023
+* Update to the 5.3.0 Firely SDK
+* FHIRPath expression validator updated, many false issues with search parameters now resolved, and support for `dependants()` function.
+* collection based errors are now downgraded to warnings.
+
 ### 9 October 2023
 * Include a summary count of each resource type in the package
 

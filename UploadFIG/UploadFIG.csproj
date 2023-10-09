@@ -27,11 +27,11 @@
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.0.1" />
-    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.2.0-beta1" />
+    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.3.0-beta1" />
     <PackageReference Include="Firely.Fhir.Packages" Version="4.1.0" />
-    <PackageReference Include="Hl7.Fhir.R4" Version="5.2.0" Aliases="r4" />
-    <PackageReference Include="Hl7.Fhir.R4B" Version="5.2.0" Aliases="r4b" />
-    <PackageReference Include="Hl7.Fhir.R5" Version="5.2.0" Aliases="r5" />
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.3.0" Aliases="r4" />
+    <PackageReference Include="Hl7.Fhir.R4B" Version="5.3.0" Aliases="r4b" />
+    <PackageReference Include="Hl7.Fhir.R5" Version="5.3.0" Aliases="r5" />
 
     <PackageReference Include="Hl7.Fhir.Specification.Data.R4" Version="5.3.0" GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.3.0" GeneratePathProperty="true" ExcludeAssets="all" />
