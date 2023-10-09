@@ -207,8 +207,6 @@ namespace UploadFIG
 				}
 			}
 
-
-
 			Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
             MemoryStream ms = new MemoryStream();
             using (gzipStream)
@@ -298,7 +296,7 @@ namespace UploadFIG
 
 			var errs = new List<String>();
             var errFiles = new List<String>();
-
+            
             // Server to upload the resources to
             BaseFhirClient clientFhir = null;
             if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
@@ -474,7 +472,7 @@ namespace UploadFIG
             if (settings.TestPackageOnly)
             {
                 // A canonical resource review table
-                Console.WriteLine("Package content summary:");
+                Console.WriteLine("Package Canonical content summary:");
                 Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
                 foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
                 {
@@ -482,14 +480,33 @@ namespace UploadFIG
                 }
                 Console.WriteLine("-----------------------------------");
 
-                // And the summary at the end
-                Console.WriteLine("");
+                Console.WriteLine("Package Resource type summary:");
+                Console.WriteLine("\tType\tCount");
+                foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+                {
+					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
+				}
+				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
+				Console.WriteLine("-----------------------------------");
+
+				// And the summary at the end
+				Console.WriteLine("");
                 Console.WriteLine($"Checked: {successes}");
                 Console.WriteLine($"Validation Errors: {validationErrors}");
             }
             else
             {
-                Console.WriteLine($"Success: {successes}");
+				Console.WriteLine("Package Resource type summary:");
+				Console.WriteLine("\tType\tCount");
+				foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+				{
+					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
+				}
+				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
+				Console.WriteLine("-----------------------------------");
+
+				// And the summary at the end
+				Console.WriteLine($"Success: {successes}");
                 Console.WriteLine($"Failures: {failures}");
                 Console.WriteLine($"Validation Errors: {validationErrors}");
                 Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");

@@ -226,6 +226,9 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 9 October 2023
+* Include a summary count of each resource type in the package
+
 ### 21 September 2023
 * Support multiple FHIR Versions R4, R4B, R5
 * Verify the destination server version is compatible with the package version
