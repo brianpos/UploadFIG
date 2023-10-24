@@ -64,12 +64,6 @@ namespace UploadFIG
 
         private bool VerifyInvariant(string canonicalUrl, string path, string key, string expression)
         {
-            if (expression.Contains("descendants()"))
-            {
-                Console.WriteLine($"Warning: Fhirpath invariant testing does not support the descendants() function skipping this expression");
-                return false;
-            }
-
             var visitor = new BaseFhirPathExpressionVisitor(_processor.ModelInspector, _processor.SupportedResources, _processor.OpenTypes);
             visitor.SetContext(path);
             var pe = _compiler.Parse(expression);
