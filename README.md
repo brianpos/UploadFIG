@@ -50,8 +50,10 @@ Options:
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
                                                              Registry)
   -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
-                                                             [default: StructureDefinition|ValueSet|CodeSystem|SearchParameter|Library
-                                                             |ConceptMap|StructureMap]
+                                                             [default: StructureDefinition|ValueSet|CodeSystem|Questionnaire
+                                                             |SearchParameter|Library|ConceptMap|StructureMap]
+  -sf, --selectFiles <selectFiles>                           Only process these selected files
+                                                             e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json
   -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
                                                              package
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
@@ -64,6 +66,8 @@ Options:
   -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
                                                              Does not require a DestinationServerAddress, will not try to connect
                                                              to one if provided
+                                                             [default: False]
+  -vq, --validateQuestionnaires                              Include more extensive testing on Questionnaires (experimental)
                                                              [default: False]
   -pdv, --preventDuplicateCanonicalVersions                  Permit the tool to upload canonical resources even if
                                                              they would result in the server having multiple canonical
@@ -85,6 +89,7 @@ Options:
   --verbose                                                  Provide verbose diagnostic output while processing
                                                              (e.g. Filenames processed)
                                                              [default: False]
+  -odf, --outputDependenciesFule <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```
