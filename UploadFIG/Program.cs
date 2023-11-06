@@ -1,5 +1,7 @@
-﻿// See https://aka.ms/new-console-template for more information
-// using AngleSharp;
+﻿extern alias r4;
+extern alias r4b;
+extern alias r5;
+
 using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
@@ -258,29 +260,34 @@ namespace UploadFIG
                                 Console.WriteLine();
 
                                 // Select the version of the processor to use
-                                fhirVersion = VersionSelector.SelectVersion(manifest);
-                                switch (fhirVersion)
+                                var versionInPackage = manifest.GetFhirVersion();
+                                if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
                                 {
-                                    case FHIRVersion.N4_0:
+                                    fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4.Hl7.Fhir.Model.ModelInfo.Version);
                                         versionAgnosticProcessor = new R4_Processor();
                                         expressionValidator = new ExpressionValidatorR4(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-                                        break;
-                                    case FHIRVersion.N4_3:
+                                }
+                                else if (versionInPackage.StartsWith(FHIRVersion.N4_3.GetLiteral()))
+                                {
+                                    fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4b.Hl7.Fhir.Model.ModelInfo.Version);
                                         versionAgnosticProcessor = new R4B_Processor();
                                         expressionValidator = new ExpressionValidatorR4B(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-                                        break;
-                                    case FHIRVersion.N5_0:
+                                }
+                                else if (versionInPackage.StartsWith(FHIRVersion.N5_0.GetLiteral()))
+                                {
+                                    fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r5.Hl7.Fhir.Model.ModelInfo.Version);
                                         versionAgnosticProcessor = new R5_Processor();
                                         expressionValidator = new ExpressionValidatorR5(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-                                        break;
-                                    default:
+                                }
+                                else
+                                {
                                         Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
                                         return -1;
                                 }
                                 if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
-                                    Console.WriteLine($"Detected FHIR Version {fhirVersion} from {string.Join(',', manifest.FhirVersions)}");
+                                    Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
                                 else
-                                    Console.WriteLine($"Detected FHIR Version {fhirVersion}");
+                                    Console.WriteLine($"Detected FHIR Version {versionInPackage} - using {fhirVersion.GetLiteral()}");
                                 Console.WriteLine();
 
                                 Console.WriteLine("Package dependencies:");

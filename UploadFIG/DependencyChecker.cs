@@ -31,10 +31,10 @@ namespace UploadFIG
                         existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ValueSet":
-                    existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "CodeSystem":
-                    existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "Questionnaire":
                         existing = clientFhir.Search("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
@@ -43,7 +43,7 @@ namespace UploadFIG
                         existing = clientFhir.Search("StructureMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ConceptMap":
-                    existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                 }
                 if (existing == null || existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
@@ -120,7 +120,7 @@ namespace UploadFIG
                 if (node != null)
                 {
                     requiresCanonicals.Remove(node);
-            }
+                }
             }
 
             // And the types from the core resource profiles
@@ -132,11 +132,11 @@ namespace UploadFIG
 
             // And check for any Core extensions (that are packaged in the standard zip package)
             CommonZipSource zipSource = null;
-            if (fhirversion == FHIRVersion.N4_0)
+            if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
                 zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
-            else if (fhirversion == FHIRVersion.N4_3)
+            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_3.GetLiteral()))
                 zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
-            else if (fhirversion == FHIRVersion.N5_0)
+            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N5_0.GetLiteral()))
                 zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
             else
             {
@@ -290,8 +290,8 @@ namespace UploadFIG
                     CheckRequiresCanonical(resource, "ValueSet", group.Unmapped.ValueSet, requiresCanonicals);
                     CheckRequiresCanonical(resource, "ConceptMap", group.Unmapped.OtherMap, requiresCanonicals);
                 }
-                }
             }
+        }
 
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, CodeSystem resource)
@@ -429,14 +429,14 @@ namespace UploadFIG
                 ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicalsR5(requiresCanonicals, resource, item.Item);
             }
-                }
+        }
 
         private static void ScanForSDCExtensionCanonicals(List<CanonicalDetails> requiresCanonicals, DomainResource resource)
         {
             // SDC extras
             CheckRequiresCanonical(resource, "StructureMap", resource.GetExtensionValue<Canonical>("http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-targetStructureMap"), requiresCanonicals);
             CheckRequiresCanonical(resource, "Questionnaire", resource.GetExtensionValue<Canonical>("http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-subQuestionnaire"), requiresCanonicals);
-            }
+        }
 
         private static void ScanForSDCItemExtensionCanonicals(List<CanonicalDetails> requiresCanonicals, Resource resource, Element item)
         {
