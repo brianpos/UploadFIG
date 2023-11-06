@@ -333,6 +333,31 @@ namespace UploadFIG.Test
 
 
         [TestMethod]
+        public async Task CheckSubsBackportCI()
+        {
+            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
+            string outputFile = "c:\\temp\\uploadfig-dump-subs-backportCI.json";
+            var result = await Program.Main(new[]
+            {
+                "-t",
+                "-vq",
+                "--verbose",
+                "-s", "http://build.fhir.org/ig/HL7/fhir-subscription-backport-ig/package.tgz",
+                "-odf", outputFile,
+            });
+            Assert.AreEqual(0, result);
+
+            string json = System.IO.File.ReadAllText(outputFile);
+            var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+            Bundle bun = new Bundle();
+
+            Console.WriteLine();
+            Console.WriteLine("--------------------------------------");
+            Console.WriteLine("Recursively Scanning Dependencies...");
+            PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+        }
+
+        [TestMethod]
         public async Task CheckIHE_MHD()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
