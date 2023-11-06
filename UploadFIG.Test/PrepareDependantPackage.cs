@@ -13,6 +13,13 @@ namespace UploadFIG.Test
     public class PrepareDependantPackage
     {
         [TestMethod]
+        public async Task TestCommandLineUsage()
+        {
+            var result = await Program.Main(new string[]{ });
+            Assert.AreEqual(1, result);
+        }
+
+        [TestMethod]
         public void CheckCapabilityStatement()
         {
             var nctsServer = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
