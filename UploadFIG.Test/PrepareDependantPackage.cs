@@ -89,39 +89,22 @@ namespace UploadFIG.Test
             {
                 var dp = depPackages.Dequeue();
 
-                if (dp.Value.StartsWith("current") || dp.Value == "dev")
+                Stream packageStream = cache.GetPackageStream(dp.Key, dp.Value);
+
+                if (packageStream == null)
                 {
-                    // Bail for non registry CI content
+                    // No package, so just need to continue
                     continue;
                 }
 
-                // download if the package is not already in the cache
-                string packageFile = System.IO.Path.Combine(cacheFolder, dp.Key + "_" + dp.Value.Replace(".", "_") + ".tgz");
-                PackageManifest manifest;
-                PackageIndex index;
-                Stream packageStream;
-                if (!System.IO.File.Exists(packageFile))
-                {
-                    // Now download the package
-                    PackageClient pc = PackageClient.Create();
-                    var rawPackage = pc.GetPackage(new PackageReference(dp.Key, dp.Value)).Result;
-                    System.IO.File.WriteAllBytes(packageFile, rawPackage);
-                    packageStream = new MemoryStream(rawPackage);
-                    manifest = ReadManifest(packageStream);
-                    packageStream.Position = 0;
-                    index = ReadPackageIndex(packageStream);
-                }
-                else
-                {
-                    packageStream = File.OpenRead(packageFile);
-                    manifest = ReadManifest(packageStream);
-                    packageStream.Position = 0;
-                    index = ReadPackageIndex(packageStream);
-                }
-                packageStream.Position = 0;
-
+                PackageManifest? manifest;
                 using (packageStream)
                 {
+                    manifest = TempPackageCache.ReadManifest(packageStream);
+                    if (manifest == null)
+                        continue; // can't process the package without a manifest
+                    PackageIndex? index = TempPackageCache.ReadPackageIndex(packageStream);
+
                     // Scan this package to see if any content is in the index
                     if (index != null)
                     {
@@ -137,7 +120,7 @@ namespace UploadFIG.Test
                                 ecr.foundInPackage = manifest.Name + "|" + manifest.Version;
 
                                 // Read this file from the package
-                                var content = ReadResource(packageStream, files.First().filename);
+                                var content = TempPackageCache.ReadResourceContent(packageStream, files.First().filename);
                                 if (content != null)
                                 {
                                     Resource resource;
@@ -152,12 +135,13 @@ namespace UploadFIG.Test
                                     if (resource is IVersionableConformanceResource ivr)
                                     {
                                         ecr.status = ivr.Status?.GetLiteral();
+
+                                        // Lets see if there are any dependencies for this canonical resource
                                     }
                                     bun.AddResourceEntry(resource, $"{resource.TypeName}/{resource.Id}");
                                 }
                             }
                         }
-                        // output.externalCanonicalsRequired[0].isMissing = false;
                     }
                 }
 
@@ -206,94 +190,6 @@ namespace UploadFIG.Test
                 Console.WriteLine($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
             }
             Console.WriteLine("-----------------------------------");
-        }
-
-        private static String ReadResource(Stream sourceStream, string filename)
-        {
-            sourceStream.Position = 0;
-            try
-            {
-                Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress, true);
-                using (gzipStream)
-                {
-                    var reader = new TarReader(gzipStream);
-                    TarEntry entry;
-                    while ((entry = reader.GetNextEntry()) != null)
-                    {
-                        if (entry.EntryType == TarEntryType.Directory)
-                            continue;
-                        // Read the package definition file
-                        if (entry.Name == "package/" + filename)
-                        {
-                            var stream = entry.DataStream;
-                            using (stream)
-                            {
-                                StreamReader sr = new StreamReader(stream);
-                                return sr.ReadToEnd();
-                            }
-                        }
-                    }
-                }
-            }
-            catch (System.IO.InvalidDataException ex)
-            {
-                Console.Write($"Error trying to read {filename} from package");
-            }
-            return null;
-        }
-
-        public static PackageManifest? ReadManifest(Stream sourceStream)
-        {
-            Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress, true);
-            using (gzipStream)
-            {
-                var reader = new TarReader(gzipStream);
-                TarEntry entry;
-                while ((entry = reader.GetNextEntry()) != null)
-                {
-                    if (entry.EntryType == TarEntryType.Directory)
-                        continue;
-                    // Read the package definition file
-                    if (entry.Name == "package/package.json")
-                    {
-                        var stream = entry.DataStream;
-                        using (stream)
-                        {
-                            StreamReader sr = new StreamReader(stream);
-                            var content = sr.ReadToEnd();
-                            return PackageParser.ParseManifest(content);
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        public static PackageIndex? ReadPackageIndex(Stream sourceStream)
-        {
-            Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress, true);
-            using (gzipStream)
-            {
-                var reader = new TarReader(gzipStream);
-                TarEntry entry;
-                while ((entry = reader.GetNextEntry()) != null)
-                {
-                    if (entry.EntryType == TarEntryType.Directory)
-                        continue;
-                    // Read the package definition file
-                    if (entry.Name == "package/.index.json")
-                    {
-                        var stream = entry.DataStream;
-                        using (stream)
-                        {
-                            StreamReader sr = new StreamReader(stream);
-                            var content = sr.ReadToEnd();
-                            return System.Text.Json.JsonSerializer.Deserialize<PackageIndex>(content);
-                        }
-                    }
-                }
-            }
-            return null;
         }
 
         [TestMethod]
