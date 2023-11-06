@@ -77,6 +77,11 @@ namespace UploadFIG
         public bool TestPackageOnly { get; set; }
 
         /// <summary>
+        /// Include more extensive testing on Questionnaires (experimental)
+        /// </summary>
+        public bool ValidateQuestionnaires { get; set; }
+
+        /// <summary>
         /// Check and clean any narratives in the package and remove suspect ones (based on the MS FHIR Server's rules)
         /// </summary>
         public bool CheckAndCleanNarratives { get; set; }

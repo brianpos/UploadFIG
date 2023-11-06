@@ -6,15 +6,18 @@ using Hl7.Fhir.Support;
 using Hl7.Fhir.Utility;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Sprache;
+using Hl7.Fhir.Rest;
 
 namespace UploadFIG
 {
     // Adds the version specific search parameter validation
     internal class ExpressionValidatorR4 : ExpressionValidator
     {
-        public ExpressionValidatorR4(Common_Processor processor) : base(processor)
+        public ExpressionValidatorR4(Common_Processor processor, bool validateQuestionnaire) : base(processor)
         {
+            _validateQuestionnaire = validateQuestionnaire;
         }
+        public bool _validateQuestionnaire;
 
         List<SearchParameter> _searchParameters;
         public override void PreValidation(List<Resource> resources)
@@ -37,6 +40,19 @@ namespace UploadFIG
                 }
                 if (!ValidateSearchExpression(sp))
                     validationErrors++;
+            }
+            if (resource is Questionnaire q && _validateQuestionnaire)
+            {
+                var validator = new r4.Hl7.Fhir.StructuredDataCapture.QuestionnaireValidator();
+                var outcome = validator.Validate(q).WaitResult();
+                if (!outcome.Success)
+                {
+                    Console.WriteLine($"    #---> Error validating Questionnaire/{q.Id} ({q.Url}): {q.Title}");
+                    ReportOutcomeMessages(outcome);
+                    Console.WriteLine();
+                    validationErrors++;
+                    return false;
+                }
             }
 
             return base.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
@@ -119,7 +135,7 @@ namespace UploadFIG
                     }
                     catch(Exception ex)
                     {
-                        outcome.Issue.Add(new OperationOutcome.IssueComponent() 
+                        outcome.Issue.Add(new OperationOutcome.IssueComponent()
                         {
                             Severity = OperationOutcome.IssueSeverity.Error,
                             Code = OperationOutcome.IssueType.Exception,
