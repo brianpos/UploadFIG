@@ -35,6 +35,7 @@ namespace UploadFIG
                     "StructureDefinition",
                     "ValueSet",
                     "CodeSystem",
+                    "Questionnaire",
                     "SearchParameter",
                     "ConceptMap",
                     "StructureMap",
@@ -66,6 +67,7 @@ namespace UploadFIG
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
+                new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
             };
 
             // Include the conditional validation rules to check that there is a source for the package to load from
@@ -95,6 +97,10 @@ namespace UploadFIG
 
         public static async Task<int> UploadPackage(Settings settings)
         {
+            OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
+            dumpOutput.name = settings.PackageId;
+            dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
+
             // Prepare a temp working folder to hold this downloaded package
             Stream sourceStream;
             if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
@@ -104,6 +110,7 @@ namespace UploadFIG
                 Console.WriteLine($"Using local package: {settings.SourcePackagePath}");
                 byte[] packageRawContent = File.ReadAllBytes(settings.SourcePackagePath);
                 sourceStream = new MemoryStream(packageRawContent);
+                dumpOutput.url = settings.SourcePackagePath;
             }
             else
             {
@@ -147,6 +154,7 @@ namespace UploadFIG
                     Console.WriteLine($"{pl.Versions[settings.PackageVersion].Description}");
                     Console.WriteLine($"Direct location: {pl.Versions[settings.PackageVersion].Dist?.Tarball}");
                     localPackagePath = Path.Combine(tempFIGpath, $"{settings.PackageId}.tgz");
+                    dumpOutput.url = pl.Versions[settings.PackageVersion].Dist?.Tarball;
                 }
 
                 // Download the file from the HL7 registry/or other location
@@ -164,6 +172,7 @@ namespace UploadFIG
                             examplesPkg = await client.GetByteArrayAsync(settings.SourcePackagePath);
                         }
                         System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
+                        dumpOutput.url = settings.SourcePackagePath;
                     }
                     else
                     {
@@ -293,6 +302,14 @@ namespace UploadFIG
             ms.Seek(0, SeekOrigin.Begin);
             reader = new TarReader(ms);
 
+            // Stash output data
+            dumpOutput.title = manifest.Title;
+            dumpOutput.fhirVersion = fhirVersion.GetLiteral();
+            dumpOutput.version = manifest.Version.ToString();
+            foreach (var item in manifest.Dependencies)
+            {
+                dumpOutput.dependencies.Add(item.Key, item.Value);
+            }
 
 			var errs = new List<String>();
             var errFiles = new List<String>();
@@ -323,7 +340,7 @@ namespace UploadFIG
             }
 
             // Load all the content in so that it can then be re-sequenced
-            Console.WriteLine("-----------------------------------");
+            Console.WriteLine("--------------------------------------");
             Console.WriteLine("");
             Console.WriteLine("Scanning package content:");
             List<Resource> resourcesToProcess = new();
@@ -452,8 +469,8 @@ namespace UploadFIG
 
             // Scan through the resources and resolve any canonicals
             Console.WriteLine();
-            Console.WriteLine("-----------------------------------");
-            List<string> requiresCanonicals = DependencyChecker.ScanForCanonicals(fhirVersion.Value, resourcesToProcess, versionAgnosticProcessor);
+            Console.WriteLine("--------------------------------------");
+            List<CanonicalDetails> requiresCanonicals = DependencyChecker.ScanForCanonicals(fhirVersion.Value, resourcesToProcess, versionAgnosticProcessor);
             DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
 
             sw.Stop();
@@ -462,11 +479,11 @@ namespace UploadFIG
 
             if (errs.Any() || errFiles.Any())
             {
-                Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
                 Console.WriteLine(String.Join("\r\n", errs));
-                Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
                 Console.WriteLine(String.Join("\r\n", errFiles));
-                Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
                 Console.WriteLine();
             }
             if (settings.TestPackageOnly)
@@ -478,7 +495,16 @@ namespace UploadFIG
                 {
                     Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
                 }
-                Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
+
+                // Dependant Canonical Resources
+                Console.WriteLine("Requires the following non-core canonical resources:");
+                Console.WriteLine("\tResource Type\tCanonical Url\tVersion");
+                foreach (var details in requiresCanonicals)
+                {
+                    Console.WriteLine($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+                }
+                Console.WriteLine("--------------------------------------");
 
                 Console.WriteLine("Package Resource type summary:");
                 Console.WriteLine("\tType\tCount");
@@ -487,7 +513,7 @@ namespace UploadFIG
 					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
 				}
 				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
-				Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
 
 				// And the summary at the end
 				Console.WriteLine("");
@@ -503,7 +529,7 @@ namespace UploadFIG
 					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
 				}
 				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
-				Console.WriteLine("-----------------------------------");
+                Console.WriteLine("--------------------------------------");
 
 				// And the summary at the end
 				Console.WriteLine($"Success: {successes}");
@@ -513,6 +539,39 @@ namespace UploadFIG
                 Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
             }
 
+            if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
+            {
+                foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+                {
+                    dumpOutput.containedCanonicals.Add(new CanonicalDetails()
+                    {
+                        resourceType = (resource as Resource).TypeName,
+                        canonical = resource.Url,
+                        version = resource.Version,
+                        status = resource.Status.GetLiteral(),
+                        name = resource.Name,
+                    });
+                    // Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+                }
+                dumpOutput.externalCanonicalsRequired.AddRange(
+                    requiresCanonicals.Select(rc => new DependentResource()
+                    {
+                        resourceType = rc.resourceType,
+                        canonical = rc.canonical,
+                        version = rc.version,
+                    })
+                    );
+                try
+                {
+                    // Write dumpOutput to a JSON string
+                    JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+                    System.IO.File.WriteAllText(settings.OutputDependenciesFile, JsonConvert.SerializeObject(dumpOutput, serializerSettings));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
+                }
+            }
             return 0;
         }
 

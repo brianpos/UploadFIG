@@ -100,5 +100,10 @@ namespace UploadFIG
         /// Specifically include processing of examples folder
         /// </summary>
         public bool IncludeExamples { get; set; }
+
+        /// <summary>
+        /// The filename of a file to write the discovered dependencies of this IG to
+        /// </summary>
+        public string OutputDependenciesFile { get; set; }
     }
 }

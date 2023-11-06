@@ -224,11 +224,21 @@ This is independent of the format of the content that is native inside the IG pa
 > UploadFIG -pid hl7.fhir.au.base -d https://localhost:44348 -df json
 ```
 
+---
+
 ## Change history
+
+### 26 October 2023
+* Produce a summary output of the resources that this IG directly has dependencies on (likely from dependant packages)
+* output the above dependencies summary to a textfile via a new -odf or --outputDependenciesFile commandline parameter
+* Dependent resource scan now processes StructureMap and Questionnaire (in addition to StructureDefinition and ValueSet)
+
+### 24 October 2023
+* Remove restriction skipping expressions with `descendants()` usage
 
 ### 10 October 2023
 * Update to the 5.3.0 Firely SDK
-* FHIRPath expression validator updated, many false issues with search parameters now resolved, and support for `dependants()` function.
+* FHIRPath expression validator updated, many false issues with search parameters now resolved, and support for `descendants()` function.
 * collection based errors are now downgraded to warnings.
 
 ### 9 October 2023

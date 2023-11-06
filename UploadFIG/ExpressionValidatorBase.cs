@@ -43,7 +43,7 @@ namespace UploadFIG
         {
             foreach (var issue in outcome.Issue)
             {
-                Console.WriteLine($"    *---> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
+                Console.WriteLine($"      --> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
                 if (!string.IsNullOrEmpty(issue.Diagnostics))
                 {
                     var oldColor = Console.ForegroundColor;
