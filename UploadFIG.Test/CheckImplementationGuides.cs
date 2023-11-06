@@ -15,6 +15,8 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
+                "-vq",
+                "--includeExamples",
                 "-pid", "hl7.fhir.uv.sdc",
                 "-odf", outputFile,
             });
