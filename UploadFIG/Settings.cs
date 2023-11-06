@@ -40,6 +40,11 @@ namespace UploadFIG
         public List<string> ResourceTypes { get; set; }
 
         /// <summary>
+        /// Only process these selected files (Type/Id)
+        /// </summary>
+        public List<string> SelectFiles { get; set; }
+
+        /// <summary>
         /// Any specific files that should be ignored/skipped when processing the package
         /// </summary>
         public List<string> IgnoreFiles { get; set; }

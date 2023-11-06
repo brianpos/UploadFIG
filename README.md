@@ -228,6 +228,12 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 6 November 2023
+* Processing dependencies now knows the resource type of the canonical to check against
+* Questionnaires now processed in dependency scan
+* Questionnaire is now included as one of the default resource types
+* Support selecting individual files for importing `-sf package/SearchParameter-valueset-extensions-ValueSet-end.json` (when used, only selected files are processed)
+
 ### 26 October 2023
 * Produce a summary output of the resources that this IG directly has dependencies on (likely from dependant packages)
 * output the above dependencies summary to a textfile via a new -odf or --outputDependenciesFile commandline parameter
