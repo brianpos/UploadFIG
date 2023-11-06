@@ -171,6 +171,15 @@ namespace UploadFIG
         {
             if (!string.IsNullOrEmpty(canonicalUrl))
             {
+                if (canonicalUrl.StartsWith("#") && resource is DomainResource dr)
+                {
+                    // local reference - check that it exists in the resource
+                    var localRef = dr.Contained?.Where(c => c.Id == canonicalUrl.Substring(1));
+                    if (!localRef.Any())
+                        Console.WriteLine($"Unable to resolve contained canonical in {resource.TypeName}/{resource.Id}: {canonicalUrl}");
+                    return;
+                }
+
                 Canonical c = new Canonical(canonicalUrl);
                 if (!requiresCanonicals.Any(s => s.canonical == c.Value && s.resourceType == canonicalType))
                     requiresCanonicals.Add(new CanonicalDetails()
