@@ -20,6 +20,8 @@ namespace UploadFIG
 {
     public class Program
     {
+        public static HttpClient useClient;
+
         /// <summary>Main entry-point for this application.</summary>
         /// <param name="args">An array of command-line argument strings.</param>
         public static async Task<int> Main(string[] args)
@@ -329,6 +331,8 @@ namespace UploadFIG
             {
                 // Need to pass through the destination header too
                 HttpClient client = new HttpClient();
+                if (Program.useClient != null)
+                    client = Program.useClient;
                 if (settings.DestinationServerHeaders?.Any() == true)
                 {
                     foreach (var header in settings.DestinationServerHeaders)
