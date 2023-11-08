@@ -43,7 +43,7 @@ namespace UploadFIG.Test
                 "--includeExamples",
                 "-s", "https://build.fhir.org/ig/HL7/sdc/package.tgz",
                 "-odf", outputFile,
-                "--verbose",
+                // "--verbose",
             });
             Assert.AreEqual(0, result);
 
@@ -115,8 +115,8 @@ namespace UploadFIG.Test
                 "-t",
                 "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/package.tgz",
                 "-odf", outputFile,
-                "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
-                "--verbose",
+                // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
+                // "--verbose",
             });
             Assert.AreEqual(0, result);
         }
@@ -135,7 +135,7 @@ namespace UploadFIG.Test
                 "-s", "https://build.fhir.org/ig/aehrc/smart-forms-ig/branches/master/package.tgz",
                 "-odf", outputFile,
                 // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
-                "--verbose",
+                // "--verbose",
             });
             Assert.AreEqual(0, result);
 
@@ -294,7 +294,7 @@ namespace UploadFIG.Test
             { "-t",
                 "-pid", "hl7.fhir.us.sdoh-clinicalcare",
                 "-odf", outputFile,
-                "--verbose",
+                // "--verbose",
             });
             Assert.AreEqual(0, result);
 
@@ -317,7 +317,7 @@ namespace UploadFIG.Test
             {
                 "-t",
                 "-vq",
-                "--verbose",
+                // "--verbose",
                 "-s", "https://build.fhir.org/ig/HL7/fhir-sdoh-clinicalcare/package.tgz",
                 "-odf", outputFile,
             });
@@ -343,7 +343,7 @@ namespace UploadFIG.Test
             {
                 "-t",
                 "-vq",
-                "--verbose",
+                // "--verbose",
                 "-s", "http://build.fhir.org/ig/HL7/fhir-subscription-backport-ig/package.tgz",
                 "-odf", outputFile,
             });
