@@ -21,7 +21,7 @@ namespace UploadFIG
             Console.WriteLine("Destination server canonical resource dependency verification:");
             // Verify that the set of canonicals are available on the server
             var oldColor = Console.ForegroundColor;
-            foreach (var rawCanonical in requiresCanonicals.OrderBy(c => c))
+            foreach (var rawCanonical in requiresCanonicals.OrderBy(c => c.canonical))
             {
                 var canonical = new Canonical(rawCanonical.canonical, rawCanonical.version, null);
                 Bundle existing = null;
