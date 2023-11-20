@@ -233,6 +233,10 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 20 November 2023
+* Update FHIRPath expression validator and questionnaire validator project references
+* Update unit tests to check the expected issue counts from each of the tested IGs
+
 ### 6 November 2023
 * Processing dependencies now knows the resource type of the canonical to check against
 * Questionnaires now processed in dependency scan

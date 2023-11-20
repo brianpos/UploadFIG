@@ -22,7 +22,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(113, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(16, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -47,7 +51,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(113, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(17, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -71,7 +79,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(142, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -94,7 +106,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(206, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(5, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -139,7 +155,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(44, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(5, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -161,7 +181,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(211, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -184,7 +208,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(101, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -206,7 +234,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(66, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -229,7 +261,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(66, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -252,7 +288,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(144, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -275,7 +315,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(144, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -298,7 +342,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -323,7 +371,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+            Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -349,7 +401,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
@@ -373,7 +429,11 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            string json = System.IO.File.ReadAllText(outputFile);
+			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+
+			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
