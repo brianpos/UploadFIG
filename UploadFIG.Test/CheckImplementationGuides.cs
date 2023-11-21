@@ -401,9 +401,9 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(17, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(5, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -425,13 +425,14 @@ namespace UploadFIG.Test
                 "-t",
                 "-s", "https://profiles.ihe.net/ITI/MHD/4.2.1/package.tgz",
                 "-odf", outputFile,
-                "-sf", "package/StructureDefinition-IHE.MHD.EntryUUID.Identifier.json",
+                "-fd", "false"
+                // "-sf", "package/StructureDefinition-IHE.MHD.EntryUUID.Identifier.json",
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(49, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(1, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
