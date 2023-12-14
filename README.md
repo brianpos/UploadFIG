@@ -233,6 +233,17 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 14 December 2023
+* Update fhirpath engine checks
+    - Correct return type of `as()` to boolean
+    - Add validation check to the `as()` function to check that the type provided could potentially be valid
+    - Include `string` as one of the valid datatypes for the Search Type `Uri`
+* Fhirpath validation checks now resolve `extension('http://...')` in expressions to locate the extension definition
+  and validate that the extension is available in the project (or fhir core) and then accurately constrain
+  the datatype to those specified in the extension, and also the extenions defined cardinality.
+  (in future these will also scan the dependant packages for the extensions definitions too)
+* Information messages from the validator are also displayed in the output (if there were no errors/warnings these were previously suppressed)
+
 ### 20 November 2023
 * Update FHIRPath expression validator and questionnaire validator project references
 * Update unit tests to check the expected issue counts from each of the tested IGs

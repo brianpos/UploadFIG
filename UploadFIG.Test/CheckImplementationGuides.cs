@@ -22,10 +22,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(113, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(16, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -34,6 +30,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(113, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(16, Program.validationErrors);
         }
 
         [TestMethod]
@@ -51,10 +51,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(113, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(17, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -63,6 +59,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(121, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(4, Program.validationErrors);
         }
 
         [TestMethod]
@@ -155,10 +155,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(44, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(5, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -167,6 +163,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(49, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
         }
 
         [TestMethod]
@@ -181,9 +181,32 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(211, Program.successes);
+			string json = System.IO.File.ReadAllText(outputFile);
+            var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+            Bundle bun = new Bundle();
+
+            Console.WriteLine();
+            Console.WriteLine("--------------------------------------");
+            Console.WriteLine("Recursively Scanning Dependencies...");
+            PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(210, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
+		}
+
+		[TestMethod]
+		public async Task CheckUsNDH_CI()
+		{
+			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+                "-vq",
+				"-s", "http://build.fhir.org/ig/HL7/fhir-us-ndh/package.tgz",
+				"-odf", outputFile,
+			});
+			Assert.AreEqual(0, result);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -193,6 +216,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(241, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
         }
 
         [TestMethod]
@@ -234,10 +261,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(66, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -246,6 +269,11 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(66, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors); // this will continue to fail till I move
+                                                          // the dependency package scan code into the tool
         }
 
         [TestMethod]
@@ -261,10 +289,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(66, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -273,6 +297,11 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(66, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors); // this will continue to fail till I move
+														  // the dependency package scan code into the tool
         }
 
         [TestMethod]
@@ -371,10 +400,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-            Assert.AreEqual(40, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -383,6 +408,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(1, Program.validationErrors);
         }
 
 
@@ -401,10 +430,6 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(17, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(5, Program.validationErrors);
-
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
@@ -413,6 +438,10 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(19, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
         }
 
         [TestMethod]

@@ -7,6 +7,7 @@ using Hl7.Fhir.Utility;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Sprache;
 using Hl7.Fhir.Rest;
+using Hl7.Fhir.Specification.Source;
 
 namespace UploadFIG
 {
@@ -16,17 +17,25 @@ namespace UploadFIG
         public ExpressionValidatorR5(Common_Processor processor, bool validateQuestionnaire) : base(processor)
         {
             _validateQuestionnaire = validateQuestionnaire;
-        }
+		}
 
-        bool _validateQuestionnaire;
+		bool _validateQuestionnaire;
 
         List<SearchParameter> _searchParameters;
         public override void PreValidation(List<Resource> resources)
         {
-            _searchParameters = resources.OfType<SearchParameter>().ToList();
-        }
+			base.PreValidation(resources);
+			_searchParameters = resources.OfType<SearchParameter>().ToList();
+			CommonZipSource zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
+			_source = new CachedResolver(
+							new MultiResolver(
+								zipSource,
+								new InMemoryResolver(_profiles)
+							)
+						);
+		}
 
-        internal override bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)
+		internal override bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)
         {
             if (resource is SearchParameter sp)
             {
@@ -132,7 +141,8 @@ namespace UploadFIG
                                           .FirstOrDefault();
                               });
                         v.IncludeParseTreeDiagnostics = true;
-                        var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
+						v.CreateFhirPathValidator = CreateFhirPathValidator;
+						var issues = v.Validate(vaSp.Resource, vaSp.Code, vaSp.Expression, vaSp.Type, vaSp.Url, vaSp);
                         outcome.Issue.AddRange(issues);
                     }
                     catch (Exception ex)
