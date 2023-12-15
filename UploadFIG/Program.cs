@@ -380,14 +380,14 @@ namespace UploadFIG
 							{
 								using (var xr = SerializationUtil.XmlReaderFromStream(stream))
 								{
-									resource = versionAgnosticProcessor.Parse(xr);
+									resource = versionAgnosticProcessor.ParseXml(xr);
 								}
 							}
 							else if (exampleName.EndsWith(".json"))
 							{
 								using (var jr = SerializationUtil.JsonReaderFromStream(stream))
 								{
-									resource = versionAgnosticProcessor.Parse(jr);
+									resource = versionAgnosticProcessor.ParseJson(jr);
 								}
 							}
 							else
@@ -423,7 +423,7 @@ namespace UploadFIG
 			}
 
 			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			expressionValidator.PreValidation(resourcesToProcess);
+			expressionValidator.PreValidation(manifest.Dependencies, resourcesToProcess);
 
 			foreach (var resource in resourcesToProcess)
 			{

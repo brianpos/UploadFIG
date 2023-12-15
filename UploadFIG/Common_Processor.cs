@@ -11,7 +11,9 @@ namespace UploadFIG
         public List<string> SupportedResources { get; protected set; }
         public Type[] OpenTypes { get; protected set; }
 
-        public abstract Resource Parse(XmlReader xr);
-        public abstract Resource Parse(JsonReader xr);
-    }
+        public abstract Resource ParseXml(XmlReader xr);
+        public abstract Resource ParseJson(JsonReader jr);
+		public abstract Resource ParseXml(string xml);
+		public abstract Resource ParseJson(string json);
+	}
 }

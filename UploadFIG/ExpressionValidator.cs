@@ -1,4 +1,5 @@
-﻿using Hl7.Fhir.FhirPath.Validator;
+﻿using Firely.Fhir.Packages;
+using Hl7.Fhir.FhirPath.Validator;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Specification.Source;
 using Hl7.Fhir.Support;
@@ -40,9 +41,109 @@ namespace UploadFIG
 
 		protected List<StructureDefinition> _profiles;
 
-		public virtual void PreValidation(List<Resource> resources)
+		public virtual void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources)
 		{
 			_profiles = resources.OfType<StructureDefinition>().ToList();
+			RecursivelyScanPackageExtensions(dependencies);
+		}
+
+		public void RecursivelyScanPackageExtensions(Dictionary<string, string> dependencies)
+		{
+			// Prepare our own cache of fhir packages in this projects AppData folder
+			var cache = new TempPackageCache();
+			Queue<KeyValuePair<string, string>> depPackages = new();
+			foreach (var dp in dependencies)
+			{
+				depPackages.Enqueue(dp);
+				// Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
+			}
+			while (depPackages.Count > 0)
+			{
+				var dp = depPackages.Dequeue();
+
+				if (dp.Value == "current")
+				{
+					Console.WriteLine($"      Unable to scan 'current' dependency {dp.Key}");
+					continue;
+				}
+
+				Stream packageStream = cache.GetPackageStream(dp.Key, dp.Value);
+
+				if (packageStream == null)
+				{
+					// No package, so just need to continue
+					continue;
+				}
+
+				PackageManifest manifest;
+				using (packageStream)
+				{
+					manifest = TempPackageCache.ReadManifest(packageStream);
+					if (manifest == null)
+						continue; // can't process the package without a manifest
+
+					// Skip core packages that are handled elsewhere
+					if (manifest.Canonical == "http://hl7.org/fhir")
+						continue;
+					if (manifest.Canonical == "http://hl7.org/fhir/extensions")
+						continue;
+					if (manifest.Canonical == "http://terminology.hl7.org")
+						continue;
+
+					PackageIndex index = TempPackageCache.ReadPackageIndex(packageStream);
+
+					// Scan this package to see if any content is in the index
+					if (index != null)
+					{
+						System.Diagnostics.Trace.WriteLine($"Scanning index in {manifest.Name}");
+						var files = index.Files.Where(f => f.resourceType == "StructureDefinition");
+						if (files.Any())
+						{
+							// Read these files from the package
+							foreach (var file in files)
+							{
+								var content = TempPackageCache.ReadResourceContent(packageStream, file.filename);
+								if (content != null)
+								{
+									Resource resource;
+									if (files.First().filename.EndsWith(".json"))
+									{
+										resource = _processor.ParseJson(content);
+									}
+									else
+									{
+										resource = _processor.ParseXml(content);
+									}
+									if (resource is StructureDefinition sd)
+									{
+										// Add an annotation to indicate where it came from?
+										_profiles.Add(sd);
+										// Console.WriteLine($"	    {manifest.Canonical} {sd.Url}|{sd.Version} included");
+									}
+								}
+							}
+						}
+					}
+				}
+
+				// Scan through this packages dependencies and see if I need to add more to the queue for processing
+				if (manifest.Dependencies != null)
+				{
+					foreach (var dep in manifest.Dependencies)
+					{
+						if (!dependencies.ContainsKey(dep.Key))
+						{
+							depPackages.Enqueue(dep);
+							// Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing");
+						}
+						else
+						{
+							if (dep.Value != dependencies[dep.Key])
+								Console.WriteLine($"      {manifest.Name}|{manifest.Version} => {dep.Key}|{dep.Value} is already included with version {dependencies[dep.Key]}");
+						}
+					}
+				}
+			}
 		}
 
 		internal virtual bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)

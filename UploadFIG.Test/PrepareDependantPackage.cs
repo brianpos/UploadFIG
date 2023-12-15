@@ -76,9 +76,6 @@ namespace UploadFIG.Test
         {
             // Prepare our own cache of fhir packages in this projects AppData folder
             var cache = new TempPackageCache();
-            string cacheFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UploadFIG", "PackageCache");
-            if (!Directory.Exists(cacheFolder))
-                Directory.CreateDirectory(cacheFolder);
             Queue<KeyValuePair<string, string>> depPackages = new();
             foreach (var dp in output.dependencies)
             {

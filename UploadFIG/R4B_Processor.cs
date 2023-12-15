@@ -21,14 +21,24 @@ namespace UploadFIG
         FhirXmlParser _xmlParser = new FhirXmlParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
         FhirJsonParser _jsonParser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
 
-        public override Resource Parse(JsonReader jr)
+        public override Resource ParseJson(JsonReader jr)
         {
             return _jsonParser.Parse<Resource>(jr);
         }
 
-        public override Resource Parse(XmlReader xr)
+        public override Resource ParseXml(XmlReader xr)
         {
             return _xmlParser.Parse<Resource>(xr);
         }
-    }
+
+		public override Resource ParseJson(string json)
+		{
+			return _jsonParser.Parse<Resource>(json);
+		}
+
+		public override Resource ParseXml(string xml)
+		{
+			return _xmlParser.Parse<Resource>(xml);
+		}
+	}
 }

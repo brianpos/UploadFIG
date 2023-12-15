@@ -7,7 +7,38 @@ namespace UploadFIG.Test
     [TestClass]
     public class CheckImplementationGuides
     {
-        [TestMethod]
+		[TestMethod]
+		public async Task FMG_Review()
+		{
+			// "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
+			string outputFile = "c:\\temp\\uploadfig-dump-fmg.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				"-odf", outputFile,
+                // "--verbose",
+				// "-s", "https://build.fhir.org/ig/HL7/cqf-measures/package.tgz",
+                
+                "-s", "https://build.fhir.org/ig/HL7/cqf-recommendations/package.tgz",
+			});
+			Assert.AreEqual(0, result);
+
+			string json = System.IO.File.ReadAllText(outputFile);
+			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+			Bundle bun = new Bundle();
+
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Recursively Scanning Dependencies...");
+			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(0, Program.validationErrors);
+		}
+
+		[TestMethod]
         public async Task CheckSDC()
         {
             // "commandLineArgs": "-t -pid hl7.fhir.uv.sdc"
@@ -31,12 +62,12 @@ namespace UploadFIG.Test
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
 
-			Assert.AreEqual(113, Program.successes);
+			Assert.AreEqual(114, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(16, Program.validationErrors);
-        }
+			Assert.AreEqual(15, Program.validationErrors);
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckSDC_CI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-sdc-ci.json";
@@ -46,7 +77,8 @@ namespace UploadFIG.Test
                 "-vq",
                 "--includeExamples",
                 "-s", "https://build.fhir.org/ig/HL7/sdc/package.tgz",
-                "-odf", outputFile,
+				// "-s", @"c:\git\hl7\sdc\output\package.tgz",
+				"-odf", outputFile,
                 // "--verbose",
             });
             Assert.AreEqual(0, result);
@@ -63,9 +95,9 @@ namespace UploadFIG.Test
 			Assert.AreEqual(121, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(4, Program.validationErrors);
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckUsCore311()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 3.1.1 -pdv false"
@@ -73,14 +105,16 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.us.core",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.us.core",
                 "-pv", "3.1.1",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
 
 			Assert.AreEqual(142, Program.successes);
-			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(1, Program.failures);
 			Assert.AreEqual(2, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
@@ -101,12 +135,14 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.us.core",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.us.core",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(206, Program.successes);
+			Assert.AreEqual(209, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(5, Program.validationErrors);
 
@@ -124,15 +160,15 @@ namespace UploadFIG.Test
         [TestMethod]
         public async Task CheckExtensionsCI()
         {
-            // var result = await Program.Main(new[] { "-t", "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/branches/2023-10-gg-qa/package.tgz", "-odf", "c:\\temp\\uploadfig-dump-extensions.json" });
             string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/package.tgz",
-                "-odf", outputFile,
-                // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
-                // "--verbose",
+				"-vq",
+				"--includeExamples",
+				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/package.tgz",
+				"-s", "C:/git/hl7/fhir-extensions/output/package.tgz",
+				"-odf", outputFile,
             });
             Assert.AreEqual(0, result);
         }
@@ -144,8 +180,9 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-vq",
-                "-r", "Questionnaire",
+				"-vq",
+				"--includeExamples",
+				"-r", "Questionnaire",
                 "-r", "ValueSet",
                 "-r", "CodeSystem",
                 "-s", "https://build.fhir.org/ig/aehrc/smart-forms-ig/branches/master/package.tgz",
@@ -167,16 +204,18 @@ namespace UploadFIG.Test
 			Assert.AreEqual(49, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckUsCoreCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
+				"-vq",
+				"--includeExamples",
+				"-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
@@ -190,7 +229,7 @@ namespace UploadFIG.Test
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
 
-			Assert.AreEqual(210, Program.successes);
+			Assert.AreEqual(216, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
@@ -202,27 +241,28 @@ namespace UploadFIG.Test
 			var result = await Program.Main(new[]
 			{
 				"-t",
-                "-vq",
+				"-vq",
+				"--includeExamples",
 				"-s", "http://build.fhir.org/ig/HL7/fhir-us-ndh/package.tgz",
 				"-odf", outputFile,
 			});
 			Assert.AreEqual(0, result);
 
 			string json = System.IO.File.ReadAllText(outputFile);
-            var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
-            Bundle bun = new Bundle();
+			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+			Bundle bun = new Bundle();
 
-            Console.WriteLine();
-            Console.WriteLine("--------------------------------------");
-            Console.WriteLine("Recursively Scanning Dependencies...");
-            PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Recursively Scanning Dependencies...");
+			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
 
 			Assert.AreEqual(241, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckMcode()
         {
             // "commandLineArgs": "-t -pid hl7.fhir.us.mcode -odf c:/temp/uploadfig-dump.json"
@@ -230,14 +270,12 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.us.mcode",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.us.mcode",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
-
-			Assert.AreEqual(101, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -247,16 +285,22 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
-        }
 
-        [TestMethod]
+			Assert.AreEqual(103, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(1, Program.validationErrors);
+		}
+
+		[TestMethod]
         public async Task CheckAuCore()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
             var result = await Program.Main(new[] {
                 "-t",
-                "-pid", "hl7.fhir.au.core",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.au.core",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
@@ -274,9 +318,9 @@ namespace UploadFIG.Test
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(2, Program.validationErrors); // this will continue to fail till I move
                                                           // the dependency package scan code into the tool
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckAuCoreCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
@@ -284,7 +328,9 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.au.core",
+				"-vq",
+				"--includeExamples",
+				"-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
@@ -300,11 +346,11 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(66, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors); // this will continue to fail till I move
+			Assert.AreEqual(3, Program.validationErrors); // this will continue to fail till I move
 														  // the dependency package scan code into the tool
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckAuBase()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.base -fd -pdv false"
@@ -312,7 +358,9 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.au.base",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.au.base",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
@@ -339,7 +387,9 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-pid", "hl7.fhir.au.base",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.au.base",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
@@ -364,16 +414,15 @@ namespace UploadFIG.Test
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
             string outputFile = "c:\\temp\\uploadfig-dump-sdoh-clinicalcare.json";
             var result = await Program.Main(new[]
-            { "-t",
-                "-pid", "hl7.fhir.us.sdoh-clinicalcare",
+            {
+                "-t",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.us.sdoh-clinicalcare",
                 "-odf", outputFile,
                 // "--verbose",
             });
             Assert.AreEqual(0, result);
-
-			Assert.AreEqual(40, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -383,9 +432,13 @@ namespace UploadFIG.Test
             Console.WriteLine("--------------------------------------");
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
-        }
 
-        [TestMethod]
+			Assert.AreEqual(41, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(2, Program.validationErrors);
+		}
+
+		[TestMethod]
         public async Task CheckSDOC_ClinicalCareCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
@@ -393,10 +446,12 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-vq",
+				"-vq",
+				"--includeExamples",
                 // "--verbose",
-                "-s", "https://build.fhir.org/ig/HL7/fhir-sdoh-clinicalcare/package.tgz",
-                "-odf", outputFile,
+                // "-s", "https://build.fhir.org/ig/HL7/fhir-sdoh-clinicalcare/package.tgz",
+				"-s", "C:\\git\\hl7\\fhir-sdoh-clinicalcare\\output/package.tgz",
+				"-odf", outputFile,
             });
             Assert.AreEqual(0, result);
 
@@ -409,13 +464,13 @@ namespace UploadFIG.Test
             Console.WriteLine("Recursively Scanning Dependencies...");
             PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
 
-			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(42, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
-        }
+			Assert.AreEqual(0, Program.validationErrors);
+		}
 
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckSubsBackportCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
@@ -423,7 +478,8 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-vq",
+				"-vq",
+				"--includeExamples",
                 // "--verbose",
                 "-s", "http://build.fhir.org/ig/HL7/fhir-subscription-backport-ig/package.tgz",
                 "-odf", outputFile,
@@ -442,9 +498,9 @@ namespace UploadFIG.Test
 			Assert.AreEqual(19, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
-        }
+		}
 
-        [TestMethod]
+		[TestMethod]
         public async Task CheckIHE_MHD()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
@@ -452,9 +508,11 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[]
             {
                 "-t",
-                "-s", "https://profiles.ihe.net/ITI/MHD/4.2.1/package.tgz",
+				"-vq",
+				"--includeExamples",
+				"-s", "https://profiles.ihe.net/ITI/MHD/4.2.1/package.tgz",
                 "-odf", outputFile,
-                "-fd", "false"
+                // "-fd", "false"
                 // "-sf", "package/StructureDefinition-IHE.MHD.EntryUUID.Identifier.json",
             });
             Assert.AreEqual(0, result);
