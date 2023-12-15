@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.0.1" />
-    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.3.0-beta8" />
+    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.3.0-rc1" />
     <PackageReference Include="brianpos.Fhir.R4.StructuredDataCapture" Version="5.3.0-beta8" Aliases="r4" />
     <PackageReference Include="brianpos.Fhir.R4B.StructuredDataCapture" Version="5.3.0-beta8" Aliases="r4b" />
     <PackageReference Include="brianpos.Fhir.R5.StructuredDataCapture" Version="5.3.0-beta8" Aliases="r5" />
