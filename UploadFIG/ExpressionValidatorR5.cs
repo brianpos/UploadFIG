@@ -122,7 +122,13 @@ namespace UploadFIG
                 {
                     LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchCodeMissing, $"Search parameter {sp.Url} does not define the 'code' property which defines the value to use on the request URL");
                 }
-                if (string.IsNullOrEmpty(vaSp.Expression) && vaSp.Type != SearchParamType.Special)
+				if (vaSp.Type == SearchParamType.Special)
+				{
+					// Special search parameters don't have expressions
+					LogWarning(outcome.Issue, OperationOutcome.IssueType.Informational, SpecialSearchParameter, $"Search parameter {sp.Url} of type 'special' requires custom implementation to work")
+						.Severity = OperationOutcome.IssueSeverity.Information;
+				}
+				else if (string.IsNullOrEmpty(vaSp.Expression) && vaSp.Type != SearchParamType.Special)
                     LogError(outcome.Issue, OperationOutcome.IssueType.Required, SearchExpressionMissing, $"Search parameter does not contain a fhirpath expression to define its behaviour");
                 else
                 {
@@ -158,14 +164,40 @@ namespace UploadFIG
                 }
             }
 
-            if (!outcome.Success)
-            {
-                Console.WriteLine($"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-                ReportOutcomeMessages(outcome);
-                Console.WriteLine();
-                return false;
-            }
-            return true;
+			if (outcome.Errors > 0 || outcome.Fatals > 0)
+			{
+				var ocolor = Console.ForegroundColor;
+				Console.ForegroundColor = ConsoleColor.Red;
+				Console.WriteLine($"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
+				Console.ForegroundColor = ocolor;
+
+				ReportOutcomeMessages(outcome);
+				Console.WriteLine();
+				return false;
+			}
+			if (outcome.Warnings > 0)
+			{
+				var ocolor = Console.ForegroundColor;
+				Console.ForegroundColor = ConsoleColor.Yellow;
+				Console.WriteLine($"    #---> Warning validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
+				Console.ForegroundColor = ocolor;
+
+				ReportOutcomeMessages(outcome);
+				Console.WriteLine();
+				return false;
+			}
+			if (outcome.Issue.Count(i => i.Severity == OperationOutcome.IssueSeverity.Information) > 0)
+			{
+				var ocolor = Console.ForegroundColor;
+				Console.ForegroundColor = ConsoleColor.Gray;
+				Console.WriteLine($"    #---> Information validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
+				Console.ForegroundColor = ocolor;
+
+				ReportOutcomeMessages(outcome);
+				Console.WriteLine();
+				return false;
+			}
+			return true;
         }
     }
 }

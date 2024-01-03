@@ -10,8 +10,9 @@ namespace UploadFIG
         protected readonly static Coding InternalProcessingException = new(ErrorNamespace, "SE0001", "Unknown internal processing exception");
         protected readonly static Coding SearchCodeMissing = new(ErrorNamespace, "SE0101", "No 'code' property in search parameter");
         protected readonly static Coding SearchExpressionMissing = new(ErrorNamespace, "SE0102", "No 'expression' property in search parameter");
+		protected readonly static Coding SpecialSearchParameter = new(ErrorNamespace, "SE0103", "'special' search parameters need custom implementation");
 
-        protected void LogError(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
+		protected OperationOutcome.IssueComponent LogError(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
         {
             // Console.WriteLine(message);
             var issue = new Hl7.Fhir.Model.OperationOutcome.IssueComponent()
@@ -23,8 +24,9 @@ namespace UploadFIG
             if (!string.IsNullOrEmpty(diagnostics))
                 issue.Diagnostics = diagnostics;
             results.Add(issue);
-        }
-        protected void LogWarning(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
+			return issue;
+		}
+		protected OperationOutcome.IssueComponent LogWarning(List<OperationOutcome.IssueComponent> results, OperationOutcome.IssueType issueType, Coding detail, string message, string diagnostics = null)
         {
             // Console.WriteLine(message);
             var issue = new Hl7.Fhir.Model.OperationOutcome.IssueComponent()
@@ -36,6 +38,7 @@ namespace UploadFIG
             if (!string.IsNullOrEmpty(diagnostics))
                 issue.Diagnostics = diagnostics;
             results.Add(issue);
+            return issue;
         }
 
         const string diagnosticPrefix = "            ";

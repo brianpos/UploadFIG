@@ -39,6 +39,62 @@ namespace UploadFIG.Test
 		}
 
 		[TestMethod]
+		public async Task CheckFhirCoreR4()
+		{
+			string outputFile = "c:\\temp\\uploadfig-dump-r4core.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.r4.core",
+				"-odf", outputFile,
+			});
+			Assert.AreEqual(0, result);
+
+			string json = System.IO.File.ReadAllText(outputFile);
+			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+			Bundle bun = new Bundle();
+
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Recursively Scanning Dependencies...");
+			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(4508, Program.successes);
+			Assert.AreEqual(10, Program.failures);
+			Assert.AreEqual(66, Program.validationErrors);
+		}
+
+		[TestMethod]
+		public async Task CheckFhirExamplesR4()
+		{
+			string outputFile = "c:\\temp\\uploadfig-dump-r4examples.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.r4.examples",
+				"-odf", outputFile,
+			});
+			Assert.AreEqual(0, result);
+
+			string json = System.IO.File.ReadAllText(outputFile);
+			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
+			Bundle bun = new Bundle();
+
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Recursively Scanning Dependencies...");
+			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
+
+			Assert.AreEqual(4536, Program.successes);
+			Assert.AreEqual(11, Program.failures);
+			Assert.AreEqual(66, Program.validationErrors);
+		}
+
+		[TestMethod]
         public async Task CheckSDC()
         {
             // "commandLineArgs": "-t -pid hl7.fhir.uv.sdc"
@@ -115,7 +171,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(142, Program.successes);
 			Assert.AreEqual(1, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
+			Assert.AreEqual(3, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -144,7 +200,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(209, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(5, Program.validationErrors);
+			Assert.AreEqual(6, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -231,7 +287,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(216, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(1, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -257,7 +313,7 @@ namespace UploadFIG.Test
 			Console.WriteLine("Recursively Scanning Dependencies...");
 			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
 
-			Assert.AreEqual(241, Program.successes);
+			Assert.AreEqual(238, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
@@ -435,7 +491,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(41, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
+			Assert.AreEqual(3, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -466,7 +522,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(42, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(1, Program.validationErrors);
 		}
 
 
@@ -519,7 +575,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(49, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
+			Assert.AreEqual(2, Program.validationErrors);
 
 			string json = System.IO.File.ReadAllText(outputFile);
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);

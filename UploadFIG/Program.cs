@@ -321,9 +321,12 @@ namespace UploadFIG
 			dumpOutput.title = manifest.Title;
 			dumpOutput.fhirVersion = fhirVersion.GetLiteral();
 			dumpOutput.version = manifest.Version.ToString();
-			foreach (var item in manifest.Dependencies)
+			if (manifest.Dependencies != null)
 			{
-				dumpOutput.dependencies.Add(item.Key, item.Value);
+				foreach (var item in manifest.Dependencies)
+				{
+					dumpOutput.dependencies.Add(item.Key, item.Value);
+				}
 			}
 
 			var errs = new List<String>();
@@ -423,7 +426,7 @@ namespace UploadFIG
 			}
 
 			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			expressionValidator.PreValidation(manifest.Dependencies, resourcesToProcess);
+			expressionValidator.PreValidation(manifest.Dependencies ?? new Dictionary<string, string?>(), resourcesToProcess);
 
 			foreach (var resource in resourcesToProcess)
 			{
