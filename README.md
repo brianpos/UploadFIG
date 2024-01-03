@@ -233,6 +233,12 @@ This is independent of the format of the content that is native inside the IG pa
 
 ## Change history
 
+### 3 January 2024
+* Fix null reference error that occurs when a package contains no dependencies in the manifest
+* Report an information message when detecting a search parameter with type = 'special' indicating that server requires 
+  custom implementation to support
+* Warnings/Information messages now displayed for search parameter checks (were supressed if there were no errors)
+
 ### 14 December 2023
 * Update fhirpath engine checks
     - Correct return type of `as()` to boolean
