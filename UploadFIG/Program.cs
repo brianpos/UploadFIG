@@ -114,6 +114,22 @@ namespace UploadFIG
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
 
+			// Validate the headers being applied
+			if (settings.DestinationServerHeaders?.Any() == true)
+			{
+				Console.WriteLine("Headers:");
+				foreach (var header in settings.DestinationServerHeaders)
+				{
+					if (header.Contains(":"))
+					{
+						var kv = header.Split(new char[] { ':' }, 2);
+						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
+						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
+							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
+					}
+				}
+			}
+
 			// Prepare a temp working folder to hold this downloaded package
 			Stream sourceStream;
 			if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
@@ -211,22 +227,6 @@ namespace UploadFIG
 			{
 				Console.WriteLine($"MD5 Checksum: {BitConverter.ToString(md5.ComputeHash(sourceStream)).Replace("-", string.Empty)}");
 				sourceStream.Seek(0, SeekOrigin.Begin);
-			}
-
-			// Validate the headers being applied
-			if (settings.DestinationServerHeaders?.Any() == true)
-			{
-				Console.WriteLine("Headers:");
-				foreach (var header in settings.DestinationServerHeaders)
-				{
-					if (header.Contains(":"))
-					{
-						var kv = header.Split(new char[] { ':' }, 2);
-						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
-						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
-							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
-					}
-				}
 			}
 
 			Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
