@@ -83,56 +83,83 @@ namespace UploadFIG
 			// Review this against https://hl7.org/fhir/uv/crmi/2024Jan/distribution.html#dependency-tracing
 			List<CanonicalDetails> requiresCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
-            // Scan for resource specific canonicals
-            foreach (var resource in resourcesToProcess.OfType<StructureDefinition>())
-            {
-                ScanForCanonicals(requiresCanonicals, resource);
-            }
+			// Scan for any extensions used (to read their canonical URL)
+			foreach (var resource in resourcesToProcess)
+			{
+				ScanForExtensions(requiresCanonicals, resource, resource);
+			}
 
-            foreach (var resource in resourcesToProcess.OfType<ValueSet>())
-            {
-                ScanForCanonicals(requiresCanonicals, resource);
-            }
+			// Scan for resource specific canonicals
+			foreach (var resource in resourcesToProcess.OfType<StructureDefinition>())
+			{
+				ScanForCanonicals(requiresCanonicals, resource);
+			}
 
-            foreach (var resource in resourcesToProcess.OfType<CodeSystem>())
-            {
-                ScanForCanonicals(requiresCanonicals, resource);
-            }
+			foreach (var resource in resourcesToProcess.OfType<ValueSet>())
+			{
+				ScanForCanonicals(requiresCanonicals, resource);
+			}
 
-            foreach (var resource in resourcesToProcess.OfType<r4.Hl7.Fhir.Model.ConceptMap>())
-            {
-                ScanForCanonicalsR4(requiresCanonicals, resource);
-            }
-            foreach (var resource in resourcesToProcess.OfType<r4b.Hl7.Fhir.Model.ConceptMap>())
-            {
-                ScanForCanonicals(requiresCanonicals, resource);
-            }
-            foreach (var resource in resourcesToProcess.OfType<r5.Hl7.Fhir.Model.ConceptMap>())
-            {
-                ScanForCanonicalsR5(requiresCanonicals, resource);
-            }
+			foreach (var resource in resourcesToProcess.OfType<CodeSystem>())
+			{
+				ScanForCanonicals(requiresCanonicals, resource);
+			}
 
-            foreach (var resource in resourcesToProcess.OfType<r4.Hl7.Fhir.Model.Questionnaire>())
-            {
-                ScanForCanonicalsR4(requiresCanonicals, resource);
-            }
-            foreach (var resource in resourcesToProcess.OfType<r4b.Hl7.Fhir.Model.Questionnaire>())
-            {
-                ScanForCanonicals(requiresCanonicals, resource);
-            }
-            foreach (var resource in resourcesToProcess.OfType<r5.Hl7.Fhir.Model.Questionnaire>())
-            {
-                ScanForCanonicalsR5(requiresCanonicals, resource);
-            }
+			foreach (var resource in resourcesToProcess.OfType<r4.Hl7.Fhir.Model.ConceptMap>())
+			{
+				ScanForCanonicalsR4(requiresCanonicals, resource);
+			}
+			foreach (var resource in resourcesToProcess.OfType<r4b.Hl7.Fhir.Model.ConceptMap>())
+			{
+				ScanForCanonicals(requiresCanonicals, resource);
+			}
+			foreach (var resource in resourcesToProcess.OfType<r5.Hl7.Fhir.Model.ConceptMap>())
+			{
+				ScanForCanonicalsR5(requiresCanonicals, resource);
+			}
 
-            // StructureMaps
+			foreach (var resource in resourcesToProcess.OfType<r4.Hl7.Fhir.Model.Questionnaire>())
+			{
+				ScanForCanonicalsR4(requiresCanonicals, resource);
+			}
+			foreach (var resource in resourcesToProcess.OfType<r4b.Hl7.Fhir.Model.Questionnaire>())
+			{
+				ScanForCanonicals(requiresCanonicals, resource);
+			}
+			foreach (var resource in resourcesToProcess.OfType<r5.Hl7.Fhir.Model.Questionnaire>())
+			{
+				ScanForCanonicalsR5(requiresCanonicals, resource);
+			}
+
+			// StructureMaps
 			//      (structure definitions and imports)
-            //      (embedded ConceptMaps) `group.rule.target.where(transform='translate').parameter[1]` // the map URI.
-            // Library - DataRequirements
-            // PlanDefinitions
-            // OperationDefinitions?
+			//      (embedded ConceptMaps) `group.rule.target.where(transform='translate').parameter[1]` // the map URI.
+			// Library - DataRequirements
+			// PlanDefinitions
+			// OperationDefinitions?
 			return requiresCanonicals.Where(r => !initialCanonicals.Any(ic => ic.canonical == r.canonical));
 
+		}
+
+		private static void ScanForExtensions(List<CanonicalDetails> requiresCanonicals, Resource resource, Base prop)
+		{
+			foreach (var child in prop.Children)
+			{
+                if (child is Extension extension)
+                {
+                    CheckRequiresCanonical(resource, "StructureDefinition", extension.Url, requiresCanonicals);
+                    if (extension.Value != null)
+                    {
+                        // This will scan for extensions on extension values (not complex extensions)
+                        ScanForExtensions(requiresCanonicals, resource, extension.Value);
+                    }
+				}
+				else
+                {
+                    // We don't scan extensions (which would find complex extensions
+                    ScanForExtensions(requiresCanonicals, resource, child);
+                }
+			}
 		}
 
 		/// <summary>
@@ -145,7 +172,7 @@ namespace UploadFIG
 		{
 			List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
-            // Now check for the ones that we've internally got covered :)
+			// Now check for the ones that we've internally got covered :)
 			foreach (var resource in excludeResources.OfType<IVersionableConformanceResource>())
 			{
 				var node = initialCanonicals.FirstOrDefault(rc => rc.resourceType == (resource as Resource).TypeName && rc.canonical == resource.Url);
@@ -211,46 +238,46 @@ namespace UploadFIG
 			List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(requiresCanonicals);
 
 			// Now check for the ones that we've internally got covered :)
-            foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
-            {
-                var node = requiresCanonicals.FirstOrDefault(rc => rc.resourceType == (resource as Resource).TypeName && rc.canonical == resource.Url);
-                if (node != null)
-                {
-                    requiresCanonicals.Remove(node);
-                }
-            }
+			foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
+			{
+				var node = requiresCanonicals.FirstOrDefault(rc => rc.resourceType == (resource as Resource).TypeName && rc.canonical == resource.Url);
+				if (node != null)
+				{
+					requiresCanonicals.Remove(node);
+				}
+			}
 
-            // And the types from the core resource profiles
-            var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v.canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.canonical))).ToList();
-            foreach (var coreCanonical in coreCanonicals)
-            {
-                requiresCanonicals.Remove(coreCanonical);
-            }
+			// And the types from the core resource profiles
+			var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v.canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.canonical))).ToList();
+			foreach (var coreCanonical in coreCanonicals)
+			{
+				requiresCanonicals.Remove(coreCanonical);
+			}
 
-            // And check for any Core extensions (that are packaged in the standard zip package)
-            CommonZipSource zipSource = null;
-            if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
-                zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
-            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_3.GetLiteral()))
-                zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
-            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N5_0.GetLiteral()))
-                zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
-            else
-            {
-                // version unhandled
-                Console.WriteLine($"Unhandled processing of core extensions for fhir version {fhirversion}");
+			// And check for any Core extensions (that are packaged in the standard zip package)
+			CommonZipSource zipSource = null;
+			if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
+				zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
+			else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_3.GetLiteral()))
+				zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
+			else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N5_0.GetLiteral()))
+				zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
+			else
+			{
+				// version unhandled
+				Console.WriteLine($"Unhandled processing of core extensions for fhir version {fhirversion}");
 				return;
-            }
-            // ensure that the zip file is extracted correctly before using it
-            zipSource.Prepare();
+			}
+			// ensure that the zip file is extracted correctly before using it
+			zipSource.Prepare();
 
-            // Scan for core/core extensions dependencies
-            var coreSource = new CachedResolver(zipSource);
-            var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.canonical) != null).ToList();
-            foreach (var coreCanonical in extensionCanonicals)
-            {
-                requiresCanonicals.Remove(coreCanonical);
-            }
+			// Scan for core/core extensions dependencies
+			var coreSource = new CachedResolver(zipSource);
+			var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.canonical) != null).ToList();
+			foreach (var coreCanonical in extensionCanonicals)
+			{
+				requiresCanonicals.Remove(coreCanonical);
+			}
 		}
 
         /// <summary>
@@ -290,9 +317,9 @@ namespace UploadFIG
             }
 
             return allRequiredCanonicals.Where(r => !knownCanonicals.Any(kc => kc.canonical == r.canonical));
-        }
+		}
 
-        record DependansOnCanonical
+		record DependansOnCanonical
         {
             public DependansOnCanonical(string value)
             {
@@ -302,8 +329,16 @@ namespace UploadFIG
             public string CanonicalUrl { get; init; }
         }
 
+        static List<string> ignoreCanonicals = new (new string[] {
+			"http://hl7.org/fhir/StructureDefinition/structuredefinition-conformance-derivedFrom",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-type-must-support",
+		});
+
         private static void CheckRequiresCanonical(Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals)
         {
+            if (ignoreCanonicals.Contains(canonicalUrl))
+                return;
+
             if (!string.IsNullOrEmpty(canonicalUrl))
             {
                 if (canonicalUrl.StartsWith("#") && resource is DomainResource dr)
@@ -487,7 +522,7 @@ namespace UploadFIG
                 foreach (var t in ed.Type)
                 {
 					// CheckRequiresCanonical(resource, "StructureDefinition", t.Code, requiresCanonicals);
-                    foreach (var binding in t.Profile)
+					foreach (var binding in t.Profile)
                     {
                         CheckRequiresCanonical(resource, "StructureDefinition", binding, requiresCanonicals);
                     }
@@ -520,7 +555,7 @@ namespace UploadFIG
         {
 			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
 
-            foreach (var derivedFrom in resource.DerivedFrom)
+			foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
             ScanForSDCExtensionCanonicals(requiresCanonicals, resource);
@@ -548,7 +583,7 @@ namespace UploadFIG
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
 				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
-                ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
+				ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicalsR4(requiresCanonicals, resource, item.Item);
             }
         }
@@ -557,7 +592,7 @@ namespace UploadFIG
         {
 			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
 
-            foreach (var derivedFrom in resource.DerivedFrom)
+			foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
             ScanForSDCExtensionCanonicals(requiresCanonicals, resource);
@@ -574,7 +609,7 @@ namespace UploadFIG
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
 				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
-                ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
+				ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicals(requiresCanonicals, resource, item.Item);
             }
         }
@@ -583,7 +618,7 @@ namespace UploadFIG
         {
 			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
 
-            foreach (var derivedFrom in resource.DerivedFrom)
+			foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
             ScanForSDCExtensionCanonicals(requiresCanonicals, resource);
@@ -600,7 +635,7 @@ namespace UploadFIG
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
 				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
-                ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
+				ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicalsR5(requiresCanonicals, resource, item.Item);
             }
         }
