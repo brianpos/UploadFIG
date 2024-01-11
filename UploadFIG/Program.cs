@@ -160,6 +160,7 @@ namespace UploadFIG
 					string contents = Encoding.UTF8.GetString(examplesPkg);
 					var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
 					Console.WriteLine($"Package ID: {pl?.Name}");
+					Console.WriteLine($"Package Title: {pl?.Description}");
 					Console.WriteLine($"Available Versions: {String.Join(", ", pl.Versions.Keys)}");
 					if (!string.IsNullOrEmpty(settings.PackageVersion) && !pl.Versions.ContainsKey(settings.PackageVersion))
 					{
