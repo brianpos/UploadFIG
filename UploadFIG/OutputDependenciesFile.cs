@@ -1,5 +1,6 @@
 ﻿namespace UploadFIG
 {
+	[System.Diagnostics.DebuggerDisplay(@"Canonical: {canonical}|{version}")] // http://blogs.msdn.com/b/jaredpar/archive/2011/03/18/debuggerdisplay-attribute-best-practices.aspx
     public class CanonicalDetails
     {
         public string resourceType { get; set; }
