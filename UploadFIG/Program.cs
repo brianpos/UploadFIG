@@ -634,7 +634,7 @@ namespace UploadFIG
 				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
 				{
 					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-					Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
 				}
 				Console.WriteLine();
 				if (settings.Verbose)
@@ -648,7 +648,7 @@ namespace UploadFIG
 						if (dr.HasAnnotation<PackageCacheItem>() == true)
 						{
 							var cacheDetails = dr.Annotation<PackageCacheItem>();
-							Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
 						}
 						Console.WriteLine();
 					}
@@ -666,7 +666,7 @@ namespace UploadFIG
 				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
 				{
 					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-					Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
 				}
 				Console.WriteLine();
 				foreach (var dr in details.requiredBy)
@@ -678,7 +678,7 @@ namespace UploadFIG
 					if (dr.HasAnnotation<PackageCacheItem>() == true)
 					{
 						var cacheDetails = dr.Annotation<PackageCacheItem>();
-						Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+						Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
 					}
 					else if (dr.HasAnnotation<ExampleName>())
 					{
@@ -706,7 +706,7 @@ namespace UploadFIG
 					if (dr.HasAnnotation<PackageCacheItem>() == true)
 					{
 						var cacheDetails = dr.Annotation<PackageCacheItem>();
-						Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+						Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
 					}
 					if (dr.HasAnnotation<ExampleName>())
 					{
@@ -885,7 +885,13 @@ namespace UploadFIG
 						dr.Text = (resource as DomainResource)?.Text;
 					if (current.IsExactly(resource))
 					{
-						Console.WriteLine($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
+						Console.Write($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
+						if (resource.HasAnnotation<PackageCacheItem>() == true)
+						{
+							var cacheDetails = resource.Annotation<PackageCacheItem>();
+							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+						}
+						Console.WriteLine();
 						return original;
 					}
 				}
@@ -944,6 +950,11 @@ namespace UploadFIG
 						if (existingVersion.IsExactly(resource))
 						{
 							Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+							if (resource.HasAnnotation<PackageCacheItem>() == true)
+							{
+								var cacheDetails = resource.Annotation<PackageCacheItem>();
+								Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+							}
 							if (!string.IsNullOrEmpty(warningMessage))
 							{
 								Console.ForegroundColor = ConsoleColor.Yellow;
@@ -980,6 +991,11 @@ namespace UploadFIG
 				Console.Write($"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
 			else
 				Console.Write($"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+			if (resource.HasAnnotation<PackageCacheItem>() == true)
+			{
+				var cacheDetails = resource.Annotation<PackageCacheItem>();
+				Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+			}
 			if (!string.IsNullOrEmpty(warningMessage))
 			{
 				Console.ForegroundColor = ConsoleColor.Yellow;
