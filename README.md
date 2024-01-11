@@ -69,6 +69,8 @@ Options:
                                                              [default: False]
   -vq, --validateQuestionnaires                              Include more extensive testing on Questionnaires (experimental)
                                                              [default: False]
+  -vrd, --validateReferencedDependencies                     Validate any referenced resources from dependencies being installed 
+                                                             [default: False]
   -pdv, --preventDuplicateCanonicalVersions                  Permit the tool to upload canonical resources even if
                                                              they would result in the server having multiple canonical
                                                              versions of the same resource after it runs
@@ -83,6 +85,8 @@ Options:
                                                              [default: False]
   -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
                                                              FHIR Server, but do not update any of the contents of the FHIR Server
+                                                             [default: False]
+  --includeReferencedDependencies                            Upload any referenced resources from resource dependencies being included
                                                              [default: False]
   --includeExamples                                          Also include files in the examples sub-directory
                                                              (Still needs resource type specified)
@@ -185,8 +189,9 @@ The final column indicates the canonical version numbers that are currently on t
 ### Review the SDOH Clinical Care IG Package
 Test the package content and not try and upload any data to a server, and will grab the latest
 version from the HL7 FHIR Package Registry
+(and also validate any resource dependencies from package dependencies - US-Core/SDC...)
 ``` ps
-> UploadFIG -pid hl7.fhir.us.sdoh-clinicalcare  -t
+> UploadFIG -pid hl7.fhir.us.sdoh-clinicalcare -t -vrd
 ```
 
 ### Verify an installation of the US Core v6.1.0

@@ -10,7 +10,40 @@ namespace UploadFIG.Test
     [TestClass]
     public class TestResourceImporter
     {
-        [TestMethod]
+		[TestMethod]
+		public async Task TestDeployUsCore()
+		{
+			var app = new UnitTestFhirServerApplication();
+			Program.useClient = app.CreateClient();
+
+			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
+			var args = new[]
+			{
+                "-vq",
+				"-r", "Questionnaire",
+				"-r", "ValueSet",
+				"-r", "CodeSystem",
+				"-r", "SearchParameter",
+				"-vrd",
+				"--includeReferencedDependencies",
+				"-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
+				"-d", "https://localhost",
+				"-odf", outputFile,
+                // "--verbose",
+            };
+			var result = await Program.Main(args);
+
+			string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
+			string unitTestPath = Path.Combine(tempFIGpath, "unit-test-data");
+			int loadedResourceCount = Directory.EnumerateFiles(unitTestPath).Count();
+
+			// run it again to ensure that we don't get any new versions of resources
+			result = await Program.Main(args);
+			Assert.AreEqual(loadedResourceCount, Directory.EnumerateFiles(unitTestPath).Count());
+			Assert.AreEqual(0, result);
+		}
+
+		[TestMethod]
         public async Task TestIgnoreDuplicateCanonicals()
         {
             var app = new UnitTestFhirServerApplication();
@@ -73,6 +106,8 @@ namespace UploadFIG.Test
                 "-d", "https://localhost",
                 "-odf", outputFile,
                 "-pdv", "false",
+				"-vrd",
+				"--includeReferencedDependencies",
                 // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
                 // "--verbose",
             };
