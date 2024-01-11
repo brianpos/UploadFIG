@@ -15,6 +15,7 @@ using System.Formats.Tar;
 using System.Security.Cryptography;
 using System.Text;
 using UploadFIG.Helpers;
+using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
 {
@@ -75,10 +76,12 @@ namespace UploadFIG
 				new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
 				new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
 				new Option<bool>(new string[] { "-vq", "--validateQuestionnaires" }, () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
+				new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
 				new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
 				new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
 				new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
-				new Option<bool>(new string[]{ "--includeExamples"}, () => settings.Verbose, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
+				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
+				new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
 				new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
 				new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
 			};
@@ -114,6 +117,22 @@ namespace UploadFIG
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
 
+			// Validate the headers being applied
+			if (settings.DestinationServerHeaders?.Any() == true)
+			{
+				Console.WriteLine("Headers:");
+				foreach (var header in settings.DestinationServerHeaders)
+				{
+					if (header.Contains(":"))
+					{
+						var kv = header.Split(new char[] { ':' }, 2);
+						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
+						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
+							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
+					}
+				}
+			}
+
 			// Prepare a temp working folder to hold this downloaded package
 			Stream sourceStream;
 			if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
@@ -144,6 +163,7 @@ namespace UploadFIG
 					string contents = Encoding.UTF8.GetString(examplesPkg);
 					var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
 					Console.WriteLine($"Package ID: {pl?.Name}");
+					Console.WriteLine($"Package Title: {pl?.Description}");
 					Console.WriteLine($"Available Versions: {String.Join(", ", pl.Versions.Keys)}");
 					if (!string.IsNullOrEmpty(settings.PackageVersion) && !pl.Versions.ContainsKey(settings.PackageVersion))
 					{
@@ -213,22 +233,6 @@ namespace UploadFIG
 				sourceStream.Seek(0, SeekOrigin.Begin);
 			}
 
-			// Validate the headers being applied
-			if (settings.DestinationServerHeaders?.Any() == true)
-			{
-				Console.WriteLine("Headers:");
-				foreach (var header in settings.DestinationServerHeaders)
-				{
-					if (header.Contains(":"))
-					{
-						var kv = header.Split(new char[] { ':' }, 2);
-						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
-						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
-							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
-					}
-				}
-			}
-
 			Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress);
 			MemoryStream ms = new MemoryStream();
 			using (gzipStream)
@@ -239,81 +243,62 @@ namespace UploadFIG
 			}
 			var reader = new TarReader(ms);
 
-			Common_Processor versionAgnosticProcessor = null;
-			ExpressionValidator expressionValidator = null;
-			FHIRVersion? fhirVersion = null;
-
 			var sw = Stopwatch.StartNew();
 
 			// Locate and read the package manifest to read the package dependencies
-			PackageManifest manifest = null;
-			TarEntry entry;
-			while ((entry = reader.GetNextEntry()) != null)
+			PackageManifest manifest = ReadManifestFromPackage(reader);
+
+			if (manifest == null)
 			{
-				// Read the package definition file
-				if (entry.Name == "package/package.json")
-				{
-					var stream = entry.DataStream;
-					using (stream)
-					{
-						try
-						{
-							StreamReader sr = new StreamReader(stream);
-							var content = sr.ReadToEnd();
-							manifest = PackageParser.ParseManifest(content);
-							if (manifest != null)
-							{
-								Console.WriteLine();
-
-								// Select the version of the processor to use
-								var versionInPackage = manifest.GetFhirVersion();
-								if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
-								{
-									fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4.Hl7.Fhir.Model.ModelInfo.Version);
-									versionAgnosticProcessor = new R4_Processor();
-									expressionValidator = new ExpressionValidatorR4(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-								}
-								else if (versionInPackage.StartsWith(FHIRVersion.N4_3.GetLiteral()))
-								{
-									fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4b.Hl7.Fhir.Model.ModelInfo.Version);
-									versionAgnosticProcessor = new R4B_Processor();
-									expressionValidator = new ExpressionValidatorR4B(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-								}
-								else if (versionInPackage.StartsWith(FHIRVersion.N5_0.GetLiteral()))
-								{
-									fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r5.Hl7.Fhir.Model.ModelInfo.Version);
-									versionAgnosticProcessor = new R5_Processor();
-									expressionValidator = new ExpressionValidatorR5(versionAgnosticProcessor, settings.ValidateQuestionnaires);
-								}
-								else
-								{
-									Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
-									return -1;
-								}
-								if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
-									Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
-								else
-									Console.WriteLine($"Detected FHIR Version {versionInPackage} - using {fhirVersion.GetLiteral()}");
-								Console.WriteLine();
-
-								Console.WriteLine("Package dependencies:");
-								if (manifest.Dependencies != null)
-									Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
-								else
-									Console.WriteLine($"    (none)");
-								Console.WriteLine();
-							}
-							break;
-						}
-						catch (Exception ex)
-						{
-							Console.WriteLine($"Error reading package.json: {ex.Message}");
-							return -1;
-						}
-					}
-				}
+				// There was no manifest
+				Console.WriteLine($"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
+				return -1;
 			}
-			// skip back to the start (for cases where the pacakge.json isn't the first resource)
+
+			Console.WriteLine();
+
+			// Select the version of the processor to use
+			Common_Processor versionAgnosticProcessor = null;
+			ExpressionValidator expressionValidator = null;
+			FHIRVersion? fhirVersion = null;
+			var versionInPackage = manifest.GetFhirVersion();
+			if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
+			{
+				fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4.Hl7.Fhir.Model.ModelInfo.Version);
+				versionAgnosticProcessor = new R4_Processor();
+				expressionValidator = new ExpressionValidatorR4(versionAgnosticProcessor, settings.ValidateQuestionnaires);
+			}
+			else if (versionInPackage.StartsWith(FHIRVersion.N4_3.GetLiteral()))
+			{
+				fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4b.Hl7.Fhir.Model.ModelInfo.Version);
+				versionAgnosticProcessor = new R4B_Processor();
+				expressionValidator = new ExpressionValidatorR4B(versionAgnosticProcessor, settings.ValidateQuestionnaires);
+			}
+			else if (versionInPackage.StartsWith(FHIRVersion.N5_0.GetLiteral()))
+			{
+				fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r5.Hl7.Fhir.Model.ModelInfo.Version);
+				versionAgnosticProcessor = new R5_Processor();
+				expressionValidator = new ExpressionValidatorR5(versionAgnosticProcessor, settings.ValidateQuestionnaires);
+			}
+			else
+			{
+				Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
+				return -1;
+			}
+			if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
+				Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
+			else
+				Console.WriteLine($"Detected FHIR Version {versionInPackage} - using {fhirVersion.GetLiteral()}");
+			Console.WriteLine();
+
+			Console.WriteLine("Package dependencies:");
+			if (manifest.Dependencies != null)
+				Console.WriteLine($"    {string.Join("\r\n    ", manifest.Dependencies.Select(d => $"{d.Key}|{d.Value}"))}");
+			else
+				Console.WriteLine($"    (none)");
+
+
+			// skip back to the start (for cases where the package.json isn't the first resource)
 			ms.Seek(0, SeekOrigin.Begin);
 			reader = new TarReader(ms);
 
@@ -360,10 +345,414 @@ namespace UploadFIG
 			}
 
 			// Load all the content in so that it can then be re-sequenced
+			Console.WriteLine();
 			Console.WriteLine("--------------------------------------");
-			Console.WriteLine("");
 			Console.WriteLine("Scanning package content:");
+			List<Resource> resourcesToProcess = ReadResourcesFromPackage(settings, reader, versionAgnosticProcessor, errs, errFiles);
+
+			// Scan through the resources and resolve any direct canonicals
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Scanning dependencies:");
+			var requiresDirectCanonicals = DependencyChecker.ScanForCanonicals(resourcesToProcess).ToList();
+			var externalDirectCanonicals = DependencyChecker.FilterOutCanonicals(requiresDirectCanonicals, resourcesToProcess).ToList();
+			var externalNonCoreDirectCanonicals = DependencyChecker.FilterOutCoreSpecAndExtensionCanonicals(externalDirectCanonicals, fhirVersion.Value, versionAgnosticProcessor).ToList();
+
+			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
+			expressionValidator.PreValidation(manifest.Dependencies ?? new Dictionary<string, string?>(), resourcesToProcess, settings.Verbose);
+
+			// Locate any indirect canonicals
+			Console.WriteLine();
+			Console.WriteLine("Scanning indirect dependencies:");
+			var indirectCanonicals = DependencyChecker.RecurseDependencies(externalNonCoreDirectCanonicals, expressionValidator.InMemoryResolver, fhirVersion.Value, versionAgnosticProcessor).ToList();
+			var unresolvableCanonicals = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource == null).ToList();
+			var dependencyResourcesToLoad = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource != null).Select(ic => ic.resource).ToList();
+
+			// If loading into a server, report any unresolvable canonicals
+			if (!settings.TestPackageOnly)
+			{
+				Console.WriteLine();
+				if (settings.Verbose)
+				{
+					ReportDependentCanonicalResourcesToConsole(settings, externalNonCoreDirectCanonicals);
+					Console.WriteLine();
+					ReportIndirectlyRequiredCanonicalResourcesToConsole(indirectCanonicals);
+					Console.WriteLine();
+				}
+				ReportUnresolvedCanonicalResourcesToConsole(unresolvableCanonicals);
+			}
+
+			// Validate/upload the dependant resources
+			if (settings.IncludeReferencedDependencies || settings.ValidateReferencedDependencies)
+			{
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine("Validate/upload dependencies:");
+				foreach (var resource in dependencyResourcesToLoad)
+				{
+					var exampleName = resource.Annotation<ExampleName>().value;
+					try
+					{
+						// Workaround for loading packages with invalid xhmtl content - strip them
+						if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+						{
+							if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
+							{
+								if (settings.Verbose)
+									Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
+								continue;
+							}
+							// lets validate this xhtml content before trying
+							if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
+							{
+								if (settings.Verbose)
+									Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
+								var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+								if (messages.Any())
+								{
+									Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+									//Console.WriteLine(dr.Text?.Div);
+									//Console.WriteLine("----");
+
+									// strip out the narrative as we don't really need that for the purpose
+									// of validations.
+									dr.Text = null;
+								}
+							}
+						}
+
+						if (settings.ValidateReferencedDependencies && !expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
+							continue;
+
+						if (!settings.TestPackageOnly && settings.IncludeReferencedDependencies && !string.IsNullOrEmpty(settings.DestinationServerAddress))
+						{
+							Resource result = UploadFile(settings, clientFhir, resource);
+							if (result != null || settings.CheckPackageInstallationStateOnly)
+								System.Threading.Interlocked.Increment(ref successes);
+							else
+								System.Threading.Interlocked.Increment(ref failures);
+						}
+						else
+						{
+							System.Threading.Interlocked.Increment(ref successes);
+						}
+					}
+					catch (Exception ex)
+					{
+						Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+						System.Threading.Interlocked.Increment(ref failures);
+						// DebugDumpOutputXml(resource);
+						errFiles.Add(exampleName);
+					}
+				}
+			}
+
+			// Validate/upload the resources
+			Console.WriteLine();
+			Console.WriteLine("--------------------------------------");
+			Console.WriteLine("Validate/upload package content:");
+			foreach (var resource in resourcesToProcess)
+			{
+				var exampleName = resource.Annotation<ExampleName>().value;
+				try
+				{
+					// Workaround for loading packages with invalid xhmtl content - strip them
+					if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
+					{
+						if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
+						{
+							if (settings.Verbose)
+								Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
+							continue;
+						}
+						// lets validate this xhtml content before trying
+						if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
+						{
+							if (settings.Verbose)
+								Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
+
+							var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
+							if (messages.Any())
+							{
+								Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
+								//Console.WriteLine(dr.Text?.Div);
+								//Console.WriteLine("----");
+
+								// strip out the narrative as we don't really need that for the purpose
+								// of validations.
+								dr.Text = null;
+							}
+						}
+					}
+
+					if (!expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
+						continue;
+
+					if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
+					{
+						Resource result = UploadFile(settings, clientFhir, resource);
+						if (result != null || settings.CheckPackageInstallationStateOnly)
+							System.Threading.Interlocked.Increment(ref successes);
+						else
+							System.Threading.Interlocked.Increment(ref failures);
+					}
+					else
+					{
+						System.Threading.Interlocked.Increment(ref successes);
+					}
+				}
+				catch (Exception ex)
+				{
+					Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
+					System.Threading.Interlocked.Increment(ref failures);
+					// DebugDumpOutputXml(resource);
+					errFiles.Add(exampleName);
+				}
+			}
+
+
+			// Ensure that all direct and indirect canonical resources (excluding core spec/extensions) are installed in the server
+			DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, externalNonCoreDirectCanonicals);
+
+			sw.Stop();
+			Console.WriteLine("Done!");
+			Console.WriteLine();
+
+			if (errs.Any() || errFiles.Any())
+			{
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine(String.Join("\r\n", errs));
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine(String.Join("\r\n", errFiles));
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine();
+			}
+			if (settings.TestPackageOnly)
+			{
+				// A canonical resource review table
+				Console.WriteLine($"Package Canonical content summary: {resourcesToProcess.Count}");
+				Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
+				foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+				{
+					Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+				}
+
+				// Dependant Canonical Resources
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				ReportDependentCanonicalResourcesToConsole(settings, externalNonCoreDirectCanonicals);
+
+				// Indirect Dependant Canonical Resources
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				ReportIndirectlyRequiredCanonicalResourcesToConsole(indirectCanonicals);
+
+				// Unresolvable Canonical Resources
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				ReportUnresolvedCanonicalResourcesToConsole(unresolvableCanonicals);
+
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine("Package Resource type summary:");
+				Console.WriteLine("\tType\tCount");
+				foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+				{
+					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
+				}
+				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
+				Console.WriteLine("--------------------------------------");
+
+				// And the summary at the end
+				Console.WriteLine();
+				Console.WriteLine($"Checked: {successes}");
+				Console.WriteLine($"Validation Errors: {validationErrors}");
+			}
+			else
+			{
+				Console.WriteLine("Package Resource type summary:");
+				Console.WriteLine("\tType\tCount");
+				foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+				{
+					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
+				}
+				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
+				Console.WriteLine("--------------------------------------");
+
+				// And the summary at the end
+				Console.WriteLine($"Success: {successes}");
+				Console.WriteLine($"Failures: {failures}");
+				Console.WriteLine($"Validation Errors: {validationErrors}");
+				Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
+				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
+			}
+
+			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
+			{
+				foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+				{
+					dumpOutput.containedCanonicals.Add(new CanonicalDetails()
+					{
+						resourceType = (resource as Resource).TypeName,
+						canonical = resource.Url,
+						version = resource.Version,
+						status = resource.Status.GetLiteral(),
+						name = resource.Name,
+					});
+					// Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+				}
+				dumpOutput.externalCanonicalsRequired.AddRange(
+					externalNonCoreDirectCanonicals.Select(rc => new DependentResource()
+					{
+						resourceType = rc.resourceType,
+						canonical = rc.canonical,
+						version = rc.version,
+					})
+					);
+				try
+				{
+					// Write dumpOutput to a JSON string
+					JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+					System.IO.File.WriteAllText(settings.OutputDependenciesFile, JsonConvert.SerializeObject(dumpOutput, serializerSettings));
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
+				}
+			}
+			return 0;
+		}
+
+		private static void ReportDependentCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> externalNonCoreDirectCanonicals)
+		{
+			Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in externalNonCoreDirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			{
+				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
+				{
+					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
+					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+				}
+				Console.WriteLine();
+				if (settings.Verbose)
+				{
+					foreach (var dr in details.requiredBy)
+					{
+						if (dr is IVersionableConformanceResource cr)
+							Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
+						else
+							Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
+						if (dr.HasAnnotation<PackageCacheItem>() == true)
+						{
+							var cacheDetails = dr.Annotation<PackageCacheItem>();
+							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+						}
+						Console.WriteLine();
+					}
+				}
+			}
+		}
+
+		private static void ReportIndirectlyRequiredCanonicalResourcesToConsole(List<CanonicalDetails> indirectCanonicals)
+		{
+			Console.WriteLine($"Indirectly requires the following non-core canonical resources: {indirectCanonicals.Count}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in indirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			{
+				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
+				{
+					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
+					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+				}
+				Console.WriteLine();
+				foreach (var dr in details.requiredBy)
+				{
+					if (dr is IVersionableConformanceResource cr)
+						Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
+					else
+						Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
+					if (dr.HasAnnotation<PackageCacheItem>() == true)
+					{
+						var cacheDetails = dr.Annotation<PackageCacheItem>();
+						Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+					}
+					else if (dr.HasAnnotation<ExampleName>())
+					{
+						var exampleName = dr.Annotation<ExampleName>();
+						Console.Write($"\t{exampleName.value}");
+					}
+					Console.WriteLine();
+				}
+			}
+		}
+
+		private static void ReportUnresolvedCanonicalResourcesToConsole(List<CanonicalDetails> unresolvableCanonicals)
+		{
+			Console.WriteLine($"Unable to resolve these canonical resources: {unresolvableCanonicals.Count}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in unresolvableCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			{
+				Console.WriteLine($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				foreach (var dr in details.requiredBy)
+				{
+					if (dr is IVersionableConformanceResource cr)
+						Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
+					else
+						Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
+					if (dr.HasAnnotation<PackageCacheItem>() == true)
+					{
+						var cacheDetails = dr.Annotation<PackageCacheItem>();
+						Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+					}
+					if (dr.HasAnnotation<ExampleName>())
+					{
+						var exampleName = dr.Annotation<ExampleName>();
+						Console.Write($"\t{exampleName.value}");
+					}
+					Console.WriteLine();
+				}
+			}
+		}
+
+		private static PackageManifest ReadManifestFromPackage(TarReader reader)
+		{
+			PackageManifest manifest = null;
+			TarEntry entry;
+			while ((entry = reader.GetNextEntry()) != null)
+			{
+				// Read the package definition file
+				if (entry.Name == "package/package.json")
+				{
+					var stream = entry.DataStream;
+					using (stream)
+					{
+						try
+						{
+							StreamReader sr = new StreamReader(stream);
+							var content = sr.ReadToEnd();
+							manifest = PackageParser.ParseManifest(content);
+							break;
+						}
+						catch (Exception ex)
+						{
+							Console.WriteLine($"Error reading package.json: {ex.Message}");
+							return null;
+						}
+					}
+				}
+			}
+
+			return manifest;
+		}
+
+		private static List<Resource> ReadResourcesFromPackage(Settings settings, TarReader reader, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles)
+		{
 			List<Resource> resourcesToProcess = new();
+			TarEntry entry;
 			while ((entry = reader.GetNextEntry()) != null)
 			{
 				if (SkipFile(settings, entry.Name))
@@ -424,180 +813,7 @@ namespace UploadFIG
 					}
 				}
 			}
-
-			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			expressionValidator.PreValidation(manifest.Dependencies ?? new Dictionary<string, string?>(), resourcesToProcess);
-
-			foreach (var resource in resourcesToProcess)
-			{
-				var exampleName = resource.Annotation<ExampleName>().value;
-				try
-				{
-					// Workaround for loading packages with invalid xhmtl content - strip them
-					if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
-					{
-						if (settings.IgnoreCanonicals?.Contains(ivr.Url) == true)
-						{
-							if (settings.Verbose)
-								Console.WriteLine($"    ----> Ignoring {exampleName} because it is in the ignore list canonical: {ivr.Url}");
-							continue;
-						}
-						// lets validate this xhtml content before trying
-						if (settings.CheckAndCleanNarratives && !string.IsNullOrEmpty(dr.Text?.Div))
-						{
-							if (settings.Verbose)
-								Console.WriteLine($"    ----> Checking narrative text in canonical: {ivr.Url}");
-
-							var messages = NarrativeHtmlSanitizer.Validate(dr.Text.Div);
-							if (messages.Any())
-							{
-								Console.WriteLine($"    ----> stripped potentially corrupt narrative from {exampleName}");
-								//Console.WriteLine(dr.Text?.Div);
-								//Console.WriteLine("----");
-
-								// strip out the narrative as we don't really need that for the purpose
-								// of validations.
-								dr.Text = null;
-							}
-						}
-					}
-
-					if (!expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
-						continue;
-
-					if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
-					{
-						Resource result = UploadFile(settings, clientFhir, resource);
-						if (result != null || settings.CheckPackageInstallationStateOnly)
-							System.Threading.Interlocked.Increment(ref successes);
-						else
-							System.Threading.Interlocked.Increment(ref failures);
-					}
-					else
-					{
-						System.Threading.Interlocked.Increment(ref successes);
-					}
-				}
-				catch (Exception ex)
-				{
-					Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-					System.Threading.Interlocked.Increment(ref failures);
-					// DebugDumpOutputXml(resource);
-					errFiles.Add(exampleName);
-				}
-			}
-
-			// Scan through the resources and resolve any canonicals
-			Console.WriteLine();
-			Console.WriteLine("--------------------------------------");
-			List<CanonicalDetails> requiresCanonicals = DependencyChecker.ScanForCanonicals(fhirVersion.Value, resourcesToProcess, versionAgnosticProcessor);
-			DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
-
-			sw.Stop();
-			Console.WriteLine("Done!");
-			Console.WriteLine();
-
-			if (errs.Any() || errFiles.Any())
-			{
-				Console.WriteLine("--------------------------------------");
-				Console.WriteLine(String.Join("\r\n", errs));
-				Console.WriteLine("--------------------------------------");
-				Console.WriteLine(String.Join("\r\n", errFiles));
-				Console.WriteLine("--------------------------------------");
-				Console.WriteLine();
-			}
-			if (settings.TestPackageOnly)
-			{
-				// A canonical resource review table
-				Console.WriteLine("Package Canonical content summary:");
-				Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
-				foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
-				{
-					Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
-				}
-				Console.WriteLine("--------------------------------------");
-
-				// Dependant Canonical Resources
-				Console.WriteLine("Requires the following non-core canonical resources:");
-				Console.WriteLine("\tResource Type\tCanonical Url\tVersion");
-				foreach (var details in requiresCanonicals)
-				{
-					Console.WriteLine($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-				}
-				Console.WriteLine("--------------------------------------");
-
-				Console.WriteLine("Package Resource type summary:");
-				Console.WriteLine("\tType\tCount");
-				foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
-				{
-					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
-				}
-				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
-				Console.WriteLine("--------------------------------------");
-
-				// And the summary at the end
-				Console.WriteLine("");
-				Console.WriteLine($"Checked: {successes}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
-			}
-			else
-			{
-				Console.WriteLine("Package Resource type summary:");
-				Console.WriteLine("\tType\tCount");
-				foreach (var resource in resourcesToProcess.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
-				{
-					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
-				}
-				Console.WriteLine($"\tTotal\t{resourcesToProcess.Count()}");
-				Console.WriteLine("--------------------------------------");
-
-				// And the summary at the end
-				Console.WriteLine($"Success: {successes}");
-				Console.WriteLine($"Failures: {failures}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
-				Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
-				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
-			}
-
-			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
-			{
-				foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
-				{
-					dumpOutput.containedCanonicals.Add(new CanonicalDetails()
-					{
-						resourceType = (resource as Resource).TypeName,
-						canonical = resource.Url,
-						version = resource.Version,
-						status = resource.Status.GetLiteral(),
-						name = resource.Name,
-					});
-					// Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
-				}
-				dumpOutput.externalCanonicalsRequired.AddRange(
-					requiresCanonicals.Select(rc => new DependentResource()
-					{
-						resourceType = rc.resourceType,
-						canonical = rc.canonical,
-						version = rc.version,
-					})
-					);
-				try
-				{
-					// Write dumpOutput to a JSON string
-					JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
-					System.IO.File.WriteAllText(settings.OutputDependenciesFile, JsonConvert.SerializeObject(dumpOutput, serializerSettings));
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
-				}
-			}
-			return 0;
-		}
-
-		record ExampleName
-		{
-			public string value { get; init; }
+			return resourcesToProcess;
 		}
 
 		static bool SkipFile(Settings settings, string filename)
@@ -669,7 +885,13 @@ namespace UploadFIG
 						dr.Text = (resource as DomainResource)?.Text;
 					if (current.IsExactly(resource))
 					{
-						Console.WriteLine($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
+						Console.Write($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
+						if (resource.HasAnnotation<PackageCacheItem>() == true)
+						{
+							var cacheDetails = resource.Annotation<PackageCacheItem>();
+							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+						}
+						Console.WriteLine();
 						return original;
 					}
 				}
@@ -728,6 +950,11 @@ namespace UploadFIG
 						if (existingVersion.IsExactly(resource))
 						{
 							Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+							if (resource.HasAnnotation<PackageCacheItem>() == true)
+							{
+								var cacheDetails = resource.Annotation<PackageCacheItem>();
+								Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+							}
 							if (!string.IsNullOrEmpty(warningMessage))
 							{
 								Console.ForegroundColor = ConsoleColor.Yellow;
@@ -764,6 +991,11 @@ namespace UploadFIG
 				Console.Write($"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
 			else
 				Console.Write($"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+			if (resource.HasAnnotation<PackageCacheItem>() == true)
+			{
+				var cacheDetails = resource.Annotation<PackageCacheItem>();
+				Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+			}
 			if (!string.IsNullOrEmpty(warningMessage))
 			{
 				Console.ForegroundColor = ConsoleColor.Yellow;

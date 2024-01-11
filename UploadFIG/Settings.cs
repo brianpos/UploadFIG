@@ -112,6 +112,16 @@ namespace UploadFIG
         public bool IncludeExamples { get; set; }
 
         /// <summary>
+        /// Upload resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
+        /// </summary>
+        public bool IncludeReferencedDependencies { get; set; }
+
+		/// <summary>
+		/// validate resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
+		/// </summary>
+		public bool ValidateReferencedDependencies { get; set; }
+
+        /// <summary>
         /// The filename of a file to write the discovered dependencies of this IG to
         /// </summary>
         public string OutputDependenciesFile { get; set; }
