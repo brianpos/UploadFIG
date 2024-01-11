@@ -115,14 +115,14 @@ Tool 'uploadfig' was successfully updated from version '2023.8.2.2' to version '
 PS C:\Users\brian> 
 ```
 
-### Unistalling
+### Uninstalling
 ``` ps
 PS C:\Users\brian> dotnet tool uninstall uploadfig --global
 Tool 'uploadfig' (version '2023.8.3.15') was successfully uninstalled.
 ```
 
 ## Understanding the output
-### Pacakge Metadata
+### Package Metadata
 The first section in the output is the metadata about the package that was downloaded and is being processed.
 It finishes with the list of package dependencies in the project.
 
@@ -151,7 +151,7 @@ Scanning package content:
     unchanged   StructureDefinition     http://hl7.org.au/fhir/core/StructureDefinition/au-core-lipid-result|0.1.0-draft
 ```
 
-### Pacakge Content Summary (Test mode only)
+### Package Content Summary (Test mode only)
 When run in TestMode the output will also include a table of all the canonical resources that it processed for reference.
 
 ``` txt
@@ -165,7 +165,7 @@ Package content summary:
 ```
 
 ### Dependency Verification
-This section displays a summary of all the resource depencencies that were detected as required
+This section displays a summary of all the resource dependencies that were detected as required
 by the implementation guide (e.g. extensions, profiles and terminologies referenced by a profile)
 and their current state on the destination server.
 
@@ -234,9 +234,20 @@ This is independent of the format of the content that is native inside the IG pa
 > UploadFIG -pid hl7.fhir.au.base -d https://localhost:44348 -df json
 ```
 
+### Deploy the latest version of the Davinci CRD IG and dependent resource to a FHIR Server
+Many IGs have other packages that they depend on, and using `includeReferencedDependencies` downloads those packages
+and then uploads resources used by the primary IG from those dependencies
+``` ps
+> UploadFIG -pid hl7.fhir.us.davinci-crd -d https://localhost:44348 --includeReferencedDependencies
+```
+
 ---
 
 ## Change history
+
+### 11 January 2024
+* Include package/resource dependency processing and optional upload to destination FHIR server
+* Include the package title in the output
 
 ### 3 January 2024
 * Fix null reference error that occurs when a package contains no dependencies in the manifest
@@ -250,8 +261,8 @@ This is independent of the format of the content that is native inside the IG pa
     - Add validation check to the `as()` function to check that the type provided could potentially be valid
     - Include `string` as one of the valid datatypes for the Search Type `Uri`
 * Fhirpath validation checks now resolve `extension('http://...')` in expressions to locate the extension definition
-  and validate that the extension is available in the project (or fhir core) and then accurately constrain
-  the datatype to those specified in the extension, and also the extenions defined cardinality.
+  and validate that the extension is available in the project (or FHIR core) and then accurately constrain
+  the datatype to those specified in the extension, and also the extensions defined cardinality.
 * Information messages from the validator are also displayed in the output (if there were no errors/warnings these were previously suppressed)
 * Scan Dependency packages for extensions!
 
@@ -268,7 +279,7 @@ This is independent of the format of the content that is native inside the IG pa
 
 ### 26 October 2023
 * Produce a summary output of the resources that this IG directly has dependencies on (likely from dependant packages)
-* output the above dependencies summary to a textfile via a new -odf or --outputDependenciesFile commandline parameter
+* output the above dependencies summary to a text file via a new -odf or --outputDependenciesFile commandline parameter
 * Dependent resource scan now processes StructureMap and Questionnaire (in addition to StructureDefinition and ValueSet)
 
 ### 24 October 2023

@@ -672,11 +672,6 @@ namespace UploadFIG
 			return 0;
 		}
 
-		record ExampleName
-		{
-			public string value { get; init; }
-		}
-
 		private static void ReportUnresolvedCanonicalResourcesToConsole(List<CanonicalDetails> unresolvableCanonicals)
 		{
 			Console.WriteLine($"Unable to resolve these canonical resources: {unresolvableCanonicals.Count}");
