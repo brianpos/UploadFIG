@@ -21,9 +21,9 @@ namespace UploadFIG
 		public bool _validateQuestionnaire;
 
         List<SearchParameter> _searchParameters;
-        public override void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources)
+        public override void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources, bool verboseMode)
         {
-			base.PreValidation(dependencies, resources);
+			base.PreValidation(dependencies, resources, verboseMode);
 			_searchParameters = resources.OfType<SearchParameter>().ToList();
 			CommonZipSource zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
 			_inMemoryResolver = new InMemoryResolver(_processor, _profiles, _dependencyProfiles);

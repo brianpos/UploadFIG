@@ -359,9 +359,11 @@ namespace UploadFIG
 			var externalNonCoreDirectCanonicals = DependencyChecker.FilterOutCoreSpecAndExtensionCanonicals(externalDirectCanonicals, fhirVersion.Value, versionAgnosticProcessor).ToList();
 
 			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			expressionValidator.PreValidation(manifest.Dependencies ?? new Dictionary<string, string?>(), resourcesToProcess);
+			expressionValidator.PreValidation(manifest.Dependencies ?? new Dictionary<string, string?>(), resourcesToProcess, settings.Verbose);
 
 			// Locate any indirect canonicals
+			Console.WriteLine();
+			Console.WriteLine("Scanning indirect dependencies:");
 			var indirectCanonicals = DependencyChecker.RecurseDependencies(externalNonCoreDirectCanonicals, expressionValidator.InMemoryResolver, fhirVersion.Value, versionAgnosticProcessor).ToList();
 			var unresolvableCanonicals = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource == null).ToList();
 			var dependencyResourcesToLoad = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource != null).Select(ic => ic.resource).ToList();
@@ -370,7 +372,13 @@ namespace UploadFIG
 			if (!settings.TestPackageOnly)
 			{
 				Console.WriteLine();
-				Console.WriteLine("--------------------------------------");
+				if (settings.Verbose)
+				{
+					ReportDependentCanonicalResourcesToConsole(settings, externalNonCoreDirectCanonicals);
+					Console.WriteLine();
+					ReportIndirectlyRequiredCanonicalResourcesToConsole(indirectCanonicals);
+					Console.WriteLine();
+				}
 				ReportUnresolvedCanonicalResourcesToConsole(unresolvableCanonicals);
 			}
 
@@ -533,68 +541,12 @@ namespace UploadFIG
 				// Dependant Canonical Resources
 				Console.WriteLine();
 				Console.WriteLine("--------------------------------------");
-				Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
-				Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-				foreach (var details in externalNonCoreDirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
-				{
-					Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-					if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
-					{
-						var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-						Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
-					}
-					Console.WriteLine();
-					if (settings.Verbose)
-					{
-						foreach (var dr in details.requiredBy)
-						{
-							if (dr is IVersionableConformanceResource cr)
-								Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
-							else
-								Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
-							if (dr.HasAnnotation<PackageCacheItem>() == true)
-							{
-								var cacheDetails = dr.Annotation<PackageCacheItem>();
-								Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
-							}
-							Console.WriteLine();
-						}
-					}
-				}
+				ReportDependentCanonicalResourcesToConsole(settings, externalNonCoreDirectCanonicals);
 
 				// Indirect Dependant Canonical Resources
 				Console.WriteLine();
 				Console.WriteLine("--------------------------------------");
-				Console.WriteLine($"Indirectly requires the following non-core canonical resources: {indirectCanonicals.Count}");
-				Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-				foreach (var details in indirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
-				{
-					Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-					if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
-					{
-						var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-						Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
-					}
-					Console.WriteLine();
-					foreach (var dr in details.requiredBy)
-					{
-						if (dr is IVersionableConformanceResource cr)
-							Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
-						else
-							Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
-						if (dr.HasAnnotation<PackageCacheItem>() == true)
-						{
-							var cacheDetails = dr.Annotation<PackageCacheItem>();
-							Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
-						}
-						else if (dr.HasAnnotation<ExampleName>())
-						{
-							var exampleName = dr.Annotation<ExampleName>();
-							Console.Write($"\t{exampleName.value}");
-						}
-						Console.WriteLine();
-					}
-				}
+				ReportIndirectlyRequiredCanonicalResourcesToConsole(indirectCanonicals);
 
 				// Unresolvable Canonical Resources
 				Console.WriteLine();
@@ -670,6 +622,72 @@ namespace UploadFIG
 				}
 			}
 			return 0;
+		}
+
+		private static void ReportDependentCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> externalNonCoreDirectCanonicals)
+		{
+			Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in externalNonCoreDirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			{
+				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
+				{
+					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
+					Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+				}
+				Console.WriteLine();
+				if (settings.Verbose)
+				{
+					foreach (var dr in details.requiredBy)
+					{
+						if (dr is IVersionableConformanceResource cr)
+							Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
+						else
+							Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
+						if (dr.HasAnnotation<PackageCacheItem>() == true)
+						{
+							var cacheDetails = dr.Annotation<PackageCacheItem>();
+							Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+						}
+						Console.WriteLine();
+					}
+				}
+			}
+		}
+
+		private static void ReportIndirectlyRequiredCanonicalResourcesToConsole(List<CanonicalDetails> indirectCanonicals)
+		{
+			Console.WriteLine($"Indirectly requires the following non-core canonical resources: {indirectCanonicals.Count}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in indirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			{
+				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
+				{
+					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
+					Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+				}
+				Console.WriteLine();
+				foreach (var dr in details.requiredBy)
+				{
+					if (dr is IVersionableConformanceResource cr)
+						Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
+					else
+						Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
+					if (dr.HasAnnotation<PackageCacheItem>() == true)
+					{
+						var cacheDetails = dr.Annotation<PackageCacheItem>();
+						Console.Write($"\t{cacheDetails.packageId}|{cacheDetails.packageVersion}");
+					}
+					else if (dr.HasAnnotation<ExampleName>())
+					{
+						var exampleName = dr.Annotation<ExampleName>();
+						Console.Write($"\t{exampleName.value}");
+					}
+					Console.WriteLine();
+				}
+			}
 		}
 
 		private static void ReportUnresolvedCanonicalResourcesToConsole(List<CanonicalDetails> unresolvableCanonicals)

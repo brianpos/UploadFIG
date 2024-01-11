@@ -48,13 +48,13 @@ namespace UploadFIG
 
 		public List<PackageCacheItem> DependencyProfiles { get { return _dependencyProfiles; } }
 
-		public virtual void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources)
+		public virtual void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources, bool verboseMode)
 		{
 			_profiles = resources.OfType<StructureDefinition>().ToList();
-			RecursivelyScanPackageExtensions(dependencies);
+			RecursivelyScanPackageExtensions(dependencies, verboseMode);
 		}
 
-		public void RecursivelyScanPackageExtensions(Dictionary<string, string> dependencies)
+		public void RecursivelyScanPackageExtensions(Dictionary<string, string> dependencies, bool verboseMode)
 		{
 			// Prepare our own cache of fhir packages in this projects AppData folder
 			var cache = new TempPackageCache();
@@ -66,7 +66,8 @@ namespace UploadFIG
 				if (!scannedPackages.Contains(key))
 				{
 					depPackages.Enqueue(dp);
-					// Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
+					if (verboseMode)
+						Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
 					scannedPackages.Add(key);
 				}
 			}
@@ -76,7 +77,10 @@ namespace UploadFIG
 
 				if (dp.Value == "current")
 				{
+					var oldColor = Console.ForegroundColor; 
+					Console.ForegroundColor = ConsoleColor.Red;
 					Console.WriteLine($"      Unable to scan 'current' dependency {dp.Key}");
+					Console.ForegroundColor = oldColor;
 					continue;
 				}
 
@@ -144,7 +148,8 @@ namespace UploadFIG
 							if (!dependencies.ContainsKey(dep.Key))
 							{
 								depPackages.Enqueue(dep);
-								// Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing (Dependent of {manifest.Name}|{manifest.Version})");
+								if (verboseMode)
+									Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing (dependency of {manifest.Name}|{manifest.Version})");
 							}
 							else
 							{
