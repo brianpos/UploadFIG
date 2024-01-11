@@ -107,7 +107,7 @@ namespace UploadFIG
             }
 
             // StructureMaps
-            //      (structuredefintions and imports)
+			//      (structure definitions and imports)
             //      (embedded ConceptMaps) `group.rule.target.where(transform='translate').parameter[1]` // the map URI.
             // Library - DataRequirements
             // PlanDefinitions
@@ -297,7 +297,9 @@ namespace UploadFIG
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, CodeSystem resource)
         {
             CheckRequiresCanonical(resource, "CodeSystem", resource.Supplements, requiresCanonicals);
-            CheckRequiresCanonical(resource, "ValueSet", resource.ValueSet, requiresCanonicals);
+            // Removing this check for the "complete valueset" reference as this is quite often not there
+            // and if others need it, they would have a reference to it.
+            // CheckRequiresCanonical(resource, "ValueSet", resource.ValueSet, requiresCanonicals);
         }
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, ValueSet resource)
@@ -322,6 +324,8 @@ namespace UploadFIG
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, StructureDefinition resource)
         {
+			CheckRequiresCanonical(resource, "StructureDefinition", resource.BaseDefinition, requiresCanonicals);
+			
             if (resource?.Differential?.Element == null)
             {
                 // Nothing to process
@@ -333,6 +337,7 @@ namespace UploadFIG
                 // Type bindings
                 foreach (var t in ed.Type)
                 {
+					// CheckRequiresCanonical(resource, "StructureDefinition", t.Code, requiresCanonicals);
                     foreach (var binding in t.Profile)
                     {
                         CheckRequiresCanonical(resource, "StructureDefinition", binding, requiresCanonicals);
@@ -364,12 +369,25 @@ namespace UploadFIG
 
         private static void ScanForCanonicalsR4(List<CanonicalDetails> requiresCanonicals, r4.Hl7.Fhir.Model.Questionnaire resource)
         {
+			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
+
             foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
             ScanForSDCExtensionCanonicals(requiresCanonicals, resource);
 
             ScanForCanonicalsR4(requiresCanonicals, resource, resource.Item);
+        }
+
+        private static void ScanForCanonicalsMetaProfiles(List<CanonicalDetails> requiresCanonicals, Resource resource)
+        {
+            if (resource.Meta != null)
+            {
+                foreach (var profile in resource.Meta?.Profile)
+                {
+                    CheckRequiresCanonical(resource, "StructureDefinition", profile, requiresCanonicals);
+                }
+            }
         }
 
         private static void ScanForCanonicalsR4(List<CanonicalDetails> requiresCanonicals, Resource resource, List<r4.Hl7.Fhir.Model.Questionnaire.ItemComponent> items)
@@ -379,6 +397,7 @@ namespace UploadFIG
             foreach (var item in items)
             {
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicalsR4(requiresCanonicals, resource, item.Item);
@@ -387,6 +406,8 @@ namespace UploadFIG
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, r4b.Hl7.Fhir.Model.Questionnaire resource)
         {
+			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
+
             foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
@@ -402,6 +423,7 @@ namespace UploadFIG
             foreach (var item in items)
             {
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicals(requiresCanonicals, resource, item.Item);
@@ -410,6 +432,8 @@ namespace UploadFIG
 
         private static void ScanForCanonicalsR5(List<CanonicalDetails> requiresCanonicals, r5.Hl7.Fhir.Model.Questionnaire resource)
         {
+			ScanForCanonicalsMetaProfiles(requiresCanonicals, resource);
+
             foreach (var derivedFrom in resource.DerivedFrom)
                 CheckRequiresCanonical(resource, "Questionnaire", derivedFrom, requiresCanonicals);
 
@@ -425,6 +449,7 @@ namespace UploadFIG
             foreach (var item in items)
             {
                 CheckRequiresCanonical(resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+				CheckRequiresCanonical(resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(requiresCanonicals, resource, item);
                 ScanForCanonicalsR5(requiresCanonicals, resource, item.Item);
