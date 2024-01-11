@@ -121,12 +121,74 @@ PS C:\Users\brian> dotnet tool uninstall uploadfig --global
 Tool 'uploadfig' (version '2023.8.3.15') was successfully uninstalled.
 ```
 
+## Handling Package Dependencies
+FHIR Packages can have dependencies on other FHIR Packages. These dependencies can be direct or indirect.
+The utility uses the FHIR package registry to locate dependent packages, and will download them automatically.
+It currently only supports explicitly versioned package references, and not indeterminate ones like `current`.
+
+These will always be downloaded from the FHIR Package Registry, and not from the local file system, and 
+will be used to detect if there are any issues with the packages, and what actual dependent canonical resources 
+are actually required by the package being loaded - which helps to identify if there will be missing content
+that needs to come from some other source, such as a live registry for some terminologies that aren't
+available as FHIR packages, and thus not included.
+
+### Uploading Dependencies
+In general there are 3 options that can be considered with deploying the dependencies of a package
+1. Do not load any dependencies (just list them out - which is what the previous version of the utility did)
+2. Load in the resources in dependencies that are required (directly or indirectly) from resources in the package we are uploading
+3. Load in all the resources in all the dependencies
+
+This utility will still perform option 1 by default, and can now perform option 2 if the `--includeReferencedDependencies` option is specified.
+If your environment requires ALL resources from the IGs listed in the dependencies to be loaded, 
+then you will need to run the utility multiple times.
+
+### Caching
+The dependency packages are downloaded into the users temp folder and cached there for future use.
+The utility will check the cache first before downloading the package again, based on the packageID and package version.
+
+The packages are not unpacked and processed as raw files on disk, but are processed directly from the tgz file in memory.
+This can save space, and remove the likelihood that the files will be tampered with, or package extraction not be complete for various reasons.
+
+On Windows this is a temporary folder under the users profile folder, e.g.
+`C:\Users\brian\AppData\Local\Temp\UploadFIG\PackageCache`
+
+
 ## Understanding the output
 ### Package Metadata
 The first section in the output is the metadata about the package that was downloaded and is being processed.
 It finishes with the list of package dependencies in the project.
 
+
 ### Scanning package content
+This is a sample showing several examples of the kind of output from the utility when it is processing the package contents.
+The section will usually be empty unless there are parsing errors while reading the package contents.
+
+### Scanning dependencies / indirect dependencies
+During this stage the utility will recursively iterate through all the dependencies of the package and build a list of all 
+the resources that are referenced by the package.
+Then report out if there are some resources that are not found in any of the IGs package dependencies.
+For any canonical resources that cannot be resolved the resource that references it will be also reported in a line underneath.
+
+``` txt
+Scanning dependencies:
+
+Scanning indirect dependencies:
+
+Unable to resolve these canonical resources: 2
+	Resource Type	Canonical Url	Version	Package Source
+	CodeSystem	http://hl7.org/fhir/fhir-types	
+					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
+	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
+```
+In verbose mode the utility will also report out the list of required resources in the package dependencies, along with the resource
+that required them to be included - very useful for tracing out why resources were included.
+
+### Validate/upload dependencies:
+This section is only shown if the `--includeReferencedDependencies` or `-vrd` option is used.
+It shows the results of validating/loading the detected dependent resources to the fhir server.
+
+### Validate/upload package content:
 This is a sample showing several examples of the kind of output from the utility when it is processing the package contents.
 
 Here we can see that several resources have been created on the server, and some have been updated.
@@ -155,7 +217,7 @@ Scanning package content:
 When run in TestMode the output will also include a table of all the canonical resources that it processed for reference.
 
 ``` txt
-Package content summary:
+Package content summary: (40)
         Canonical Url  Canonical Version       Status  Name
         http://hl7.org/fhir/us/davinci-ra/CodeSystem/coding-gap-annotation      2.0.0-ballot    Active  CodingGapAnnotation
         http://hl7.org/fhir/us/davinci-ra/CodeSystem/coding-gap-task-reason     2.0.0-ballot    Draft   CodingGapTaskReason
@@ -164,7 +226,50 @@ Package content summary:
         http://hl7.org/fhir/us/davinci-ra/CodeSystem/suspect-type       2.0.0-ballot    Active  RiskAdjustmentSuspectType
 ```
 
-### Dependency Verification
+This section will also contain lists of all dependent resources directly referenced (via canonicals) in the dependency packages,
+and another section for indirectly required canonical resources.
+``` txt
+--------------------------------------
+Requires the following non-core canonical resources: 20
+	Resource Type	Canonical Url	Version	Package Source
+	ValueSet	http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.114222.4.11.3591		(us.nlm.vsac|0.11.0)
+	StructureDefinition	http://hl7.org/fhir/5.0/StructureDefinition/extension-CommunicationRequest.payload.content[x]	
+	CodeSystem	http://hl7.org/fhir/fhir-types	
+	StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/elementdefinition-json-name	
+	StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/json-primitive-choice	
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-location		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-medication		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitionerrole		(hl7.fhir.us.core|3.1.1)
+	ValueSet	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes		(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-task		(hl7.fhir.uv.sdc|3.0.0)
+	CodeSystem	http://loinc.org		(hl7.terminology.r4|5.3.0)
+	CodeSystem	http://www.ama-assn.org/go/cpt		(hl7.terminology.r4|5.3.0)
+	CodeSystem	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets		(hl7.terminology.r4|5.3.0)
+	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+
+--------------------------------------
+Indirectly requires the following non-core canonical resources: 31
+	Resource Type	Canonical Url	Version	Package Source
+	CodeSystem	http://hl7.org/fhir/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
+					^- http://hl7.org/fhir/ValueSet/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
+	CodeSystem	http://hl7.org/fhir/sid/icd-10-cm		(hl7.terminology.r4|5.3.0)
+					^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
+	CodeSystem	http://hl7.org/fhir/sid/icd-9-cm	
+					^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
+	StructureDefinition	http://hl7.org/fhir/StructureDefinition/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
+					^- http://loinc.org|3.1.0	(hl7.terminology.r4|5.3.0)
+					^- http://www.nlm.nih.gov/research/umls/rxnorm|3.0.1	(hl7.terminology.r4|5.3.0)
+```
+The verbose mode will also include tracing information is also shown in the directly required resources as is found in the indirect section.
+
+
+### Dependency Verification (Upload mode only)
 This section displays a summary of all the resource dependencies that were detected as required
 by the implementation guide (e.g. extensions, profiles and terminologies referenced by a profile)
 and their current state on the destination server.
@@ -184,6 +289,7 @@ Done!
 The first column here is the canonical URL, the second column is the specific version the reference is requesting, 
 or the word 'current' if the reference is requesting the latest version of the resource.
 The final column indicates the canonical version numbers that are currently on the destination server.
+
 
 ## Examples
 ### Review the SDOH Clinical Care IG Package
@@ -239,6 +345,58 @@ Many IGs have other packages that they depend on, and using `includeReferencedDe
 and then uploads resources used by the primary IG from those dependencies
 ``` ps
 > UploadFIG -pid hl7.fhir.us.davinci-crd -d https://localhost:44348 --includeReferencedDependencies
+```
+Extract of output from deployment:
+``` txt
+    Package dependencies:
+    hl7.fhir.r4.core|4.0.1
+    hl7.terminology.r4|5.3.0
+    hl7.fhir.uv.extensions.r4|1.0.0
+    hl7.fhir.us.core|3.1.1
+    hl7.fhir.uv.sdc|3.0.0
+    hl7.fhir.us.davinci-hrex|1.0.0
+    us.nlm.vsac|0.11.0
+
+--------------------------------------
+Scanning package content:
+
+--------------------------------------
+Scanning dependencies:
+
+Scanning indirect dependencies:
+
+Unable to resolve these canonical resources: 2
+	Resource Type	Canonical Url	Version	Package Source
+	CodeSystem	http://hl7.org/fhir/fhir-types	
+					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
+	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
+
+--------------------------------------
+Validate/upload dependencies:
+    created	CodeSystem	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets|1.0.1	(hl7.terminology.r4|5.3.0)
+    created	ValueSet	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes|3.1.1	(hl7.fhir.us.core|3.1.1)
+    created	CodeSystem	http://loinc.org|3.1.0	(hl7.terminology.r4|5.3.0)
+    created	CodeSystem	http://hl7.org/fhir/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
+    created	ValueSet	http://hl7.org/fhir/ValueSet/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
+    created	CodeSystem	http://www.nlm.nih.gov/research/umls/rxnorm|3.0.1	(hl7.terminology.r4|5.3.0)
+
+--------------------------------------
+Validate/upload package content:
+    created	CodeSystem	http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|2.0.1
+    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/AdditionalDocumentation|2.0.1
+    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/CMSMappableLocationCodes|2.0.1
+...
+    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/taskReason|2.0.1
+
+Destination server canonical resource dependency verification:
+	http://hl7.org/fhir/fhir-types	(current)	(missing)
+	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes	(current)	3.1.1
+	http://loinc.org	(current)	3.1.0
+	http://www.ama-assn.org/go/cpt	(current)	(missing)
+	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets	(current)	1.0.1
+	urn:oid:2.16.840.1.113883.6.285	(current)	(missing)
+Done!
 ```
 
 ---
