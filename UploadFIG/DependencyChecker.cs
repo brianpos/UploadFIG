@@ -181,13 +181,27 @@ namespace UploadFIG
                 }
 
                 Canonical c = new Canonical(canonicalUrl);
-                if (!requiresCanonicals.Any(s => s.canonical == c.Value && s.resourceType == canonicalType))
-                    requiresCanonicals.Add(new CanonicalDetails()
+                var usedBy = requiresCanonicals.Where(s => s.canonical == c.Uri && s.resourceType == canonicalType);
+                if (!usedBy.Any())
+                {
+                    var cd =
+                    new CanonicalDetails()
                     {
-                        canonical = c.Value,
+                        canonical = c.Uri,
                         version = c.Version,
                         resourceType = canonicalType,
-                    });
+                    };
+					cd.requiredBy.Add(resource);
+					requiresCanonicals.Add(cd);
+                }
+                else
+                {
+                    foreach (var cd in usedBy)
+                    {
+                        if (!cd.requiredBy.Contains(resource))
+                            cd.requiredBy.Add(resource);
+                    }
+                }
                 resource.AddAnnotation(new DependansOnCanonical(canonicalUrl));
             }
         }
