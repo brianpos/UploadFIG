@@ -26,10 +26,11 @@ namespace UploadFIG
 			base.PreValidation(dependencies, resources);
 			_searchParameters = resources.OfType<SearchParameter>().ToList();
 			CommonZipSource zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
+			_inMemoryResolver = new InMemoryResolver(_processor, _profiles, _dependencyProfiles);
 			_source = new CachedResolver(
 							new MultiResolver(
 								zipSource,
-								new InMemoryResolver(_profiles)
+								_inMemoryResolver
 							)
 						);
 		}

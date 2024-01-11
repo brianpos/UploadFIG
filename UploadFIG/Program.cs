@@ -487,11 +487,9 @@ namespace UploadFIG
 				}
 			}
 
-			// Scan through the resources and resolve any canonicals
-			Console.WriteLine();
-			Console.WriteLine("--------------------------------------");
-			List<CanonicalDetails> requiresCanonicals = DependencyChecker.ScanForCanonicals(fhirVersion.Value, resourcesToProcess, versionAgnosticProcessor);
-			DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, requiresCanonicals);
+
+			// Ensure that all direct and indirect canonical resources (excluding core spec/extensions) are installed in the server
+			DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, externalNonCoreDirectCanonicals);
 
 			sw.Stop();
 			Console.WriteLine("Done!");
@@ -536,7 +534,7 @@ namespace UploadFIG
 				Console.WriteLine("--------------------------------------");
 
 				// And the summary at the end
-				Console.WriteLine("");
+				Console.WriteLine();
 				Console.WriteLine($"Checked: {successes}");
 				Console.WriteLine($"Validation Errors: {validationErrors}");
 			}

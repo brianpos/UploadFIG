@@ -3,9 +3,11 @@ using Hl7.Fhir.FhirPath.Validator;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Specification.Source;
 using Hl7.Fhir.Support;
+using Hl7.Fhir.Utility;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Expressions;
 using Hl7.FhirPath.Sprache;
+using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
 {
@@ -17,6 +19,8 @@ namespace UploadFIG
 		protected Common_Processor _processor;
 		FhirPathCompiler _compiler;
 		protected IResourceResolver _source;
+		protected InMemoryResolver _inMemoryResolver;
+		public InMemoryResolver InMemoryResolver { get { return _inMemoryResolver; } }
 
 		public ExpressionValidator(Common_Processor processor)
 		{
@@ -40,6 +44,9 @@ namespace UploadFIG
 		}
 
 		protected List<StructureDefinition> _profiles;
+		protected List<PackageCacheItem> _dependencyProfiles = new List<PackageCacheItem>();
+
+		public List<PackageCacheItem> DependencyProfiles { get { return _dependencyProfiles; } }
 
 		public virtual void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources)
 		{
@@ -52,10 +59,16 @@ namespace UploadFIG
 			// Prepare our own cache of fhir packages in this projects AppData folder
 			var cache = new TempPackageCache();
 			Queue<KeyValuePair<string, string>> depPackages = new();
+			var scannedPackages = new List<string>();
 			foreach (var dp in dependencies)
 			{
-				depPackages.Enqueue(dp);
-				// Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
+				var key = $"{dp.Key}|{dp.Value}";
+				if (!scannedPackages.Contains(key))
+				{
+					depPackages.Enqueue(dp);
+					// Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
+					scannedPackages.Add(key);
+				}
 			}
 			while (depPackages.Count > 0)
 			{
@@ -85,42 +98,35 @@ namespace UploadFIG
 					// Skip core packages that are handled elsewhere
 					if (manifest.Canonical == "http://hl7.org/fhir")
 						continue;
-					if (manifest.Canonical == "http://hl7.org/fhir/extensions")
-						continue;
-					if (manifest.Canonical == "http://terminology.hl7.org")
-						continue;
+					//if (manifest.Canonical == "http://hl7.org/fhir/extensions")
+					//	continue;
+					//if (manifest.Canonical == "http://terminology.hl7.org")
+					//	continue;
 
 					PackageIndex index = TempPackageCache.ReadPackageIndex(packageStream);
 
 					// Scan this package to see if any content is in the index
 					if (index != null)
 					{
-						System.Diagnostics.Trace.WriteLine($"Scanning index in {manifest.Name}");
-						var files = index.Files.Where(f => f.resourceType == "StructureDefinition");
+						// System.Diagnostics.Trace.WriteLine($"Scanning index in {manifest.Name}");
+						var files = index.Files.Where(f => !string.IsNullOrEmpty(f.url));
 						if (files.Any())
 						{
 							// Read these files from the package
 							foreach (var file in files)
 							{
-								var content = TempPackageCache.ReadResourceContent(packageStream, file.filename);
-								if (content != null)
+								var cacheItem = new PackageCacheItem()
 								{
-									Resource resource;
-									if (files.First().filename.EndsWith(".json"))
-									{
-										resource = _processor.ParseJson(content);
-									}
-									else
-									{
-										resource = _processor.ParseXml(content);
-									}
-									if (resource is StructureDefinition sd)
-									{
-										// Add an annotation to indicate where it came from?
-										_profiles.Add(sd);
-										// Console.WriteLine($"	    {manifest.Canonical} {sd.Url}|{sd.Version} included");
-									}
-								}
+									packageId = manifest.Name,
+									packageVersion = manifest.Version,
+									filename = file.filename,
+									resourceType = file.resourceType,
+									id = file.id,
+									url = file.url,
+									version = file.version,
+									type = file.type
+								};
+								_dependencyProfiles.Add(cacheItem);
 							}
 						}
 					}
@@ -131,15 +137,20 @@ namespace UploadFIG
 				{
 					foreach (var dep in manifest.Dependencies)
 					{
-						if (!dependencies.ContainsKey(dep.Key))
+						var key = $"{dep.Key}|{dep.Value}";
+						if (!scannedPackages.Contains(key))
 						{
-							depPackages.Enqueue(dep);
-							// Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing");
-						}
-						else
-						{
-							if (dep.Value != dependencies[dep.Key])
-								Console.WriteLine($"      {manifest.Name}|{manifest.Version} => {dep.Key}|{dep.Value} is already included with version {dependencies[dep.Key]}");
+							scannedPackages.Add(key);
+							if (!dependencies.ContainsKey(dep.Key))
+							{
+								depPackages.Enqueue(dep);
+								// Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing (Dependent of {manifest.Name}|{manifest.Version})");
+							}
+							else
+							{
+								if (dep.Value != dependencies[dep.Key])
+									Console.WriteLine($"      {manifest.Name}|{manifest.Version} => {dep.Key}|{dep.Value} is already included with version {dependencies[dep.Key]}");
+							}
 						}
 					}
 				}
@@ -244,18 +255,88 @@ namespace UploadFIG
 
 	internal class InMemoryResolver : IResourceResolver
 	{
-		internal InMemoryResolver(List<StructureDefinition> sds)
+		internal InMemoryResolver(Common_Processor processor, List<StructureDefinition> sds, List<PackageCacheItem> dependencyProfiles)
 		{
+			_processor = processor;
 			_sds = sds;
+			_dependencyProfiles = new Dictionary<string, PackageCacheItem>();
+
+			foreach (var dep in dependencyProfiles)
+			{
+				if (!_dependencyProfiles.ContainsKey(dep.url))
+					_dependencyProfiles.Add(dep.url, dep);
+				else
+				{
+					var depUsing = _dependencyProfiles[dep.url];
+					depUsing.duplicates.Add(dep);
+					// Console.WriteLine($"Detected multiple instances of {dep.url} in {dep.packageId}|{dep.packageVersion} {dep.filename} {dependencyProfiles.IndexOf(dep)}");
+					// Console.WriteLine($"      using: {depUsing.packageId}|{depUsing.packageVersion} {depUsing.filename} {dependencyProfiles.IndexOf(depUsing)}");
+				}
+			}
 		}
+		TempPackageCache _cache = new TempPackageCache();
+		protected Common_Processor _processor;
 		List<StructureDefinition> _sds;
+		Dictionary<string, PackageCacheItem> _dependencyProfiles;
+
 		public Resource ResolveByCanonicalUri(string uri)
 		{
+			if (_dependencyProfiles.ContainsKey(uri))
+			{
+				var cacheItem = _dependencyProfiles[uri];
+
+				if (cacheItem.duplicates.Any())
+				{
+					Console.WriteLine($"Detected multiple instances of {uri} using {cacheItem.packageId}|{cacheItem.packageVersion} {cacheItem.filename}   alternates ignored: {string.Join(", ", cacheItem.duplicates.Select(d => $"{d.filename} in {d.packageId}|{d.packageVersion}"))}");
+					// Console.WriteLine($"      using: {depUsing.packageId}|{depUsing.packageVersion} {depUsing.filename} {dependencyProfiles.IndexOf(depUsing)}");
+				}
+
+				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
+				var content = TempPackageCache.ReadResourceContent(packageStream, cacheItem.filename);
+				if (content != null)
+				{
+					Resource resource;
+					if (cacheItem.filename.EndsWith(".json"))
+					{
+						resource = _processor.ParseJson(content);
+					}
+					else
+					{
+						resource = _processor.ParseXml(content);
+					}
+					resource.SetAnnotation(new ExampleName() { value = cacheItem.filename });
+					resource.SetAnnotation(cacheItem);
+					return resource;
+				}
+			}
+
 			return _sds.FirstOrDefault(sd => sd.Url == uri);
 		}
 
 		public Resource ResolveByUri(string uri)
 		{
+			if (_dependencyProfiles.ContainsKey(uri))
+			{
+				var cacheItem = _dependencyProfiles[uri];
+				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
+				var content = TempPackageCache.ReadResourceContent(packageStream, cacheItem.filename);
+				if (content != null)
+				{
+					Resource resource;
+					if (cacheItem.filename.EndsWith(".json"))
+					{
+						resource = _processor.ParseJson(content);
+					}
+					else
+					{
+						resource = _processor.ParseXml(content);
+					}
+					resource.SetAnnotation(new ExampleName() { value = cacheItem.filename });
+					resource.SetAnnotation(cacheItem);
+					return resource;
+				}
+			}
+
 			return _sds.FirstOrDefault(sd => sd.Url == uri);
 		}
 	}

@@ -62,9 +62,28 @@ namespace UploadFIG
             }
         }
 
-        public static List<CanonicalDetails> ScanForCanonicals(FHIRVersion fhirversion, List<Resource> resourcesToProcess, Common_Processor versionAgnosticProcessor)
+        /// <summary>
+        /// Scan the provided set of resources and return any canonicals that are referenced by the resources.
+        /// </summary>
+        /// <param name="resourcesToProcess"></param>
+        /// <returns></returns>
+        public static IEnumerable<CanonicalDetails> ScanForCanonicals(List<Resource> resourcesToProcess)
         {
-            List<CanonicalDetails> requiresCanonicals = new List<CanonicalDetails>();
+            return ScanForCanonicals(new List<CanonicalDetails>(), resourcesToProcess);
+		}
+
+        /// <summary>
+        /// Scan the provided set of resources and return any canonicals referenced by the resources that are not already in the initialCanonicals list.
+        /// </summary>
+        /// <param name="initialCanonicals"></param>
+        /// <param name="resourcesToProcess"></param>
+        /// <returns></returns>
+		public static IEnumerable<CanonicalDetails> ScanForCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, List<Resource> resourcesToProcess)
+		{
+			// Review this against https://hl7.org/fhir/uv/crmi/2024Jan/distribution.html#dependency-tracing
+			List<CanonicalDetails> requiresCanonicals = new List<CanonicalDetails>(initialCanonicals);
+
+            // Scan for resource specific canonicals
             foreach (var resource in resourcesToProcess.OfType<StructureDefinition>())
             {
                 ScanForCanonicals(requiresCanonicals, resource);
@@ -112,8 +131,86 @@ namespace UploadFIG
             // Library - DataRequirements
             // PlanDefinitions
             // OperationDefinitions?
+			return requiresCanonicals.Where(r => !initialCanonicals.Any(ic => ic.canonical == r.canonical));
+
+		}
+
+		/// <summary>
+		/// Return all the canonicals that are not in the excludedResource list
+		/// </summary>
+		/// <param name="initialCanonicals"></param>
+		/// <param name="excludeResources"></param>
+		/// <returns></returns>
+		public static IEnumerable<CanonicalDetails> FilterOutCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, List<Resource> excludeResources)
+		{
+			List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
             // Now check for the ones that we've internally got covered :)
+			foreach (var resource in excludeResources.OfType<IVersionableConformanceResource>())
+			{
+				var node = initialCanonicals.FirstOrDefault(rc => rc.resourceType == (resource as Resource).TypeName && rc.canonical == resource.Url);
+				if (node != null)
+				{
+					filteredCanonicals.Remove(node);
+				}
+			}
+
+            return filteredCanonicals;
+		}
+
+        /// <summary>
+        /// Return all the canonicals that are not in the core spec or core extensions pack (published with the specific release of fhir)
+        /// </summary>
+        /// <remarks>
+        /// This is different to the general fhir extensions pack that releases itself post the release of fhir.
+        /// </remarks>
+        /// <param name="initialCanonicals"></param>
+        /// <param name="fhirversion"></param>
+        /// <param name="versionAgnosticProcessor"></param>
+        /// <returns></returns>
+		public static IEnumerable<CanonicalDetails> FilterOutCoreSpecAndExtensionCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
+		{
+			List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
+
+			// And the types from the core resource profiles
+			var coreCanonicals = initialCanonicals.Where(v => Uri.IsWellFormedUriString(v.canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.canonical))).ToList();
+			foreach (var coreCanonical in coreCanonicals)
+			{
+				filteredCanonicals.Remove(coreCanonical);
+			}
+
+			// And check for any Core extensions (that are packaged in the standard zip package)
+			CommonZipSource zipSource = null;
+			if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
+				zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
+			else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_3.GetLiteral()))
+				zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
+			else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N5_0.GetLiteral()))
+				zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
+			else
+			{
+				// version unhandled
+				Console.WriteLine($"Unhandled processing of core extensions for fhir version {fhirversion}");
+				return filteredCanonicals;
+			}
+			// ensure that the zip file is extracted correctly before using it
+			zipSource.Prepare();
+
+			// Scan for core/core extensions dependencies
+			var coreSource = new CachedResolver(zipSource);
+			var extensionCanonicals = initialCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.canonical) != null).ToList();
+			foreach (var coreCanonical in extensionCanonicals)
+			{
+				filteredCanonicals.Remove(coreCanonical);
+			}
+			return filteredCanonicals;
+		}
+
+		public static void ExcludeKnownCanonicals(List<CanonicalDetails> requiresCanonicals, FHIRVersion fhirversion, List<Resource> resourcesToProcess, Common_Processor versionAgnosticProcessor, InMemoryResolver inMemoryResolver)
+		{
+			List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(requiresCanonicals);
+
+			// Now check for the ones that we've internally got covered :)
             foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
             {
                 var node = requiresCanonicals.FirstOrDefault(rc => rc.resourceType == (resource as Resource).TypeName && rc.canonical == resource.Url);
@@ -142,7 +239,7 @@ namespace UploadFIG
             {
                 // version unhandled
                 Console.WriteLine($"Unhandled processing of core extensions for fhir version {fhirversion}");
-                return requiresCanonicals;
+				return;
             }
             // ensure that the zip file is extracted correctly before using it
             zipSource.Prepare();
@@ -154,7 +251,45 @@ namespace UploadFIG
             {
                 requiresCanonicals.Remove(coreCanonical);
             }
-            return requiresCanonicals;
+		}
+
+        /// <summary>
+        /// Recursively scan throught the list of canonicals and load the resources, and then scan for any dependencies of those resources
+        /// </summary>
+        /// <param name="knownCanonicals">Should not contain any core or extension canonicals</param>
+        /// <param name="inMemoryResolver"></param>
+        /// <returns></returns>
+		public static IEnumerable<CanonicalDetails> RecurseDependencies(IEnumerable<CanonicalDetails> knownCanonicals, InMemoryResolver inMemoryResolver, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
+		{
+            List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(knownCanonicals);
+            List<CanonicalDetails> unresolvableCanonicals = new List<CanonicalDetails>();
+
+			// scan through this list and resolve the resources not already resolved.
+            List<Resource> additionalCanonicalResources = new List<Resource>();
+            foreach (var canonical in knownCanonicals.Where(cd => cd.resource == null))
+            {
+                var item = inMemoryResolver.ResolveByCanonicalUri(canonical.canonical);
+                if (item != null)
+                {
+					canonical.resource = item;
+					additionalCanonicalResources.Add(item);
+				}
+                else
+                {
+					unresolvableCanonicals.Add(canonical);
+				}
+            }
+
+            var extraCanonicals = ScanForCanonicals(allRequiredCanonicals, additionalCanonicalResources);
+            extraCanonicals = FilterOutCoreSpecAndExtensionCanonicals(extraCanonicals, fhirversion, versionAgnosticProcessor);
+            if (extraCanonicals.Any())
+            {
+                allRequiredCanonicals.AddRange(extraCanonicals);
+                var resultingCanonicals = RecurseDependencies(allRequiredCanonicals.Except(unresolvableCanonicals), inMemoryResolver, fhirversion, versionAgnosticProcessor);
+                return resultingCanonicals.Union(allRequiredCanonicals).Where(r => !knownCanonicals.Any(kc => kc.canonical == r.canonical));
+            }
+
+            return allRequiredCanonicals.Where(r => !knownCanonicals.Any(kc => kc.canonical == r.canonical));
         }
 
         record DependansOnCanonical
