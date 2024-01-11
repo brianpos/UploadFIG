@@ -16,6 +16,8 @@
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/brianpos/UploadFIG</RepositoryUrl>
     <Version>0.9.0</Version>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
