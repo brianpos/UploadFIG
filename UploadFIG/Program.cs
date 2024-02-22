@@ -5,6 +5,7 @@ extern alias r5;
 using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
+using Hl7.Fhir.Specification.Snapshot;
 using Hl7.Fhir.Utility;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -88,6 +89,8 @@ namespace UploadFIG
 				new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
 				new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
 				new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+				new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
+				new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
 				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
 				new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
 				new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
@@ -435,6 +438,18 @@ namespace UploadFIG
 									dr.Text = null;
 								}
 							}
+
+							if (resource is StructureDefinition sd)
+							{
+								if (settings.ReGenerateSnapshots) sd.Snapshot = null;
+								if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
+								{
+									if (settings.Verbose || !settings.ReGenerateSnapshots)
+										Console.WriteLine($"    ----> Generating snapshot for {exampleName}");
+									SnapshotGenerator sg = new SnapshotGenerator(expressionValidator.Source);
+									await sg.UpdateAsync(sd);
+								}
+							}
 						}
 
 						if (settings.ValidateReferencedDependencies && !expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
@@ -497,6 +512,18 @@ namespace UploadFIG
 								// strip out the narrative as we don't really need that for the purpose
 								// of validations.
 								dr.Text = null;
+							}
+						}
+
+						if (resource is StructureDefinition sd)
+						{
+							if (settings.ReGenerateSnapshots) sd.Snapshot = null;
+							if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
+							{
+								if (settings.Verbose || !settings.ReGenerateSnapshots)
+									Console.WriteLine($"    ----> Generating snapshot for {exampleName}");
+								SnapshotGenerator sg = new SnapshotGenerator(expressionValidator.Source);
+								await sg.UpdateAsync(sd);
 							}
 						}
 					}

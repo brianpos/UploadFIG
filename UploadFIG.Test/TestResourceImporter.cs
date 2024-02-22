@@ -11,6 +11,33 @@ namespace UploadFIG.Test
     public class TestResourceImporter
     {
 		[TestMethod]
+		public async Task TestDeployUkCore()
+		{
+			var app = new UnitTestFhirServerApplication();
+			Program.useClient = app.CreateClient();
+
+			string outputFile = "c:\\temp\\uploadfig-dump-ukcore.json";
+			var args = new[]
+			{
+				"-vq",
+				"-vrd",
+				"--includeReferencedDependencies",
+				"-pid", "fhir.r4.ukcore.stu3.currentbuild",
+                "-pv", "0.0.8-pre-release",
+                "-gs", "true",
+				"-d", "https://localhost",
+				"-odf", outputFile,
+                // "--verbose",
+            };
+			var result = await Program.Main(args);
+			Assert.AreEqual(0, result);
+
+			string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
+			string unitTestPath = Path.Combine(tempFIGpath, "unit-test-data");
+			int loadedResourceCount = Directory.EnumerateFiles(unitTestPath).Count();
+		}
+
+		[TestMethod]
 		public async Task TestDeployUsCore()
 		{
 			var app = new UnitTestFhirServerApplication();
