@@ -86,6 +86,10 @@ Options:
   -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
                                                              FHIR Server, but do not update any of the contents of the FHIR Server
                                                              [default: False]
+  -gs, --generateSnapshots                                   Generate the snapshots for any missing snapshots in StructureDefinitions
+                                                             [default: False]
+  -rs, --regenerateSnapshots                                 Re-Generate all snapshots in StructureDefinitions
+                                                             [default: False]
   --includeReferencedDependencies                            Upload any referenced resources from resource dependencies being included
                                                              [default: False]
   --includeExamples                                          Also include files in the examples sub-directory
@@ -402,6 +406,12 @@ Done!
 ---
 
 ## Change history
+
+### 23 February 2024
+* Add support for generating snapshots in StructureDefinitions
+    * `-gs` to generate any missing snapshots
+    * `-rs` to RE-generate ALL snapshots
+* Improved validation of commandline parameters to check that either -t or -ds is provided
 
 ### 11 January 2024
 * Include package/resource dependency processing and optional upload to destination FHIR server

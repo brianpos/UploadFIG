@@ -21,6 +21,7 @@ namespace UploadFIG
 		protected IResourceResolver _source;
 		protected InMemoryResolver _inMemoryResolver;
 		public InMemoryResolver InMemoryResolver { get { return _inMemoryResolver; } }
+		public IResourceResolver Source { get { return _source; } }
 
 		public ExpressionValidator(Common_Processor processor)
 		{

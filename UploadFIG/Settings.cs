@@ -87,13 +87,23 @@ namespace UploadFIG
         public bool CheckAndCleanNarratives { get; set; }
 
         /// <summary>
-        /// Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs
+        /// Generate the snapshots for any missing snapshots in StructureDefinitions
         /// </summary>
-        /// <remarks>
-        /// The requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call.
-        /// Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation
-        /// </remarks>
-        public bool PreventDuplicateCanonicalVersions { get; set; } = true;
+        public bool GenerateSnapshots { get; set; }
+
+		/// <summary>
+		/// Re-Generate all snapshots in StructureDefinitions
+		/// </summary>
+		public bool ReGenerateSnapshots { get; set; }
+
+		/// <summary>
+		/// Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs
+		/// </summary>
+		/// <remarks>
+		/// The requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call.
+		/// Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation
+		/// </remarks>
+		public bool PreventDuplicateCanonicalVersions { get; set; } = true;
 
         /// <summary>
         /// Download and check the package and compare with the contents of the FHIR Server,

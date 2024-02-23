@@ -5,6 +5,7 @@ extern alias r5;
 using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
+using Hl7.Fhir.Specification.Snapshot;
 using Hl7.Fhir.Utility;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -58,11 +59,19 @@ namespace UploadFIG
 			Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
 			Console.WriteLine("--------------------------------------");
 
+			// source parameters
+			var sourceOption = new Option<string>(new string[] { "-s", "--sourcePackagePath" }, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
+			var packageIdOption = new Option<string>(new string[] { "-pid", "--packageId" }, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)");
+
+			// target/test mode parameters
+			var destinationServerOption = new Option<string>(new string[] { "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
+			var testPackageOnlyOption = new Option<bool>(new string[] { "-t", "--testPackageOnly" }, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
+
 			var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
 			{
                 // Mandatory parameters
-                new Option<string>(new string[]{ "-s", "--sourcePackagePath"}, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)"),
-				new Option<string>(new string[]{ "-pid", "--packageId"}, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)"),
+                sourceOption,
+				packageIdOption,
 
                 // Optional parameters
                 new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
@@ -71,15 +80,17 @@ namespace UploadFIG
 				new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
 				new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
 				new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package"),
-				new Option<string>(new string[]{ "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to"),
+				destinationServerOption,
 				new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
 				new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
-				new Option<bool>(new string[]{ "-t", "--testPackageOnly"}, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided"),
+				testPackageOnlyOption,
 				new Option<bool>(new string[] { "-vq", "--validateQuestionnaires" }, () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
 				new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
 				new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
 				new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
 				new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+				new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
+				new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
 				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
 				new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
 				new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
@@ -87,13 +98,20 @@ namespace UploadFIG
 			};
 
 			// Include the conditional validation rules to check that there is a source for the package to load from
+			// and also check that there is a destination or test mode flag provided
 			rootCommand.AddValidator((result) =>
 			{
 				List<string> conditionalRequiredParams = new List<string>();
-				conditionalRequiredParams.AddRange(rootCommand.Options[0].Aliases);
-				conditionalRequiredParams.AddRange(rootCommand.Options[1].Aliases);
+				conditionalRequiredParams.AddRange(sourceOption.Aliases);
+				conditionalRequiredParams.AddRange(packageIdOption.Aliases);
 				if (!args.Any(a => conditionalRequiredParams.Contains(a)))
 					result.ErrorMessage = "The sourcePackagePath and packageId are both missing, please provide one or the other to indicate where to load the package from";
+
+				List<string> conditionalRequiredParams2 = new List<string>();
+				conditionalRequiredParams2.AddRange(destinationServerOption.Aliases);
+				conditionalRequiredParams2.AddRange(testPackageOnlyOption.Aliases);
+				if (!args.Any(a => conditionalRequiredParams2.Contains(a)))
+					result.ErrorMessage = "The destinationServerAddress and testPackageOnly are both missing, please provide one or the other to indicate if just testing, or uploading to a server";
 			});
 
 			rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
@@ -420,6 +438,18 @@ namespace UploadFIG
 									dr.Text = null;
 								}
 							}
+
+							if (resource is StructureDefinition sd)
+							{
+								if (settings.ReGenerateSnapshots) sd.Snapshot = null;
+								if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
+								{
+									if (settings.Verbose || !settings.ReGenerateSnapshots)
+										Console.WriteLine($"    ----> Generating snapshot for {exampleName}");
+									SnapshotGenerator sg = new SnapshotGenerator(expressionValidator.Source);
+									await sg.UpdateAsync(sd);
+								}
+							}
 						}
 
 						if (settings.ValidateReferencedDependencies && !expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
@@ -482,6 +512,18 @@ namespace UploadFIG
 								// strip out the narrative as we don't really need that for the purpose
 								// of validations.
 								dr.Text = null;
+							}
+						}
+
+						if (resource is StructureDefinition sd)
+						{
+							if (settings.ReGenerateSnapshots) sd.Snapshot = null;
+							if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
+							{
+								if (settings.Verbose || !settings.ReGenerateSnapshots)
+									Console.WriteLine($"    ----> Generating snapshot for {exampleName}");
+								SnapshotGenerator sg = new SnapshotGenerator(expressionValidator.Source);
+								await sg.UpdateAsync(sd);
 							}
 						}
 					}
