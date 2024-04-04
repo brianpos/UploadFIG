@@ -407,6 +407,9 @@ Done!
 
 ## Change history
 
+### 4 April 2024
+* Minor bug fix for null reference exception when scanning canonicals in some ValueSets
+
 ### 23 February 2024
 * Add support for generating snapshots in StructureDefinitions
     * `-gs` to generate any missing snapshots

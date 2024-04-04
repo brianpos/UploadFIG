@@ -488,20 +488,26 @@ namespace UploadFIG
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, ValueSet resource)
         {
-            foreach (var include in resource?.Compose?.Include)
+            if (resource?.Compose?.Include != null)
             {
-                CheckRequiresCanonical(resource, "CodeSystem", include.System, requiresCanonicals);
-                foreach (var binding in include.ValueSet)
+                foreach (var include in resource?.Compose?.Include)
                 {
-                    CheckRequiresCanonical(resource, "ValueSet", binding, requiresCanonicals);
+                    CheckRequiresCanonical(resource, "CodeSystem", include.System, requiresCanonicals);
+                    foreach (var binding in include.ValueSet)
+                    {
+                        CheckRequiresCanonical(resource, "ValueSet", binding, requiresCanonicals);
+                    }
                 }
             }
-            foreach (var exclude in resource?.Compose?.Exclude)
+            if (resource?.Compose?.Exclude != null)
             {
-                CheckRequiresCanonical(resource, "CodeSystem", exclude.System, requiresCanonicals);
-                foreach (var binding in exclude.ValueSet)
+                foreach (var exclude in resource?.Compose?.Exclude)
                 {
-                    CheckRequiresCanonical(resource, "ValueSet", binding, requiresCanonicals);
+                    CheckRequiresCanonical(resource, "CodeSystem", exclude.System, requiresCanonicals);
+                    foreach (var binding in exclude.ValueSet)
+                    {
+                        CheckRequiresCanonical(resource, "ValueSet", binding, requiresCanonicals);
+                    }
                 }
             }
         }
