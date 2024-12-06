@@ -407,6 +407,10 @@ Done!
 
 ## Change history
 
+### 6 December 2024
+* Update SDC questionnaire validations to handle the new `weight` function and resolve a few minor bugs in Questionnaire validation
+* Update to the FirelySDK v5.11.1
+
 ### 4 April 2024
 * Minor bug fix for null reference exception when scanning canonicals in some ValueSets
 
@@ -424,7 +428,7 @@ Done!
 * Fix null reference error that occurs when a package contains no dependencies in the manifest
 * Report an information message when detecting a search parameter with type = 'special' indicating that server requires 
   custom implementation to support
-* Warnings/Information messages now displayed for search parameter checks (were supressed if there were no errors)
+* Warnings/Information messages now displayed for search parameter checks (were suppressed if there were no errors)
 
 ### 14 December 2023
 * Update fhirpath engine checks
@@ -446,10 +450,10 @@ Done!
 * Questionnaires now processed in dependency scan
 * Questionnaire is now included as one of the default resource types
 * Support selecting individual files for importing `-sf package/SearchParameter-valueset-extensions-ValueSet-end.json` (when used, only selected files are processed)
-* When processing dependant canonicals correctly handle the case where the canonical is to a contained resource
+* When processing dependent canonicals correctly handle the case where the canonical is to a contained resource
 
 ### 26 October 2023
-* Produce a summary output of the resources that this IG directly has dependencies on (likely from dependant packages)
+* Produce a summary output of the resources that this IG directly has dependencies on (likely from dependent packages)
 * output the above dependencies summary to a text file via a new -odf or --outputDependenciesFile commandline parameter
 * Dependent resource scan now processes StructureMap and Questionnaire (in addition to StructureDefinition and ValueSet)
 

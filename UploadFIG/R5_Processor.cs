@@ -18,7 +18,7 @@ namespace UploadFIG
 			// Add in the missed types
 			// https://github.com/FirelyTeam/firely-net-sdk/issues/2640
 			var ot = r5::Hl7.Fhir.Model.ModelInfo.OpenTypes.ToList();
-            ot.Add(typeof(r5::Hl7.Fhir.Model.CodeableReference));
+            ot.Add(typeof(Hl7.Fhir.Model.CodeableReference));
 			ot.Add(typeof(r5::Hl7.Fhir.Model.RatioRange));
 			ot.Add(typeof(r5::Hl7.Fhir.Model.Availability));
 			ot.Add(typeof(r5::Hl7.Fhir.Model.ExtendedContactDetail));
