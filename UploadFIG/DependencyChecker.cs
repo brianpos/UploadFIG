@@ -10,7 +10,7 @@ using Hl7.Fhir.Utility;
 namespace UploadFIG
 {
 
-    internal static class DependencyChecker
+    public static class DependencyChecker
     {
         public static void VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
         {
@@ -35,7 +35,18 @@ namespace UploadFIG
                         break;
                     case "CodeSystem":
                         existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
-                        break;
+                        // also check that this system is not just a fragment/empty shell
+                        if (existing != null && existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
+						{
+							var codeSystem = existing.Entry.First(e => e.Resource is CodeSystem).Resource as CodeSystem;
+							if (codeSystem.Concept == null || codeSystem.Concept.Count == 0 || codeSystem.Content != CodeSystemContentMode.Complete)
+							{
+								// Warn that this content is not complete
+								Console.ForegroundColor = ConsoleColor.Yellow;
+								Console.WriteLine($"CodeSystem {codeSystem.Url} has content mode {codeSystem.Content} - this may not be a complete code system");
+							}
+						}
+						break;
                     case "Questionnaire":
                         existing = clientFhir.Search("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
@@ -195,7 +206,7 @@ namespace UploadFIG
         /// <param name="fhirversion"></param>
         /// <param name="versionAgnosticProcessor"></param>
         /// <returns></returns>
-		public static IEnumerable<CanonicalDetails> FilterOutCoreSpecAndExtensionCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
+		internal static IEnumerable<CanonicalDetails> FilterOutCoreSpecAndExtensionCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
 		{
 			List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
@@ -233,7 +244,7 @@ namespace UploadFIG
 			return filteredCanonicals;
 		}
 
-		public static void ExcludeKnownCanonicals(List<CanonicalDetails> requiresCanonicals, FHIRVersion fhirversion, List<Resource> resourcesToProcess, Common_Processor versionAgnosticProcessor, InMemoryResolver inMemoryResolver)
+		internal static void ExcludeKnownCanonicals(List<CanonicalDetails> requiresCanonicals, FHIRVersion fhirversion, List<Resource> resourcesToProcess, Common_Processor versionAgnosticProcessor, InMemoryResolver inMemoryResolver)
 		{
 			List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(requiresCanonicals);
 
@@ -281,12 +292,12 @@ namespace UploadFIG
 		}
 
         /// <summary>
-        /// Recursively scan throught the list of canonicals and load the resources, and then scan for any dependencies of those resources
+        /// Recursively scan through the list of canonicals and load the resources, and then scan for any dependencies of those resources
         /// </summary>
         /// <param name="knownCanonicals">Should not contain any core or extension canonicals</param>
         /// <param name="inMemoryResolver"></param>
         /// <returns></returns>
-		public static IEnumerable<CanonicalDetails> RecurseDependencies(IEnumerable<CanonicalDetails> knownCanonicals, InMemoryResolver inMemoryResolver, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
+		internal static IEnumerable<CanonicalDetails> RecurseDependencies(IEnumerable<CanonicalDetails> knownCanonicals, InMemoryResolver inMemoryResolver, FHIRVersion fhirversion, Common_Processor versionAgnosticProcessor)
 		{
             List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(knownCanonicals);
             List<CanonicalDetails> unresolvableCanonicals = new List<CanonicalDetails>();
@@ -332,6 +343,8 @@ namespace UploadFIG
         static List<string> ignoreCanonicals = new (new string[] {
 			"http://hl7.org/fhir/StructureDefinition/structuredefinition-conformance-derivedFrom",
 			"http://hl7.org/fhir/StructureDefinition/elementdefinition-type-must-support",
+			"http://hl7.org/fhir/tools/StructureDefinition/additional-binding",
+			"http://hl7.org/fhir/tools/StructureDefinition/web-source",
 		});
 
         private static void CheckRequiresCanonical(Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals)
@@ -481,10 +494,19 @@ namespace UploadFIG
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, CodeSystem resource)
         {
             CheckRequiresCanonical(resource, "CodeSystem", resource.Supplements, requiresCanonicals);
-            // Removing this check for the "complete valueset" reference as this is quite often not there
-            // and if others need it, they would have a reference to it.
-            // CheckRequiresCanonical(resource, "ValueSet", resource.ValueSet, requiresCanonicals);
-        }
+			// Removing this check for the "complete valueset" reference as this is quite often not there
+			// and if others need it, they would have a reference to it.
+			// CheckRequiresCanonical(resource, "ValueSet", resource.ValueSet, requiresCanonicals);
+
+			if (resource.Content != CodeSystemContentMode.Complete || resource.Concept == null || resource.Concept.Count == 0)
+            {
+				// Warn that this content is not complete
+                var oldColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+				Console.WriteLine($"CodeSystem {resource.Url} has content mode {resource.Content} - this may not be a complete code system");
+                Console.ForegroundColor = oldColor;
+			}
+		}
 
         private static void ScanForCanonicals(List<CanonicalDetails> requiresCanonicals, ValueSet resource)
         {

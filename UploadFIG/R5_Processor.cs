@@ -29,8 +29,9 @@ namespace UploadFIG
         // disable validation during parsing (not its job)
         FhirXmlParser _xmlParser = new FhirXmlParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
         FhirJsonParser _jsonParser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
+		FhirJsonSerializer _jsonSerializer = new FhirJsonSerializer(new SerializerSettings() { Pretty = true });
 
-        public override Resource ParseJson(JsonReader jr)
+		public override Resource ParseJson(JsonReader jr)
         {
             return _jsonParser.Parse<Resource>(jr);
         }
@@ -48,6 +49,11 @@ namespace UploadFIG
 		public override Resource ParseXml(string xml)
 		{
 			return _xmlParser.Parse<Resource>(xml);
+		}
+
+		public override string SerializeJson(Resource resource)
+		{
+			return _jsonSerializer.SerializeToString(resource);
 		}
 	}
 }

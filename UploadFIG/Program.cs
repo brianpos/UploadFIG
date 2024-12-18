@@ -95,6 +95,9 @@ namespace UploadFIG
 				new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
 				new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
 				new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
+				new Option<string>(new string[] { "-reg", "--externalRegistry" }, () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
+				new Option<List<string>>(new string[] { "-regh", "--externalRegistryHeaders" }, () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
+				new Option<string>(new string[] { "-rego", "--ExternalRegistryExportFile" }, () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
 			};
 
 			// Include the conditional validation rules to check that there is a source for the package to load from
@@ -386,6 +389,136 @@ namespace UploadFIG
 			var unresolvableCanonicals = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource == null).ToList();
 			var dependencyResourcesToLoad = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource != null).Select(ic => ic.resource).ToList();
 
+			// Check for missing canonicals on the registry
+			if (!string.IsNullOrEmpty(settings.ExternalRegistry))
+			{
+				Console.WriteLine();
+				Console.WriteLine($"Scanning external registry:\r\n\t{settings.ExternalRegistry}");
+				BaseFhirClient clientRegistry = null;
+
+				// Need to pass through the destination header too
+				HttpClient client = new HttpClient();
+				if (settings.ExternalRegistryHeaders?.Any() == true)
+				{
+					foreach (var header in settings.ExternalRegistryHeaders)
+					{
+						if (header.Contains(":"))
+						{
+							var kv = header.Split(new char[] { ':' }, 2);
+							client.DefaultRequestHeaders.Add(kv[0].Trim(), kv[1].Trim());
+						}
+					}
+				}
+				clientRegistry = new BaseFhirClient(new Uri(settings.ExternalRegistry), client, versionAgnosticProcessor.ModelInspector);
+				if (settings.DestinationFormat == upload_format.json)
+					clientRegistry.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
+				if (settings.DestinationFormat == upload_format.xml)
+					clientRegistry.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
+				clientRegistry.Settings.VerifyFhirVersion = false;
+
+				// Check that the resources are available on the external registry
+				PackageCacheItem registryCacheItemFake = new PackageCacheItem() 
+				{
+					packageId = "registry",
+					packageVersion = settings.ExternalRegistry,
+				};
+				List<Resource> additionalResources = new List<Resource>();
+				foreach (var dc in unresolvableCanonicals.ToArray()) // clone the list so that we can trim it down it while processing
+				{
+					try
+					{
+						if (settings.Verbose)
+							Console.WriteLine($"Searching registry for {dc.resourceType} {dc.canonical}");
+						var r = await clientRegistry.SearchAsync(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+						if (r.Entry.Count > 1)
+						{
+							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
+							// to select the latest version.
+							var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
+
+							// remove all the others that aren't current.
+							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
+						}
+						if (r.Entry.Count() == 1)
+						{
+							var resolvedResource = r.Entry.First().Resource;
+							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
+							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
+							resolvedResource.SetAnnotation(registryCacheItemFake);
+							additionalResources.Add(resolvedResource);
+							// UploadFile(settings, clientFhir, resolvedResource);
+							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
+							indirectCanonicals.Add(dc);
+						}
+						if (!r.Entry.Any())
+						{
+							// Console.WriteLine($"{dc.resourceType} Canonical {dc.canonical} was not present on the registry");
+							unresolvableCanonicals.Add(dc);
+						}
+					}
+					catch (Exception ex)
+					{
+						System.Console.WriteLine($"Error searching for {dc.resourceType} {dc.canonical} at {settings.ExternalRegistry} {ex.Message}");
+					}
+				}
+				// now perform another scan for their dependencies too
+				var initialCanonicals = additionalResources.Select(ec => new CanonicalDetails()
+				{
+					resourceType = ec.TypeName,
+					canonical = (ec as IVersionableConformanceResource).Url,
+					version = (ec as IVersionableConformanceResource).Version
+				}).ToList();
+				var dependentCanonicals = DependencyChecker.ScanForCanonicals(initialCanonicals.Union(externalNonCoreDirectCanonicals), additionalResources);
+				foreach (var dc in dependentCanonicals)
+				{
+					try
+					{
+						if (settings.Verbose)
+							Console.WriteLine($"Searching registry for {dc.resourceType} {dc.canonical}");
+						var r = clientRegistry.Search(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+						if (r.Entry.Count > 1)
+						{
+							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
+							// to select the latest version.
+							var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
+							// remove all the others that aren't current.
+							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
+						}
+						if (r.Entry.Count() == 1)
+						{
+							var resolvedResource = r.Entry.First().Resource;
+							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
+							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
+							resolvedResource.SetAnnotation(registryCacheItemFake);
+							additionalResources.Insert(0, resolvedResource); // put dependencies at the start of the list
+																			 // UploadFile(settings, clientFhir, resolvedResource);
+							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
+							indirectCanonicals.Add(dc);
+						}
+						if (!r.Entry.Any())
+						{
+							// Console.WriteLine($"{dc.resourceType} Canonical {dc.canonical} was not present on the registry");
+							unresolvableCanonicals.Add(dc);
+						}
+					}
+					catch (Exception ex)
+					{
+						System.Console.WriteLine($"Error searching for {dc.resourceType} {dc.canonical} at {settings.ExternalRegistry} {ex.Message}");
+					}
+				}
+
+				// output a bundle with these additional resources
+				if (!string.IsNullOrEmpty(settings.ExternalRegistryExportFile))
+				{
+					var bundle = new Bundle();
+					bundle.Type = Bundle.BundleType.Collection;
+					bundle.Entry.AddRange(additionalResources.Select(r => new Bundle.EntryComponent() { Resource = r }));
+					var json = versionAgnosticProcessor.SerializeJson(bundle);
+					File.WriteAllText(settings.ExternalRegistryExportFile, json);
+				}
+				dependencyResourcesToLoad.AddRange(additionalResources);
+			}
+
 			// If loading into a server, report any unresolvable canonicals
 			if (!settings.TestPackageOnly)
 			{
@@ -400,7 +533,7 @@ namespace UploadFIG
 				ReportUnresolvedCanonicalResourcesToConsole(unresolvableCanonicals);
 			}
 
-			// Validate/upload the dependant resources
+			// Validate/upload the dependent resources
 			if (settings.IncludeReferencedDependencies || settings.ValidateReferencedDependencies)
 			{
 				Console.WriteLine();
@@ -408,7 +541,7 @@ namespace UploadFIG
 				Console.WriteLine("Validate/upload dependencies:");
 				foreach (var resource in dependencyResourcesToLoad)
 				{
-					var exampleName = resource.Annotation<ExampleName>().value;
+					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
 					try
 					{
 						// Workaround for loading packages with invalid xhmtl content - strip them
@@ -484,7 +617,7 @@ namespace UploadFIG
 			Console.WriteLine("Validate/upload package content:");
 			foreach (var resource in resourcesToProcess)
 			{
-				var exampleName = resource.Annotation<ExampleName>().value;
+				var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
 					// Workaround for loading packages with invalid xhmtl content - strip them

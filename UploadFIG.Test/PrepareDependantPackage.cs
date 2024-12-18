@@ -5,7 +5,6 @@ using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
 using Hl7.Fhir.Utility;
 using r4b.Hl7.Fhir.Rest;
-using System.Formats.Tar;
 
 namespace UploadFIG.Test
 {
@@ -15,7 +14,7 @@ namespace UploadFIG.Test
         [TestMethod]
         public async Task TestCommandLineUsage()
         {
-            var result = await Program.Main(new string[]{ });
+			var result = await Program.Main(new string[] { });
             Assert.AreEqual(1, result);
         }
 
@@ -192,27 +191,63 @@ namespace UploadFIG.Test
         [TestMethod]
         public void PrepareDependantBundleFromRegistry()
         {
-            string json = System.IO.File.ReadAllText(@"C:\temp\uploadfig-dump.json");
+			string json = System.IO.File.ReadAllText(@"c:\temp\au-base-odf.json");
             var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
             Bundle bun = new Bundle();
 
             // Try to download each of the given resources
-            var nctsServer = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
+			var clientRegistry = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
             foreach (var dc in output.externalCanonicalsRequired)
             {
-                var r = nctsServer.Search(dc.resourceType, new[] { $"url={dc.canonical}" });
+				var r = clientRegistry.Search(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
                 if (r.Entry.Count > 1)
                 {
                     // Check if these are just more versions of the same thing, then to the canonical versioning thingy
                     // to select the latest version.
                     var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
 
+					// remove all the others that aren't current.
+					r.Entry.RemoveAll(e => e.Resource != cv as Resource);
+				}
+				bun.Entry.AddRange(r.Entry);
+				Assert.IsNotNull(r);
+			}
+
+			// Also scan the resources required by these dependencies
+			var packageContents = output.containedCanonicals.Select(ec => new CanonicalDetails() { resourceType = ec.resourceType, canonical = ec.canonical, version = ec.version }).ToList();
+			var downloadedResources = bun.Entry.Select(e => e.Resource).ToList();
+			var downloadedContents = downloadedResources.Select(ec => new CanonicalDetails() 
+			{ 
+				resourceType = ec.TypeName, 
+				canonical = (ec as IVersionableConformanceResource).Url, 
+				version = (ec as IVersionableConformanceResource).Version 
+			}).ToList();
+			var dependentCanonicals = DependencyChecker.ScanForCanonicals(packageContents.Union(downloadedContents), downloadedResources);
+			foreach (var dc in dependentCanonicals)
+			{
+				var r = clientRegistry.Search(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+				if (r.Entry.Count > 1)
+				{
+					// Check if these are just more versions of the same thing, then to the canonical versioning thingy
+					// to select the latest version.
+					var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
                     // remove all the others that aren't current.
                     r.Entry.RemoveAll(e => e.Resource != cv as Resource);
                 }
                 bun.Entry.AddRange(r.Entry);
                 Assert.IsNotNull(r);
+				if (!r.Entry.Any())
+				{
+					Console.WriteLine($"{dc.resourceType} Canonical {dc.canonical} was not present on the registry");
+				}
+			}
+
+			// remove all the SUBSETTED tags
+			foreach (var e in bun.Entry)
+			{
+				e.Resource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
             }
+
             System.IO.File.WriteAllText(@"c:\temp\uploadfig-dependencies.json", new r4b.Hl7.Fhir.Serialization.FhirJsonSerializer(new SerializerSettings() { Pretty = true }).SerializeToString(bun));
         }
     }

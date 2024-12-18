@@ -135,5 +135,20 @@ namespace UploadFIG
         /// The filename of a file to write the discovered dependencies of this IG to
         /// </summary>
         public string OutputDependenciesFile { get; set; }
-    }
+
+		/// <summary>
+		/// The URL of an external FHIR registry to use for resolving dependencies
+		/// </summary>
+		public string ExternalRegistry { get; set; }
+
+		/// <summary>
+		/// Additional headers to supply when accessing the external FHIR registry
+		/// </summary>
+		public List<string> ExternalRegistryHeaders { get; set; }
+
+		/// <summary>
+		/// The filename of a file to write the json bundle of downloaded registry resources to
+		/// </summary>
+		public string ExternalRegistryExportFile { get; set; }
+	}
 }

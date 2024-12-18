@@ -98,6 +98,9 @@ Options:
                                                              (e.g. Filenames processed)
                                                              [default: False]
   -odf, --outputDependenciesFule <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
+  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server []
+  -regh, --externalRegistryHeaders <externalRegistryHeaders> Additional headers to supply when connecting to the external FHIR server []
+  -rego, --ExternalRegistryExportFile <ExternalRegistryExportFile>  The filename of a file to write the json bundle of downloaded registry resources to []
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```
@@ -330,8 +333,12 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 (Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
 ``` ps
 > UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json -dh "Authorization:Bearer ******"
+      --includeReferencedDependencies -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
 ```
 And also the inclusion of the `-df json` to select the json format as the hosted Microsoft FHIR Server doesn't support XML
+and the `--includeReferencedDependencies` flag to indicate that dependencies should be scanned (including registry if provided)
+and the `-reg` flag to specify the NCTS as the external registry to use for resolving the other resources that are not in the package.
+and the `-rego` flag to write a local copy of the resources downloaded from the NCTS registry.
 
 The hosted Microsoft server may require an Authorization bearer to connect too, note that you will likely need 
 to quote the content if it has spaces - which is normally there (and may be different on a different OS)
