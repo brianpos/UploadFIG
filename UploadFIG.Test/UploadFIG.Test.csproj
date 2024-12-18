@@ -10,9 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.11.1-beta1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.11.1-beta1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.11.1-beta1" />
+    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.11.1-beta5" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.11.1-beta5" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.11.1-beta5" />
     <PackageReference Include="Hl7.Fhir.R4" Version="5.11.1" Aliases="r4" />
     <PackageReference Include="Hl7.Fhir.R4B" Version="5.11.1" Aliases="r4b" />
     <PackageReference Include="Hl7.Fhir.R5" Version="5.11.1" Aliases="r5" />
