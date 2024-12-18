@@ -194,7 +194,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(49, Program.successes);
+			Assert.AreEqual(54, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
@@ -271,10 +271,9 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(66, Program.successes);
+			Assert.AreEqual(25, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors); // this will continue to fail till I move
-                                                          // the dependency package scan code into the tool
+			Assert.AreEqual(0, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -292,9 +291,9 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(41, Program.successes);
+			Assert.AreEqual(25, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
+			Assert.AreEqual(0, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -312,7 +311,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(144, Program.successes);
+			Assert.AreEqual(146, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
         }
@@ -332,7 +331,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(144, Program.successes);
+			Assert.AreEqual(146, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
         }

@@ -407,6 +407,10 @@ Done!
 
 ## Change history
 
+### 18 December 2024
+* Update Fhirpath static validation engine to resolve issue with complex extensions passing context through functions
+  (found in AU base IG)
+
 ### 6 December 2024
 * Update SDC questionnaire validations to handle the new `weight` function and resolve a few minor bugs in Questionnaire validation
 * Update to the FirelySDK v5.11.1

@@ -29,10 +29,10 @@
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.1.2" />
-    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.11.1-rc2" />
-    <PackageReference Include="brianpos.Fhir.R4.StructuredDataCapture" Version="5.11.1-beta3" Aliases="r4" />
-    <PackageReference Include="brianpos.Fhir.R4B.StructuredDataCapture" Version="5.11.1-beta3" Aliases="r4b" />
-    <PackageReference Include="brianpos.Fhir.R5.StructuredDataCapture" Version="5.11.1-beta3" Aliases="r5" />
+    <PackageReference Include="brianpos.Fhir.Base.FhirPath.Validator" Version="5.11.1-rc4" />
+    <PackageReference Include="brianpos.Fhir.R4.StructuredDataCapture" Version="5.11.1-beta5" Aliases="r4" />
+    <PackageReference Include="brianpos.Fhir.R4B.StructuredDataCapture" Version="5.11.1-beta5" Aliases="r4b" />
+    <PackageReference Include="brianpos.Fhir.R5.StructuredDataCapture" Version="5.11.1-beta5" Aliases="r5" />
     <PackageReference Include="Firely.Fhir.Packages" Version="4.9.0" />
     <PackageReference Include="Hl7.Fhir.R4" Version="5.11.1" Aliases="r4" />
     <PackageReference Include="Hl7.Fhir.R4B" Version="5.11.1" Aliases="r4b" />
