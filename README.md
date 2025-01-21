@@ -1,4 +1,4 @@
-# UploadFIG - FHIR Implementation Guide (FIG) Uploader R4B
+# UploadFIG - FHIR Implementation Guide (FIG) Uploader R4/R4B/R5
 ![UploadFIG logo](logo_small.png "UploadFIG logo")
 
 This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.
@@ -99,8 +99,12 @@ Options:
                                                              [default: False]
   -odf, --outputDependenciesFule <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
   -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server []
-  -regh, --externalRegistryHeaders <externalRegistryHeaders> Additional headers to supply when connecting to the external FHIR server []
-  -rego, --ExternalRegistryExportFile <ExternalRegistryExportFile>  The filename of a file to write the json bundle of downloaded registry resources to []
+  -regh, --externalRegistryHeaders <headers>                 Additional headers to supply when connecting to the external FHIR server
+  -rego, --ExternalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources to
+  -ets, --externalTerminologyServer <URL>                    The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)
+  -etsh, --externalTerminologyServerHeaders <headers>        Additional headers to supply when connecting to the external FHIR terminology server
+  -mes, --maxExpansionSize <number>                          The maximum number of codes to include in a ValueSet expansion
+                                                             [default: 1000]
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```

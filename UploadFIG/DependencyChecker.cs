@@ -342,6 +342,15 @@ namespace UploadFIG
 
         static List<string> ignoreCanonicals = new (new string[] {
 			"http://hl7.org/fhir/StructureDefinition/structuredefinition-conformance-derivedFrom",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-bestpractice",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-bestpractice-explanation",
+			"http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
+			"http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type",
+			"http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+			"http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-bindingName",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-isCommonBinding",
+			"http://hl7.org/fhir/StructureDefinition/elementdefinition-translatable",
 			"http://hl7.org/fhir/StructureDefinition/elementdefinition-type-must-support",
 			"http://hl7.org/fhir/tools/StructureDefinition/additional-binding",
 			"http://hl7.org/fhir/tools/StructureDefinition/web-source",

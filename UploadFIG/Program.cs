@@ -6,9 +6,11 @@ using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Snapshot;
+using Hl7.Fhir.Specification.Terminology;
 using Hl7.Fhir.Utility;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using System.Collections.Specialized;
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
 using System.Diagnostics;
@@ -97,6 +99,9 @@ namespace UploadFIG
 				new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
 				new Option<string>(new string[] { "-reg", "--externalRegistry" }, () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
 				new Option<List<string>>(new string[] { "-regh", "--externalRegistryHeaders" }, () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
+				new Option<string>(new string[] { "-ets", "--externalTerminologyServer" }, () => settings.ExternalTerminologyServer, "The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)"),
+				new Option<List<string>>(new string[] { "-etsh", "--externalTerminologyServerHeaders" }, () => settings.ExternalTerminologyServerHeaders, "Additional headers to supply when connecting to the external FHIR terminology server"),
+				new Option<long?>(new string [] { "-mes", "--maxExpansionSize" }, () => settings.MaxExpansionSize, "The maximum number of codes to include in a ValueSet expansion"),
 				new Option<string>(new string[] { "-rego", "--ExternalRegistryExportFile" }, () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
 			};
 
@@ -390,6 +395,7 @@ namespace UploadFIG
 			var dependencyResourcesToLoad = externalNonCoreDirectCanonicals.Union(indirectCanonicals).Where(ic => ic.resource != null).Select(ic => ic.resource).ToList();
 
 			// Check for missing canonicals on the registry
+			List<Resource> additionalResources = new List<Resource>();
 			if (!string.IsNullOrEmpty(settings.ExternalRegistry))
 			{
 				Console.WriteLine();
@@ -422,7 +428,6 @@ namespace UploadFIG
 					packageId = "registry",
 					packageVersion = settings.ExternalRegistry,
 				};
-				List<Resource> additionalResources = new List<Resource>();
 				foreach (var dc in unresolvableCanonicals.ToArray()) // clone the list so that we can trim it down it while processing
 				{
 					try
@@ -609,6 +614,129 @@ namespace UploadFIG
 						errFiles.Add(exampleName);
 					}
 				}
+			}
+
+			// Validate the terminologies to see if we need to pre-expand any of them
+			// Now run through all the ValueSets and see if they are simple or complex
+			if (!string.IsNullOrEmpty(settings.ExternalTerminologyServer))
+			{
+				Console.WriteLine();
+				Console.WriteLine("--------------------------------------");
+				Console.WriteLine($"Validate ValueSet complexity (and pre-expand if possible using {settings.ExternalTerminologyServer}):");
+				var valueSets = resourcesToProcess.OfType<ValueSet>();
+				var codeSystems = resourcesToProcess.OfType<CodeSystem>();
+				//foreach(ValueSet vs in valueSets)
+				//{
+				//	if (expressionValidator.InMemoryResolver.ResolveByCanonicalUri(vs.Url) == null)
+				//	{
+				//		expressionValidator.InMemoryResolver.Add(vs, new PackageCacheItem());
+				//	}
+				//}
+				
+
+				var expanderSettings = ValueSetExpanderSettings.CreateDefault();
+				expanderSettings.ValueSetSource = expressionValidator.Source;
+				var _expander = new ValueSetExpander(expanderSettings);
+
+				var tsClient = new BaseFhirClient(new Uri(settings.ExternalTerminologyServer), versionAgnosticProcessor.ModelInspector);
+				BaseFhirClient tsRegistry = null;
+				if (additionalResources.Count > 0)
+					tsRegistry = new BaseFhirClient(new Uri(settings.ExternalRegistry), versionAgnosticProcessor.ModelInspector);
+
+				StringCollection failures = new StringCollection();
+				int countSuccesses = 0;
+
+				foreach (var vs in valueSets)
+				{
+					if (!vs.HasExpansion)
+					{
+						// Clone the ValueSet so that we can expand it without affecting the original
+						var vsCopy = (ValueSet)vs.DeepCopy();
+						try
+						{
+							await _expander.ExpandAsync(vsCopy).ConfigureAwait(false);
+							// Console.WriteLine($"ValueSet {vs.Url} expanded");
+							countSuccesses++;
+						}
+						catch (TerminologyServiceException ex)
+						{
+							// Console.WriteLine($"ValueSet {vs.Url} failed to expand: {ex.Message}");
+
+							// Need to expand this one with the terminology service
+							try
+							{
+								ValueSet expandedValueSet;
+								if (additionalResources.Contains(vs))
+									expandedValueSet = tsRegistry.ExpandValueSet(vs);
+								else
+									expandedValueSet = tsClient.ExpandValueSet(vs);
+								if (expandedValueSet.Expansion == null)
+								{
+									Console.WriteLine($"ValueSet {vs.Url} failed to expand");
+									failures.Add(vs.Url);
+									continue;
+								}
+								if (expandedValueSet.Expansion.Contains.Count() > (settings.MaxExpansionSize ?? 1000))
+								{
+									Console.WriteLine($"ValueSet {vs.Url} expansion is too large to include ({expandedValueSet.Expansion.Contains.Count()} concepts)");
+									failures.Add(vs.Url);
+									continue;
+								}
+								if (expandedValueSet.Expansion.Total.HasValue && expandedValueSet.Expansion.Contains.Count() != expandedValueSet.Expansion.Total.Value)
+								{
+									Console.WriteLine($"ValueSet {vs.Url} expansion is incomplete ({expandedValueSet.Expansion.Contains.Count()} of {expandedValueSet.Expansion.Total} concepts)");
+									failures.Add(vs.Url);
+									continue;
+								}
+								if (expandedValueSet.Expansion.Total.HasValue && expandedValueSet.Expansion.Total.Value > (settings.MaxExpansionSize ?? 1000))
+								{
+									Console.WriteLine($"ValueSet {vs.Url} expansion is too large to include ({expandedValueSet.Expansion.Total} concepts)");
+									failures.Add(vs.Url);
+									continue;
+								}
+								// flag for limited expansion too?
+
+								if (expandedValueSet.Expansion.NextElement != null)
+								{
+									Console.WriteLine($"ValueSet {vs.Url} expansion is too large to include");
+									failures.Add(vs.Url);
+									continue;
+								}
+								// Yay! we have an expansion we can use, so set it
+								Console.WriteLine($"ValueSet {vs.Url} expansion included ({expandedValueSet.Expansion.Contains.Count()} concepts)");
+								vs.Expansion = expandedValueSet.Expansion;
+							}
+							catch (Hl7.Fhir.Rest.FhirOperationException exExpand)
+							{
+								Console.WriteLine($"ValueSet {vs.Url} failed to expand on {settings.ExternalTerminologyServer}");
+								Console.WriteLine($"  * pre-expansion required due to: {ex.Message}");
+
+								if (exExpand.Outcome != null)
+								{
+									foreach (var issue in exExpand.Outcome.Issue)
+									{
+										if (issue.Severity != OperationOutcome.IssueSeverity.Information)
+											Console.WriteLine($"  * {issue.Severity} {issue.Code} {issue.Details?.Text ?? issue.Details?.Coding.FirstOrDefault()?.Display}");
+									}
+								}
+								else
+								{
+									Console.WriteLine($"  * {exExpand.Message}");
+								}
+							}
+							catch (Exception exExpand)
+							{
+								Console.WriteLine($"ValueSet {vs.Url} failed to expand on {settings.ExternalTerminologyServer}: {exExpand.Message}");
+							}
+						}
+					}
+					else
+					{
+						// Console.WriteLine($"ValueSet {vs.Url} already expanded");
+					}
+				}
+				// Assert.AreEqual(35, countSuccesses, "ValueSet expansions");
+				// Assert.AreEqual(0, failures.Count, $"Failed to expand {failures.Count} ValueSets");
 			}
 
 			// Validate/upload the resources

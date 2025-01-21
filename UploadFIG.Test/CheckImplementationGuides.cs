@@ -307,6 +307,9 @@ namespace UploadFIG.Test
 				"-vq",
 				"--includeExamples",
 				"-pid", "hl7.fhir.au.base",
+				"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+				"-rego", "c:\\temp\\au-registry-content.json",
+				"-ets", "https://tx.dev.hl7.org.au/fhir",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);

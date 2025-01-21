@@ -150,5 +150,23 @@ namespace UploadFIG
 		/// The filename of a file to write the json bundle of downloaded registry resources to
 		/// </summary>
 		public string ExternalRegistryExportFile { get; set; }
+
+		/// <summary>
+		/// The URL of an external terminology server to use for resolving terminology dependencies
+		/// for expansions where a local terminology server is not available, and is too complex
+		/// for the Firely SDK's built-in terminology service to handle
+		/// </summary>
+		public string ExternalTerminologyServer { get; set; }
+
+		/// <summary>
+		/// Additional headers to supply when accessing the external FHIR registry
+		/// </summary>
+		public List<string> ExternalTerminologyServerHeaders { get; set; }
+
+		/// <summary>
+		/// When leveraging an external terminology server, the maximum number of codes to expand to
+		/// (where the Firely SDK can't handle the ValueSet itself)
+		/// </summary>
+		public long? MaxExpansionSize { get; set; } = 1000;
 	}
 }
