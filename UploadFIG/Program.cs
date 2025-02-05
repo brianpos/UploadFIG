@@ -183,7 +183,7 @@ namespace UploadFIG
 			var sw = Stopwatch.StartNew();
 
 			// Locate and read the package manifest to read the package dependencies
-			PackageManifest manifest = ReadManifestFromPackage(reader);
+			PackageManifest manifest = PackageReader.ReadManifest(sourceStream);
 
 			if (manifest == null)
 			{
@@ -933,6 +933,16 @@ namespace UploadFIG
 					Console.WriteLine($"Reading (pre-downloaded) {localPackagePath}");
 					sourceStream = System.IO.File.OpenRead(localPackagePath);
 				}
+			}
+
+			// As our engine needs to rewind the stream, we need to ensure that it can be done
+			if (!sourceStream.CanSeek)
+			{
+				// This stream can't be re-wound, so we need to copy it to a memory stream
+				MemoryStream ms = new MemoryStream();
+				await sourceStream.CopyToAsync(ms);
+				ms.Seek(0, SeekOrigin.Begin);
+				sourceStream = ms;
 			}
 			return sourceStream;
 		}
