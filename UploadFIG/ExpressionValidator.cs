@@ -96,7 +96,7 @@ namespace UploadFIG
 				PackageManifest manifest;
 				using (packageStream)
 				{
-					manifest = TempPackageCache.ReadManifest(packageStream);
+					manifest = PackageReader.ReadManifest(packageStream);
 					if (manifest == null)
 						continue; // can't process the package without a manifest
 
@@ -108,7 +108,7 @@ namespace UploadFIG
 					//if (manifest.Canonical == "http://terminology.hl7.org")
 					//	continue;
 
-					PackageIndex index = TempPackageCache.ReadPackageIndex(packageStream);
+					PackageIndex index = PackageReader.ReadPackageIndex(packageStream);
 
 					// Scan this package to see if any content is in the index
 					if (index != null)
@@ -298,7 +298,7 @@ namespace UploadFIG
 				}
 
 				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
-				var content = TempPackageCache.ReadResourceContent(packageStream, cacheItem.filename);
+				var content = PackageReader.ReadResourceContent(packageStream, cacheItem.filename);
 				if (content != null)
 				{
 					Resource resource;
@@ -325,7 +325,7 @@ namespace UploadFIG
 			{
 				var cacheItem = _dependencyProfiles[uri];
 				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
-				var content = TempPackageCache.ReadResourceContent(packageStream, cacheItem.filename);
+				var content = PackageReader.ReadResourceContent(packageStream, cacheItem.filename);
 				if (content != null)
 				{
 					Resource resource;

@@ -14,7 +14,8 @@ namespace UploadFIG
         public List<FileDetail> Files { get; set; } = new List<FileDetail>();
     }
 
-    public class FileDetail
+	[System.Diagnostics.DebuggerDisplay(@"{resourceType}/{id}   {url}|{version}   filename: {filename}")] // http://blogs.msdn.com/b/jaredpar/archive/2011/03/18/debuggerdisplay-attribute-best-practices.aspx
+	public class FileDetail
     {
         public string filename { get; set; }
 

@@ -143,7 +143,7 @@ namespace UploadFIG
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
 
-			// Validate the headers being applied
+			// Validate specific headers being applied for common errors
 			if (settings.DestinationServerHeaders?.Any() == true)
 			{
 				Console.WriteLine("Headers:");
@@ -160,98 +160,9 @@ namespace UploadFIG
 			}
 
 			// Prepare a temp working folder to hold this downloaded package
-			Stream sourceStream;
-			if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
-			{
-				// This is a local path so we should just use that!
-				// No need to check any of the package ID/Version stuff
-				Console.WriteLine($"Using local package: {settings.SourcePackagePath}");
-				byte[] packageRawContent = File.ReadAllBytes(settings.SourcePackagePath);
-				sourceStream = new MemoryStream(packageRawContent);
-				dumpOutput.url = settings.SourcePackagePath;
-			}
-			else
-			{
-				string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
-				string localPackagePath = Path.Combine(tempFIGpath, "demo-upload.tgz");
-				if (!Directory.Exists(tempFIGpath))
-				{
-					Directory.CreateDirectory(tempFIGpath);
-				}
-
-				byte[] examplesPkg;
-
-				// Check with the registry (for all versions of the package)
-				if (!string.IsNullOrEmpty(settings.PackageId))
-				{
-					PackageClient pc = PackageClient.Create();
-					examplesPkg = await pc.GetPackage(new PackageReference(settings.PackageId, null));
-					string contents = Encoding.UTF8.GetString(examplesPkg);
-					var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
-					Console.WriteLine($"Package ID: {pl?.Name}");
-					Console.WriteLine($"Package Title: {pl?.Description}");
-					Console.WriteLine($"Available Versions: {String.Join(", ", pl.Versions.Keys)}");
-					if (!string.IsNullOrEmpty(settings.PackageVersion) && !pl.Versions.ContainsKey(settings.PackageVersion))
-					{
-						Console.Error.WriteLine($"Version {settings.PackageVersion} was not in the registered versions");
+			Stream sourceStream = await GetSourcePackageStream(settings, dumpOutput);
+			if (sourceStream == null)
 						return -1;
-					}
-					else
-					{
-						if (string.IsNullOrEmpty(settings.PackageVersion))
-						{
-							settings.PackageVersion = pl.Versions.LastOrDefault().Key;
-							Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
-						}
-						else
-						{
-							Console.WriteLine($"Using package version: {settings.PackageVersion}");
-						}
-					}
-					Console.WriteLine($"Package is for FHIR version: {pl.Versions[settings.PackageVersion].FhirVersion}");
-					Console.WriteLine($"Canonical URL: {pl.Versions[settings.PackageVersion].Url}");
-					Console.WriteLine($"{pl.Versions[settings.PackageVersion].Description}");
-					Console.WriteLine($"Direct location: {pl.Versions[settings.PackageVersion].Dist?.Tarball}");
-					localPackagePath = Path.Combine(tempFIGpath, $"{settings.PackageId}.tgz");
-					dumpOutput.url = pl.Versions[settings.PackageVersion].Dist?.Tarball;
-				}
-
-				// Download the file from the HL7 registry/or other location
-				if (!System.IO.File.Exists(localPackagePath) || settings.ForceDownload)
-				{
-					if (settings.Verbose)
-						Console.WriteLine($"Downloading to {localPackagePath}");
-
-					if (!string.IsNullOrEmpty(settings.SourcePackagePath))
-					{
-						Console.WriteLine($"Downloading from {settings.SourcePackagePath}");
-						// Direct download approach
-						using (HttpClient client = new HttpClient())
-						{
-							examplesPkg = await client.GetByteArrayAsync(settings.SourcePackagePath);
-						}
-						System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
-						dumpOutput.url = settings.SourcePackagePath;
-					}
-					else
-					{
-						PackageClient pc = PackageClient.Create();
-						Console.WriteLine($"Downloading {settings.PackageId}|{settings.PackageVersion} from {pc}");
-
-						// Firely Package Manager approach (this will download into the users profile .fhir folder)
-						var pr = new Firely.Fhir.Packages.PackageReference(settings.PackageId, settings.PackageVersion);
-						examplesPkg = await pc.GetPackage(pr);
-						System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
-					}
-					sourceStream = new MemoryStream(examplesPkg);
-				}
-				else
-				{
-					// Local package was already downloaded
-					Console.WriteLine($"Reading (pre-downloaded) {localPackagePath}");
-					sourceStream = System.IO.File.OpenRead(localPackagePath);
-				}
-			}
 
 			using (var md5 = MD5.Create())
 			{
@@ -927,6 +838,105 @@ namespace UploadFIG
 			return 0;
 		}
 
+		private static async Task<Stream> GetSourcePackageStream(Settings settings, OutputDependenciesFile dumpOutput)
+		{
+			Stream sourceStream;
+			if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
+			{
+				// This is a local path so we should just use that!
+				// No need to check any of the package ID/Version stuff
+				Console.WriteLine($"Using local package: {settings.SourcePackagePath}");
+				byte[] packageRawContent = File.ReadAllBytes(settings.SourcePackagePath);
+				sourceStream = new MemoryStream(packageRawContent);
+				dumpOutput.url = settings.SourcePackagePath;
+			}
+			else
+			{
+				string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
+				string localPackagePath = Path.Combine(tempFIGpath, "demo-upload.tgz");
+				if (!Directory.Exists(tempFIGpath))
+				{
+					Directory.CreateDirectory(tempFIGpath);
+				}
+
+				byte[] examplesPkg;
+
+				// Check with the registry (for all versions of the package)
+				if (!string.IsNullOrEmpty(settings.PackageId))
+				{
+					// PackageClient pc = PackageClient.Create("https://packages2.fhir.org/packages");
+					PackageClient pc = PackageClient.Create();
+					examplesPkg = await pc.GetPackage(new PackageReference(settings.PackageId, null));
+					string contents = Encoding.UTF8.GetString(examplesPkg);
+					var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
+					Console.WriteLine($"Package ID: {pl?.Name}");
+					Console.WriteLine($"Package Title: {pl?.Description}");
+					Console.WriteLine($"Available Versions: {String.Join(", ", pl.Versions.Keys)}");
+					if (!string.IsNullOrEmpty(settings.PackageVersion) && !pl.Versions.ContainsKey(settings.PackageVersion))
+					{
+						Console.Error.WriteLine($"Version {settings.PackageVersion} was not in the registered versions");
+						return null;
+					}
+					else
+					{
+						if (string.IsNullOrEmpty(settings.PackageVersion))
+						{
+							settings.PackageVersion = pl.Versions.LastOrDefault().Key;
+							Console.WriteLine($"Selecting latest version of package {settings.PackageVersion}");
+						}
+						else
+						{
+							Console.WriteLine($"Using package version: {settings.PackageVersion}");
+						}
+					}
+					Console.WriteLine($"Package is for FHIR version: {pl.Versions[settings.PackageVersion].FhirVersion}");
+					Console.WriteLine($"Canonical URL: {pl.Versions[settings.PackageVersion].Url}");
+					Console.WriteLine($"{pl.Versions[settings.PackageVersion].Description}");
+					Console.WriteLine($"Direct location: {pl.Versions[settings.PackageVersion].Dist?.Tarball}");
+					localPackagePath = Path.Combine(tempFIGpath, $"{settings.PackageId}.tgz");
+					dumpOutput.url = pl.Versions[settings.PackageVersion].Dist?.Tarball;
+				}
+
+				// Download the file from the HL7 registry/or other location
+				if (!System.IO.File.Exists(localPackagePath) || settings.ForceDownload)
+				{
+					if (settings.Verbose)
+						Console.WriteLine($"Downloading to {localPackagePath}");
+
+					if (!string.IsNullOrEmpty(settings.SourcePackagePath))
+					{
+						Console.WriteLine($"Downloading from {settings.SourcePackagePath}");
+						// Direct download approach
+						using (HttpClient client = new HttpClient())
+						{
+							client.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("UploadFIG", "8.10.1"));
+							examplesPkg = await client.GetByteArrayAsync(settings.SourcePackagePath);
+						}
+						System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
+						dumpOutput.url = settings.SourcePackagePath;
+					}
+					else
+					{
+						PackageClient pc = PackageClient.Create();
+						Console.WriteLine($"Downloading {settings.PackageId}|{settings.PackageVersion} from {pc}");
+
+						// Firely Package Manager approach (this will download into the users profile .fhir folder)
+						var pr = new Firely.Fhir.Packages.PackageReference(settings.PackageId, settings.PackageVersion);
+						examplesPkg = await pc.GetPackage(pr);
+						System.IO.File.WriteAllBytes(localPackagePath, examplesPkg);
+					}
+					sourceStream = new MemoryStream(examplesPkg);
+				}
+				else
+				{
+					// Local package was already downloaded
+					Console.WriteLine($"Reading (pre-downloaded) {localPackagePath}");
+					sourceStream = System.IO.File.OpenRead(localPackagePath);
+				}
+			}
+			return sourceStream;
+		}
+
 		private static void ReportDependentCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> externalNonCoreDirectCanonicals)
 		{
 			Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
@@ -1019,37 +1029,6 @@ namespace UploadFIG
 					Console.WriteLine();
 				}
 			}
-		}
-
-		private static PackageManifest ReadManifestFromPackage(TarReader reader)
-		{
-			PackageManifest manifest = null;
-			TarEntry entry;
-			while ((entry = reader.GetNextEntry()) != null)
-			{
-				// Read the package definition file
-				if (entry.Name == "package/package.json")
-				{
-					var stream = entry.DataStream;
-					using (stream)
-					{
-						try
-						{
-							StreamReader sr = new StreamReader(stream);
-							var content = sr.ReadToEnd();
-							manifest = PackageParser.ParseManifest(content);
-							break;
-						}
-						catch (Exception ex)
-						{
-							Console.WriteLine($"Error reading package.json: {ex.Message}");
-							return null;
-						}
-					}
-				}
-			}
-
-			return manifest;
 		}
 
 		private static List<Resource> ReadResourcesFromPackage(Settings settings, TarReader reader, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles)

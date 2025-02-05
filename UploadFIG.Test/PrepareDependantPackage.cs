@@ -96,10 +96,10 @@ namespace UploadFIG.Test
                 PackageManifest? manifest;
                 using (packageStream)
                 {
-                    manifest = TempPackageCache.ReadManifest(packageStream);
+					manifest = PackageReader.ReadManifest(packageStream);
                     if (manifest == null)
                         continue; // can't process the package without a manifest
-                    PackageIndex? index = TempPackageCache.ReadPackageIndex(packageStream);
+					PackageIndex? index = PackageReader.ReadPackageIndex(packageStream);
 
                     // Scan this package to see if any content is in the index
                     if (index != null)
@@ -116,7 +116,7 @@ namespace UploadFIG.Test
                                 ecr.foundInPackage = manifest.Name + "|" + manifest.Version;
 
                                 // Read this file from the package
-                                var content = TempPackageCache.ReadResourceContent(packageStream, files.First().filename);
+								var content = PackageReader.ReadResourceContent(packageStream, files.First().filename);
                                 if (content != null)
                                 {
                                     Resource resource;
