@@ -2,10 +2,15 @@
 extern alias r4b;
 extern alias r5;
 
+using Hl7.Fhir.ElementModel;
+using Hl7.Fhir.FhirPath;
+using Hl7.Fhir.Introspection;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Source;
 using Hl7.Fhir.Utility;
+using Hl7.FhirPath;
+using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
 {
@@ -210,14 +215,14 @@ namespace UploadFIG
 		{
 			List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
-			// And the types from the core resource profiles
+            // Filter the types from the core resource profiles
 			var coreCanonicals = initialCanonicals.Where(v => Uri.IsWellFormedUriString(v.canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.canonical))).ToList();
 			foreach (var coreCanonical in coreCanonicals)
 			{
 				filteredCanonicals.Remove(coreCanonical);
 			}
 
-			// And check for any Core extensions (that are packaged in the standard zip package)
+            // Filter any Core extensions (that are packaged in the standard zip package)
 			CommonZipSource zipSource = null;
 			if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
 				zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
@@ -241,6 +246,14 @@ namespace UploadFIG
 			{
 				filteredCanonicals.Remove(coreCanonical);
 			}
+
+			// Filter out any from the tools package
+			var toolsCanonicals = initialCanonicals.Where(v => v.canonical.StartsWith("http://hl7.org/fhir/tools/")).ToList();
+			foreach (var coreCanonical in toolsCanonicals)
+			{
+				filteredCanonicals.Remove(coreCanonical);
+			}
+
 			return filteredCanonicals;
 		}
 
@@ -692,5 +705,80 @@ namespace UploadFIG
             CheckRequiresCanonical(resource, "ValueSet", item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-unitValueSet"), requiresCanonicals);
             CheckRequiresCanonical(resource, "StructureDefinition", item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-referenceProfile"), requiresCanonicals);
         }
-    }
+
+		internal static void LoadDependentResources(PackageDetails pd, Common_Processor versionAgnosticProcessor, FHIRVersion fhirversion)
+		{
+			var startingRequiredCanonicals = pd.RequiresCanonicals;
+			if (pd.dependencies != null)
+			{
+				foreach (var dep in pd.dependencies)
+				{
+					LoadCanonicalResource(dep, startingRequiredCanonicals, versionAgnosticProcessor);
+					var dependencies = ScanForCanonicals(dep.resources, versionAgnosticProcessor.ModelInspector).ToList();
+					var externalDirectCanonicals = DependencyChecker.FilterOutCanonicals(dependencies, dep.resources).ToList();
+					var externalNonCoreDirectCanonicals = DependencyChecker.FilterOutCoreSpecAndExtensionCanonicals(externalDirectCanonicals, fhirversion, versionAgnosticProcessor).ToList();
+					dep.RequiresCanonicals = externalNonCoreDirectCanonicals;
+					LoadDependentResources(dep, versionAgnosticProcessor, fhirversion);
+				}
+			}
+		}
+
+		private static void LoadCanonicalResource(PackageDetails pd, IEnumerable<CanonicalDetails> startingRequiredCanonicals, Common_Processor versionAgnosticProcessor)
+		{
+			var files = pd.Files.Where(f => startingRequiredCanonicals.Any(cd => cd.canonical == f.url)).ToList();
+			if (files.Any())
+			{
+				var stream = new TempPackageCache().GetPackageStream(pd.packageId, pd.packageVersion);
+				using (stream)
+				{
+					List<Resource> addedResources = new List<Resource>();
+					foreach (var f in files)
+					{
+						Console.WriteLine($"    Detected {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion}");
+						var data = PackageReader.ReadResourceContent(stream, f.filename);
+						Resource resource = null;
+						try
+						{
+							if (f.filename.EndsWith(".xml"))
+							{
+								resource = versionAgnosticProcessor.ParseXml(data);
+								pd.resources.Add(resource);
+								addedResources.Add(resource);
+							}
+							else if (f.filename.EndsWith(".json"))
+							{
+								resource = versionAgnosticProcessor.ParseJson(data);
+								pd.resources.Add(resource);
+								addedResources.Add(resource);
+							}
+							else
+							{
+								// Not a file that we can process
+								// (What about fml/map files?)
+								continue;
+							}
+						}
+						catch (Exception ex)
+						{
+							Console.Error.WriteLine($"ERROR: ({f.filename}) {ex.Message}");
+							//System.Threading.Interlocked.Increment(ref failures);
+							//if (!errs.Contains(ex.Message))
+							//	errs.Add(ex.Message);
+							//errFiles.Add(exampleName);
+							continue;
+						}
+					}
+				}
+			}
+
+			// and walk the dependencies too
+			if (pd.dependencies != null)
+			{
+				foreach (var dep in pd.dependencies)
+				{
+					LoadCanonicalResource(dep, startingRequiredCanonicals, versionAgnosticProcessor);
+				}
+			}
+		}
+	}
 }
