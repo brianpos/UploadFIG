@@ -49,11 +49,8 @@ namespace UploadFIG
                 Console.WriteLine($"      --> {issue.Severity?.GetLiteral()}: {issue.Details.Text}");
                 if (!string.IsNullOrEmpty(issue.Diagnostics))
                 {
-                    var oldColor = Console.ForegroundColor;
                     var diag = issue.Diagnostics.Replace("\r\n\r\n", "\r\n").Trim();
-                    Console.ForegroundColor = ConsoleColor.Gray;
-                    Console.WriteLine($"{diagnosticPrefix}{diag.Replace("\r\n", "\r\n  " + diagnosticPrefix)}");
-                    Console.ForegroundColor = oldColor;
+                    ConsoleEx.WriteLine(ConsoleColor.Gray, $"{diagnosticPrefix}{diag.Replace("\r\n", "\r\n  " + diagnosticPrefix)}");
                 }
             }
         }

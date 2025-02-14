@@ -52,7 +52,7 @@ namespace UploadFIG.Test
 			});
 			Assert.AreEqual(0, result);
 
-			Assert.AreEqual(4508, Program.successes);
+			Assert.AreEqual(4518, Program.successes);
 			Assert.AreEqual(10, Program.failures);
 			Assert.AreEqual(66, Program.validationErrors);
 		}
@@ -71,13 +71,13 @@ namespace UploadFIG.Test
 			});
 			Assert.AreEqual(0, result);
 
-			Assert.AreEqual(4536, Program.successes);
+			Assert.AreEqual(4546, Program.successes);
 			Assert.AreEqual(11, Program.failures);
 			Assert.AreEqual(66, Program.validationErrors);
 		}
 
 		[TestMethod]
-        public async Task CheckSDC()
+        public async Task CheckSDC300()
         {
             // "commandLineArgs": "-t -pid hl7.fhir.uv.sdc"
             string outputFile = "c:\\temp\\uploadfig-dump-sdc.json";
@@ -87,11 +87,12 @@ namespace UploadFIG.Test
                 "-vq",
                 "--includeExamples",
 				"-pid", "hl7.fhir.uv.sdc",
+				"-pv", "3.0.0",
                 "-odf", outputFile,
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(114, Program.successes);
+			Assert.AreEqual(125, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(15, Program.validationErrors);
 		}
@@ -105,6 +106,7 @@ namespace UploadFIG.Test
                 "-t",
                 "-vq",
                 "--includeExamples",
+				"--includeReferencedDependencies",
 				"-s", "https://build.fhir.org/ig/HL7/sdc/package.tgz",
 				// "-s", @"c:\git\hl7\sdc\output\package.tgz",
 				"-odf", outputFile,
@@ -112,7 +114,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(121, Program.successes);
+			Assert.AreEqual(162, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(4, Program.validationErrors);
 		}
@@ -160,6 +162,21 @@ namespace UploadFIG.Test
 
 
         [TestMethod]
+		public async Task CheckExtensionsRelease()
+		{
+			string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				"-s", "https://hl7.org/fhir/extensions/package.tgz",
+				"-odf", outputFile,
+			});
+			Assert.AreEqual(0, result);
+		}
+
+		[TestMethod]
         public async Task CheckExtensionsCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
@@ -213,9 +230,29 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(216, Program.successes);
+			Assert.AreEqual(215, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(1, Program.validationErrors);
+		}
+
+		[TestMethod]
+		public async Task CheckUsCore610()
+		{
+			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				"-pid", "hl7.fhir.us.core",
+				"-pv", "6.1.0",
+				"-odf", outputFile,
+			});
+			Assert.AreEqual(0, result);
+
+			Assert.AreEqual(209, Program.successes);
+			Assert.AreEqual(0, Program.failures);
+			Assert.AreEqual(6, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -291,7 +328,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(25, Program.successes);
+			Assert.AreEqual(26, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
@@ -314,7 +351,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(146, Program.successes);
+			Assert.AreEqual(138, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
         }
@@ -334,7 +371,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(146, Program.successes);
+			Assert.AreEqual(138, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
         }
@@ -355,7 +392,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(41, Program.successes);
+			Assert.AreEqual(42, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(3, Program.validationErrors);
 		}
@@ -399,9 +436,9 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(19, Program.successes);
+			Assert.AreEqual(20, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(1, Program.validationErrors);
 		}
 
 		[TestMethod]

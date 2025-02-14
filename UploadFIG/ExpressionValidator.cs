@@ -1,12 +1,16 @@
-﻿using Firely.Fhir.Packages;
+﻿extern alias r4;
+
+using Firely.Fhir.Packages;
 using Hl7.Fhir.FhirPath.Validator;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Specification.Source;
 using Hl7.Fhir.Support;
 using Hl7.Fhir.Utility;
+using Hl7.Fhir.WebApi;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Expressions;
 using Hl7.FhirPath.Sprache;
+using r4::Hl7.Fhir.StructuredDataCapture;
 using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
@@ -22,6 +26,7 @@ namespace UploadFIG
 		protected InMemoryResolver _inMemoryResolver;
 		public InMemoryResolver InMemoryResolver { get { return _inMemoryResolver; } }
 		public IResourceResolver Source { get { return _source; } }
+		DependencyChecker _depChecker;
 
 		public ExpressionValidator(Common_Processor processor)
 		{
@@ -44,123 +49,9 @@ namespace UploadFIG
 				_processor.OpenTypes);
 		}
 
-		protected List<StructureDefinition> _profiles;
-		protected List<PackageCacheItem> _dependencyProfiles = new List<PackageCacheItem>();
-
-		public List<PackageCacheItem> DependencyProfiles { get { return _dependencyProfiles; } }
-
-		public virtual void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources, bool verboseMode)
+		public virtual void PreValidation(PackageDetails pd, DependencyChecker depChecker, bool verboseMode, List<String> errFiles)
 		{
-			_profiles = resources.OfType<StructureDefinition>().ToList();
-			RecursivelyScanPackageExtensions(dependencies, verboseMode);
-		}
-
-		public void RecursivelyScanPackageExtensions(Dictionary<string, string> dependencies, bool verboseMode)
-		{
-			// Prepare our own cache of fhir packages in this projects AppData folder
-			var cache = new TempPackageCache();
-			Queue<KeyValuePair<string, string>> depPackages = new();
-			var scannedPackages = new List<string>();
-			foreach (var dp in dependencies)
-			{
-				var key = $"{dp.Key}|{dp.Value}";
-				if (!scannedPackages.Contains(key))
-				{
-					depPackages.Enqueue(dp);
-					if (verboseMode)
-						Console.WriteLine($"Added {dp.Key}|{dp.Value} for processing");
-					scannedPackages.Add(key);
-				}
-			}
-			while (depPackages.Count > 0)
-			{
-				var dp = depPackages.Dequeue();
-
-				if (dp.Value == "current")
-				{
-					var oldColor = Console.ForegroundColor; 
-					Console.ForegroundColor = ConsoleColor.Red;
-					Console.WriteLine($"      Unable to scan 'current' dependency {dp.Key}");
-					Console.ForegroundColor = oldColor;
-					continue;
-				}
-
-				Stream packageStream = cache.GetPackageStream(dp.Key, dp.Value);
-
-				if (packageStream == null)
-				{
-					// No package, so just need to continue
-					continue;
-				}
-
-				PackageManifest manifest;
-				using (packageStream)
-				{
-					manifest = PackageReader.ReadManifest(packageStream);
-					if (manifest == null)
-						continue; // can't process the package without a manifest
-
-					// Skip core packages that are handled elsewhere
-					if (manifest.Canonical == "http://hl7.org/fhir")
-						continue;
-					//if (manifest.Canonical == "http://hl7.org/fhir/extensions")
-					//	continue;
-					//if (manifest.Canonical == "http://terminology.hl7.org")
-					//	continue;
-
-					PackageIndex index = PackageReader.ReadPackageIndex(packageStream);
-
-					// Scan this package to see if any content is in the index
-					if (index != null)
-					{
-						// System.Diagnostics.Trace.WriteLine($"Scanning index in {manifest.Name}");
-						var files = index.Files.Where(f => !string.IsNullOrEmpty(f.url));
-						if (files.Any())
-						{
-							// Read these files from the package
-							foreach (var file in files)
-							{
-								var cacheItem = new PackageCacheItem()
-								{
-									packageId = manifest.Name,
-									packageVersion = manifest.Version,
-									filename = file.filename,
-									resourceType = file.resourceType,
-									id = file.id,
-									url = file.url,
-									version = file.version,
-									type = file.type
-								};
-								_dependencyProfiles.Add(cacheItem);
-							}
-						}
-					}
-				}
-
-				// Scan through this packages dependencies and see if I need to add more to the queue for processing
-				if (manifest.Dependencies != null)
-				{
-					foreach (var dep in manifest.Dependencies)
-					{
-						var key = $"{dep.Key}|{dep.Value}";
-						if (!scannedPackages.Contains(key))
-						{
-							scannedPackages.Add(key);
-							if (!dependencies.ContainsKey(dep.Key))
-							{
-								depPackages.Enqueue(dep);
-								if (verboseMode)
-									Console.WriteLine($"Added {dep.Key}|{dep.Value} for processing (dependency of {manifest.Name}|{manifest.Version})");
-							}
-							else
-							{
-								if (dep.Value != dependencies[dep.Key])
-									Console.WriteLine($"      {manifest.Name}|{manifest.Version} => {dep.Key}|{dep.Value} is already included with version {dependencies[dep.Key]}");
-							}
-						}
-					}
-				}
-			}
+			_depChecker = depChecker;
 		}
 
 		internal virtual bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)
@@ -206,10 +97,7 @@ namespace UploadFIG
 			if (!visitor.Outcome.Success
 				|| "boolean" != r.ToString())
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"    #---> Error validating invariant {canonicalUrl}: {key}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Red, $"    #---> Error validating invariant {canonicalUrl}: {key}");
 				// Console.WriteLine(visitor.ToString());
 				// AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
 				AssertIsTrue(false, $"Context: {path}");
@@ -223,10 +111,7 @@ namespace UploadFIG
 			}
 			else if (visitor.Outcome.Warnings > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Yellow;
-				Console.WriteLine($"    #---> Warning validating invariant {canonicalUrl}: {key}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Yellow, $"    #---> Warning validating invariant {canonicalUrl}: {key}");
 				// Console.WriteLine(visitor.ToString());
 				// AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
 				AssertIsTrue(false, $"Context: {path}");
@@ -240,10 +125,7 @@ namespace UploadFIG
 			}
 			else if (visitor.Outcome.Issue.Count(i => i.Severity == OperationOutcome.IssueSeverity.Information) > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Gray;
-				Console.WriteLine($"    #---> Information validating invariant {canonicalUrl}: {key}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Gray, $"    #---> Information validating invariant {canonicalUrl}: {key}");
 				// Console.WriteLine(visitor.ToString());
 				// AssertIsTrue(visitor.Outcome.Success, "Expected Invariant to pass");
 				AssertIsTrue(false, $"Context: {path}");
@@ -261,89 +143,54 @@ namespace UploadFIG
 
 	internal class InMemoryResolver : IResourceResolver
 	{
-		internal InMemoryResolver(Common_Processor processor, List<StructureDefinition> sds, List<PackageCacheItem> dependencyProfiles)
+		internal InMemoryResolver(PackageDetails pd, DependencyChecker depChecker, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
-			_processor = processor;
-			_sds = sds;
-			_dependencyProfiles = new Dictionary<string, PackageCacheItem>();
-
-			foreach (var dep in dependencyProfiles)
-			{
-				if (!_dependencyProfiles.ContainsKey(dep.url))
-					_dependencyProfiles.Add(dep.url, dep);
-				else
-				{
-					var depUsing = _dependencyProfiles[dep.url];
-					depUsing.duplicates.Add(dep);
-					// Console.WriteLine($"Detected multiple instances of {dep.url} in {dep.packageId}|{dep.packageVersion} {dep.filename} {dependencyProfiles.IndexOf(dep)}");
-					// Console.WriteLine($"      using: {depUsing.packageId}|{depUsing.packageVersion} {depUsing.filename} {dependencyProfiles.IndexOf(depUsing)}");
-				}
-			}
+			_pd = pd;
+			_depChecker = depChecker;
+			_processor = versionAgnosticProcessor;
+			_errFiles = errFiles;
 		}
-		TempPackageCache _cache = new TempPackageCache();
-		protected Common_Processor _processor;
-		List<StructureDefinition> _sds;
-		Dictionary<string, PackageCacheItem> _dependencyProfiles;
+		PackageDetails _pd;
+		DependencyChecker _depChecker;
+		Resource _resource;
+		Common_Processor _processor;
+		List<String> _errFiles;
+
+		public void ProcessingResource(Resource resource)
+		{
+			_resource = resource;
+		}
 
 		public Resource ResolveByCanonicalUri(string uri)
 		{
-			if (_dependencyProfiles.ContainsKey(uri))
+			Canonical c = new Canonical(uri);
+			var cd = new CanonicalDetails()
 			{
-				var cacheItem = _dependencyProfiles[uri];
+				canonical = c.Uri,
+				version = c.Version,
+				resourceType = "StructureDefinition",
+			};
+			cd.requiredBy.Add(_resource);
 
-				if (cacheItem.duplicates.Any())
+			var matches = _depChecker.ResolveCanonical(_pd, cd, _processor, _errFiles);
+			var useResource = CurrentCanonical.Current(matches);
+			if (useResource != null)
+			{
+				var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
+				if (distinctVersionSources.Count() > 1)
 				{
-					Console.WriteLine($"Detected multiple instances of {uri} using {cacheItem.packageId}|{cacheItem.packageVersion} {cacheItem.filename}   alternates ignored: {string.Join(", ", cacheItem.duplicates.Select(d => $"{d.filename} in {d.packageId}|{d.packageVersion}"))}");
-					// Console.WriteLine($"      using: {depUsing.packageId}|{depUsing.packageVersion} {depUsing.filename} {dependencyProfiles.IndexOf(depUsing)}");
+					Console.Write($"    Resolved {cd.canonical}|{cd.version} with ");
+					ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
+					Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 				}
-
-				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
-				var content = PackageReader.ReadResourceContent(packageStream, cacheItem.filename);
-				if (content != null)
-				{
-					Resource resource;
-					if (cacheItem.filename.EndsWith(".json"))
-					{
-						resource = _processor.ParseJson(content);
-					}
-					else
-					{
-						resource = _processor.ParseXml(content);
-					}
-					resource.SetAnnotation(new ExampleName() { value = cacheItem.filename });
-					resource.SetAnnotation(cacheItem);
-					return resource;
-				}
+				cd.resource = useResource as Resource;
 			}
-
-			return _sds.FirstOrDefault(sd => sd.Url == uri);
+			return useResource as Resource;
 		}
 
 		public Resource ResolveByUri(string uri)
 		{
-			if (_dependencyProfiles.ContainsKey(uri))
-			{
-				var cacheItem = _dependencyProfiles[uri];
-				Stream packageStream = _cache.GetPackageStream(cacheItem.packageId, cacheItem.packageVersion);
-				var content = PackageReader.ReadResourceContent(packageStream, cacheItem.filename);
-				if (content != null)
-				{
-					Resource resource;
-					if (cacheItem.filename.EndsWith(".json"))
-					{
-						resource = _processor.ParseJson(content);
-					}
-					else
-					{
-						resource = _processor.ParseXml(content);
-					}
-					resource.SetAnnotation(new ExampleName() { value = cacheItem.filename });
-					resource.SetAnnotation(cacheItem);
-					return resource;
-				}
-			}
-
-			return _sds.FirstOrDefault(sd => sd.Url == uri);
+			throw new NotImplementedException();
 		}
 	}
 

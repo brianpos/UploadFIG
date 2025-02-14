@@ -3,7 +3,7 @@
 namespace UploadFIG
 {
     /// <summary>
-    /// This class is a direct representation of the `.index.json` file inlcuded in the Package directory of a FHIR TGZ Package.
+    /// This class is a direct representation of the `.index.json` file included in the Package directory of a FHIR TGZ Package.
     /// </summary>
     public class PackageIndex
     {
@@ -28,5 +28,8 @@ namespace UploadFIG
         public string version { get; set; }
 
         public string type { get; set; }
+
+		[JsonIgnore]
+		public bool detectedInvalidContent { get; set; } = false;
     }
 }

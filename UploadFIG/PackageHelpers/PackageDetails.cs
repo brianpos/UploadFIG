@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Hl7.Fhir.Model;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,13 +22,30 @@ namespace UploadFIG.PackageHelpers
 
 		public IEnumerable<CanonicalDetails> RequiresCanonicals { get; set; }
 
-		public void DebugToConsole(string tabPrefix = "")
+		public IEnumerable<CanonicalDetails> UnresolvedCanonicals {  get { return RequiresCanonicals.Where(c => c.resource == null).ToArray(); } }
+
+		public void DebugToConsole(string tabPrefix = "", bool debugRequiredByProps = false)
 		{
-			Console.WriteLine($"{tabPrefix}{packageId}|{packageVersion} Files: {Files.Count} Resources: {resources.Count}, Requires: {RequiresCanonicals.Count()}");
-			if (dependencies.Count == 0 && RequiresCanonicals.Any())
+			var unresolvedCanonicals = RequiresCanonicals.Where(c => c.resource == null).ToArray();
+			Console.Write($"{tabPrefix}{packageId}|{packageVersion} \tUsing: {resources.Count} of {Files.Count},\tRequires canonicals: {RequiresCanonicals.Count()}");
+			if (unresolvedCanonicals.Length > 0)
+				Console.WriteLine($" (unresolved: {unresolvedCanonicals.Length})");
+			else
+				Console.WriteLine();
+			if (unresolvedCanonicals.Length > 0 && RequiresCanonicals.Any())
 			{
-				foreach (var rc in RequiresCanonicals)
-					Console.WriteLine($"{tabPrefix}    * {rc.canonical}|{rc.version}");
+				foreach (var rc in unresolvedCanonicals.Order())
+				{
+					Console.WriteLine($"{tabPrefix}      * {rc.canonical}|{rc.version}");
+					if (debugRequiredByProps)
+					{
+						foreach (var dep in rc.requiredBy)
+						{
+							Console.WriteLine($"{tabPrefix}           - {(dep as IVersionableConformanceResource)?.Url} ({dep.TypeName}/{dep.Id})");
+						}
+					}
+				}
+				Console.WriteLine();
 			}
 			foreach (var dep in dependencies)
 				dep.DebugToConsole(tabPrefix + "    ");

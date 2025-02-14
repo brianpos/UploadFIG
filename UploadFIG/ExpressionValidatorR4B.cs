@@ -8,6 +8,7 @@ using Hl7.FhirPath;
 using Hl7.FhirPath.Sprache;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Source;
+using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
 {
@@ -18,15 +19,15 @@ namespace UploadFIG
         {
             _validateQuestionnaire = validateQuestionnaire;
 		}
-		public bool _validateQuestionnaire;
+		bool _validateQuestionnaire;
 
         List<SearchParameter> _searchParameters;
-        public override void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources, bool verboseMode)
+        public override void PreValidation(PackageDetails pd, DependencyChecker depChecker, bool verboseMode, List<String> errFiles)
         {
-			base.PreValidation(dependencies, resources, verboseMode);
-			_searchParameters = resources.OfType<SearchParameter>().ToList();
+			base.PreValidation(pd, depChecker, verboseMode, errFiles);
+			_searchParameters = depChecker.AllResources(pd).OfType<SearchParameter>().ToList();
 			CommonZipSource zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
-			_inMemoryResolver = new InMemoryResolver(_processor, _profiles, _dependencyProfiles);
+			_inMemoryResolver = new InMemoryResolver(pd, depChecker, _processor, errFiles);
 			_source = new CachedResolver(
 							new MultiResolver(
 								zipSource,
@@ -37,7 +38,9 @@ namespace UploadFIG
 
 		internal override bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)
         {
-            if (resource is SearchParameter sp)
+			_inMemoryResolver.ProcessingResource(resource);
+
+			if (resource is SearchParameter sp)
             {
                 if (!sp.Base.Any())
                 {
@@ -166,33 +169,21 @@ namespace UploadFIG
 
 			if (outcome.Errors > 0 || outcome.Fatals > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
-
+				ConsoleEx.WriteLine(ConsoleColor.Red, $"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();
 				return false;
 			}
 			if (outcome.Warnings > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Yellow;
-				Console.WriteLine($"    #---> Warning validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
-
+				ConsoleEx.WriteLine(ConsoleColor.Yellow, $"    #---> Warning validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();
 				return false;
 			}
 			if (outcome.Issue.Count(i => i.Severity == OperationOutcome.IssueSeverity.Information) > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Gray;
-				Console.WriteLine($"    #---> Information validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
-
+				ConsoleEx.WriteLine(ConsoleColor.Gray, $"    #---> Information validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();
 				return false;
