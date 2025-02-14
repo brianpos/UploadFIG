@@ -99,10 +99,15 @@ namespace UploadFIG
         /// </summary>
         public bool CheckAndCleanNarratives { get; set; }
 
-        /// <summary>
-        /// Generate the snapshots for any missing snapshots in StructureDefinitions
-        /// </summary>
-        public bool GenerateSnapshots { get; set; }
+		/// <summary>
+		/// Strip all narratives from the resources in the package
+		/// </summary>
+		public bool StripNarratives { get; set; }
+
+		/// <summary>
+		/// Generate the snapshots for any missing snapshots in StructureDefinitions
+		/// </summary>
+		public bool GenerateSnapshots { get; set; }
 
 		/// <summary>
 		/// Re-Generate all snapshots in StructureDefinitions

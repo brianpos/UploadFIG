@@ -14,7 +14,11 @@ namespace UploadFIG.PackageHelpers
 
 		public string packageVersion { get; set; }
 
-		public List<Hl7.Fhir.Model.Resource> resources { get; set; } = new ();
+		public IEnumerable<Hl7.Fhir.Model.Resource> resources { get
+			{
+				return Files.Select(f => f.resource).Where(r => r != null);
+			}
+		}
 
 		public List<PackageDetails> dependencies { get; set; } = new List<PackageDetails>();
 
@@ -27,7 +31,7 @@ namespace UploadFIG.PackageHelpers
 		public void DebugToConsole(string tabPrefix = "", bool debugRequiredByProps = false)
 		{
 			var unresolvedCanonicals = RequiresCanonicals.Where(c => c.resource == null).ToArray();
-			Console.Write($"{tabPrefix}{packageId}|{packageVersion} \tUsing: {resources.Count} of {Files.Count},\tRequires canonicals: {RequiresCanonicals.Count()}");
+			Console.Write($"{tabPrefix}{packageId}|{packageVersion} \tUsing: {resources.Count()} of {Files.Count},\tRequires canonicals: {RequiresCanonicals.Count()}");
 			if (unresolvedCanonicals.Length > 0)
 				Console.WriteLine($" (unresolved: {unresolvedCanonicals.Length})");
 			else

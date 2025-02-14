@@ -92,6 +92,7 @@ namespace UploadFIG
                 new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
                 new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
                 new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
+				new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
                 new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
                 new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
@@ -389,6 +390,13 @@ namespace UploadFIG
 					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
 					try
 					{
+						if (settings.StripNarratives)
+						{
+							if (resource is DomainResource drStripNarrative)
+							{
+								drStripNarrative.Text = null;
+							}
+						}
 						// Workaround for loading packages with invalid xhmtl content - strip them
 						if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
 						{
@@ -472,6 +480,13 @@ namespace UploadFIG
 				var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
+					if (settings.StripNarratives)
+					{
+						if (resource is DomainResource drStripNarrative)
+						{
+							drStripNarrative.Text = null;
+						}
+					}
 					// Workaround for loading packages with invalid xhmtl content - strip them
 					if (resource is DomainResource dr && resource is IVersionableConformanceResource ivr)
 					{
@@ -1325,7 +1340,24 @@ namespace UploadFIG
                             PackageVersion = pd.packageVersion
                         });
                         resource.SetAnnotation(new ExampleName() { value = exampleName });
-                        pd.resources.Add(resource);
+
+						FileDetail indexDetails = pd.Files.FirstOrDefault(f => "package/" + f.filename == exampleName);
+						if (indexDetails == null)
+						{
+							indexDetails = new FileDetail()
+							{
+								filename = exampleName,
+								resourceType = resource.TypeName,
+								id = resource.Id,
+							};
+							if (resource is IVersionableConformanceResource vcr)
+							{
+								indexDetails.url = vcr.Url;
+								indexDetails.version = vcr.Version;
+							}
+							pd.Files.Add(indexDetails);
+						}
+						indexDetails.resource = resource;
                     }
                 }
             }
