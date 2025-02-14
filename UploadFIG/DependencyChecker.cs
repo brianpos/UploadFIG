@@ -421,15 +421,15 @@ namespace UploadFIG
 
         private void CheckRequiresCanonical(Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals, Action<string> patchVersionedCanonical = null)
         {
-			Canonical c = new Canonical(canonicalUrl);
-			if (ignoreCanonicals.Contains(c.Uri) || ignoreCanonicals.Contains($"{c.Uri}|{c.Version}"))
-                return;
-			if (_settings.IgnoreCanonicals.Any() && (_settings.IgnoreCanonicals.Contains(c.Uri) || _settings.IgnoreCanonicals.Contains($"{c.Uri}|{c.Version}")))
-				return;
-
 			if (!string.IsNullOrEmpty(canonicalUrl))
             {
-                if (canonicalUrl.StartsWith("#") && resource is DomainResource dr)
+				Canonical c = new Canonical(canonicalUrl);
+				if (ignoreCanonicals.Contains(c.Uri) || ignoreCanonicals.Contains($"{c.Uri}|{c.Version}"))
+					return;
+				if (_settings.IgnoreCanonicals?.Any() == true && (_settings.IgnoreCanonicals.Contains(c.Uri) || _settings.IgnoreCanonicals.Contains($"{c.Uri}|{c.Version}")))
+					return;
+
+				if (canonicalUrl.StartsWith("#") && resource is DomainResource dr)
                 {
                     // local reference - check that it exists in the resource
                     var localRef = dr.Contained?.Where(c => c.Id == canonicalUrl.Substring(1));
