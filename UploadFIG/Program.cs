@@ -376,7 +376,7 @@ namespace UploadFIG
 						Console.WriteLine();
 					}
 				}
-				ReportUnresolvedCanonicalResourcesToConsole(allUnresolvedCanonicals);
+				ReportUnresolvedCanonicalResourcesToConsole(settings, allUnresolvedCanonicals);
 			}
 
 			// Validate/upload the dependent resources
@@ -600,7 +600,7 @@ namespace UploadFIG
 				// Unresolvable Canonical Resources
 				Console.WriteLine();
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-				ReportUnresolvedCanonicalResourcesToConsole(allUnresolvedCanonicals);
+				ReportUnresolvedCanonicalResourcesToConsole(settings, allUnresolvedCanonicals);
 
 				Console.WriteLine();
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
@@ -1157,8 +1157,13 @@ namespace UploadFIG
         private static void ReportDependentCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> externalNonCoreDirectCanonicals)
         {
             Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
+			ReportCanonicalDetailsToConsole(settings, externalNonCoreDirectCanonicals);
+        }
+
+		private static void ReportCanonicalDetailsToConsole(Settings settings, List<CanonicalDetails> list)
+		{
             Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-            foreach (var details in externalNonCoreDirectCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
+			foreach (var details in list.OrderBy(f => $"{f.canonical}|{f.version}"))
             {
                 Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
                 if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
@@ -1199,66 +1204,13 @@ namespace UploadFIG
         private static void ReportRegistryCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> registryCanonicals)
         {
             Console.WriteLine($"Canonical resources from the registry: {registryCanonicals.Count}");
-            Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-            foreach (var details in registryCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
-            {
-                Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-                if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
-                {
-                    var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-                    Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-                }
-                Console.WriteLine();
-				if (settings.Verbose)
-				{
-					foreach (var dr in details.requiredBy)
-					{
-						if (dr is IVersionableConformanceResource cr)
-							Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
-						else
-							Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
-						if (dr.HasAnnotation<PackageCacheItem>() == true)
-						{
-							var cacheDetails = dr.Annotation<PackageCacheItem>();
-							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+			ReportCanonicalDetailsToConsole(settings, registryCanonicals);
 						}
-						else if (dr.HasAnnotation<ExampleName>())
-						{
-							var exampleName = dr.Annotation<ExampleName>();
-							Console.Write($"\t{exampleName.value}");
-						}
-						Console.WriteLine();
-					}
-				}
-            }
-        }
 
-        private static void ReportUnresolvedCanonicalResourcesToConsole(List<CanonicalDetails> unresolvableCanonicals)
+        private static void ReportUnresolvedCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> unresolvableCanonicals)
         {
             Console.WriteLine($"Unable to resolve these canonical resources: {unresolvableCanonicals.Count}");
-            Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-            foreach (var details in unresolvableCanonicals.OrderBy(f => $"{f.canonical}|{f.version}"))
-            {
-                Console.WriteLine($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-                foreach (var dr in details.requiredBy)
-                {
-                    if (dr is IVersionableConformanceResource cr)
-                        Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
-                    else
-                        Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
-                    if (dr.HasAnnotation<PackageCacheItem>() == true)
-                    {
-                        var cacheDetails = dr.Annotation<PackageCacheItem>();
-                        Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-                    }
-                    if (dr.HasAnnotation<ExampleName>())
-                    {
-                        var exampleName = dr.Annotation<ExampleName>();
-                        Console.Write($"\t{exampleName.value}");
-                    }
-                    Console.WriteLine();
-                }
-            }
+			ReportCanonicalDetailsToConsole(settings, unresolvableCanonicals);
         }
 
         private static async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Settings settings, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles)
