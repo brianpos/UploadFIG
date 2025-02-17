@@ -1,9 +1,5 @@
 ﻿using Hl7.Fhir.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Hl7.Fhir.Utility;
 
 namespace UploadFIG.PackageHelpers
 {
@@ -65,7 +61,15 @@ namespace UploadFIG.PackageHelpers
 			{
 				foreach (var rc in resources.OfType<IVersionableConformanceResource>().Order(new CanonicalResourceComparer()))
 				{
-					Console.WriteLine($"{tabPrefix}      {rc.Url}|{rc.Version}");
+					Console.Write($"{tabPrefix}      {rc.Url}|{rc.Version}");
+					if (rc.Status.HasValue && rc.Status == PublicationStatus.Retired)
+						Console.Write($" <{rc.Status}>");
+					if (rc is DomainResource dr && dr.HasAnnotation<ResourcePackageSource>())
+					{
+						var filename = dr.Annotation<ResourcePackageSource>().Filename;
+						Console.Write($"\t({filename})");
+					}
+					Console.WriteLine();
 				}
 				Console.WriteLine();
 			}
