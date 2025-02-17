@@ -497,12 +497,14 @@ namespace UploadFIG.Test
 				"-t",
 				"-vq",
 				"--includeExamples",
+				"-pcv",
 				"-s", "https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz",
                 // "-fd", "false"
+				"-ocb", "c:\\temp\\uploadfig-dump-daviniCRD-bundle.json",
             });
 			Assert.AreEqual(0, result);
 
-			Assert.AreEqual(40, Program.successes);
+			Assert.AreEqual(47, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}

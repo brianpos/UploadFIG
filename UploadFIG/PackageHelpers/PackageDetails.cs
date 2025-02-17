@@ -28,7 +28,7 @@ namespace UploadFIG.PackageHelpers
 
 		public IEnumerable<CanonicalDetails> UnresolvedCanonicals {  get { return RequiresCanonicals.Where(c => c.resource == null).ToArray(); } }
 
-		public void DebugToConsole(string tabPrefix = "", bool debugRequiredByProps = false)
+		public void DebugToConsole(string tabPrefix = "", bool includeContent = true, bool debugRequiredByProps = false)
 		{
 			var unresolvedCanonicals = RequiresCanonicals.Where(c => c.resource == null).ToArray();
 			Console.Write($"{tabPrefix}{packageId}|{packageVersion} \tUsing: {resources.Count()} of {Files.Count},\tRequires canonicals: {RequiresCanonicals.Count()}");
@@ -36,23 +36,41 @@ namespace UploadFIG.PackageHelpers
 				Console.WriteLine($" (unresolved: {unresolvedCanonicals.Length})");
 			else
 				Console.WriteLine();
-			if (unresolvedCanonicals.Length > 0 && RequiresCanonicals.Any())
+			if (RequiresCanonicals.Any())
 			{
-				foreach (var rc in unresolvedCanonicals.Order())
+				foreach (var rc in RequiresCanonicals.Order())
 				{
-					Console.WriteLine($"{tabPrefix}      * {rc.canonical}|{rc.version}");
+					if (rc.resource == null)
+						Console.WriteLine($"{tabPrefix}      - {rc.canonical}|{rc.version}");
+					else if (rc.resource is IVersionableConformanceResource ivr)
+					{
+						var packageSource = ResourcePackageSource.PackageSourceVersion(ivr);
+						Console.WriteLine($"{tabPrefix}      + {rc.canonical}|{packageSource}");
+					}
+					else
+					{
+						Console.WriteLine($"{tabPrefix}      + {rc.canonical}|{rc.version}");
+					}
 					if (debugRequiredByProps)
 					{
 						foreach (var dep in rc.requiredBy)
 						{
-							Console.WriteLine($"{tabPrefix}           - {(dep as IVersionableConformanceResource)?.Url} ({dep.TypeName}/{dep.Id})");
+							Console.WriteLine($"{tabPrefix}           ^- {(dep as IVersionableConformanceResource)?.Url} ({dep.TypeName}/{dep.Id})");
 						}
 					}
 				}
 				Console.WriteLine();
 			}
+			if (resources.Any() && includeContent)
+			{
+				foreach (var rc in resources.OfType<IVersionableConformanceResource>().Order(new CanonicalResourceComparer()))
+				{
+					Console.WriteLine($"{tabPrefix}      {rc.Url}|{rc.Version}");
+				}
+				Console.WriteLine();
+			}
 			foreach (var dep in dependencies)
-				dep.DebugToConsole(tabPrefix + "    ");
+				dep.DebugToConsole(tabPrefix + "    ", includeContent, debugRequiredByProps);
 		}
 	}
 }
