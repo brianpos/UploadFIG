@@ -9,11 +9,7 @@ using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Source;
 using Hl7.Fhir.Utility;
-using Hl7.Fhir.WebApi;
 using Hl7.FhirPath;
-using ICSharpCode.SharpZipLib.Core;
-using r4::Hl7.Fhir.StructuredDataCapture;
-using r4b::Hl7.Fhir.StructuredDataCapture;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using UploadFIG.PackageHelpers;
@@ -810,7 +806,7 @@ namespace UploadFIG
 			foreach (var canonical in pd.RequiresCanonicals)
 			{
 				var matches = ResolveCanonical(pd, canonical, versionAgnosticProcessor, errFiles);
-				var useResource = CurrentCanonical.Current(matches);
+				var useResource = CurrentCanonicalFromPackages.Current(matches);
 				if (useResource != null)
 				{
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
@@ -913,7 +909,7 @@ namespace UploadFIG
 										if (can.resource is IVersionableConformanceResource eIvr && ivr.Version != eIvr.Version)
 										{
 											var options = new[] {eIvr, ivr };
-											var useResource = CurrentCanonical.Current(options);
+											var useResource = CurrentCanonicalFromPackages.Current(options);
 											if (useResource != null)
 											{
 												var distinctVersionSources = options.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();

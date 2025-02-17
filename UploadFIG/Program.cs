@@ -9,7 +9,6 @@ using Hl7.Fhir.Specification.Snapshot;
 using Hl7.Fhir.Specification.Terminology;
 using Hl7.Fhir.Support;
 using Hl7.Fhir.Utility;
-using Hl7.Fhir.WebApi;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System.Collections.Specialized;
@@ -291,7 +290,7 @@ namespace UploadFIG
 			{
 				// is this canonical in the list of resources....
 				var matches = depChecker.ResolveCanonical(pd, canonicalUrl, versionAgnosticProcessor, errFiles);
-				var useResource = CurrentCanonical.Current(matches);
+				var useResource = CurrentCanonicalFromPackages.Current(matches);
 				if (useResource != null)
 				{
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
@@ -333,12 +332,51 @@ namespace UploadFIG
 			// This is the set of resources in the entire processing pack
 			var allResources = depChecker.AllResources(pd).Distinct(new ResourcePackageSourceComparer()).ToList();
 			var dependencyResourcesToLoad = allResources.Where(r => !resourcesFromMainPackage.Contains(r)).ToList();
+			List<Resource> dupCanonicals = new List<Resource>();
+			// Remove duplicate canonicals from the content
+			// (These are resources where the version was the same in multiple packages)
+			// Using CurrentCanonicalFromPackages
+			foreach (var item in dependencyResourcesToLoad)
+			{
+				if (item is IVersionableConformanceResource ivr)
+				{
+					var matches = dependencyResourcesToLoad.OfType<IVersionableConformanceResource>().Where(t => t.Url == ivr.Url && t.Version == ivr.Version );
+					if (matches.Count() > 1)
+					{
+						var useResource = CurrentCanonicalFromPackages.Current(matches);
+						if (item != useResource)
+							dupCanonicals.Add(item);
+					}
+				}
+			}
+			dependencyResourcesToLoad.RemoveAll(m => dupCanonicals.Contains(m));
+
+
+			if (settings.ValidateReferencedDependencies)
+			{
+				foreach (var resource in dependencyResourcesToLoad)
+				{
+					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
+					try
+					{
+						expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+					}
+					catch (Exception ex)
+					{
+						ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
+						System.Threading.Interlocked.Increment(ref failures);
+						// DebugDumpOutputXml(resource);
+						errFiles.Add(exampleName);
+					}
+				}
+			}
+
 
 			var registryCanonicals = new List<CanonicalDetails>();
 
 			// Check for missing canonicals on the registry
 			List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
-			dependencyResourcesToLoad.AddRange(additionalResourcesFromRegistry);
+			dependencyResourcesToLoad.InsertRange(0, additionalResourcesFromRegistry);
 
 			if (settings.PatchCanonicalVersions)
 			{
@@ -368,7 +406,7 @@ namespace UploadFIG
 				Console.WriteLine();
 				if (settings.Verbose)
 				{
-					ReportDependentCanonicalResourcesToConsole(settings, externalCanonicals);
+					ReportDependentCanonicalResourcesToConsole(settings, dependencyResourcesToLoad.Where(r => !registryCanonicals.Any(c => c.resource == r)));
 					Console.WriteLine();
 					if (registryCanonicals.Any())
 					{
@@ -438,8 +476,8 @@ namespace UploadFIG
 							}
 						}
 
-						if (settings.ValidateReferencedDependencies && !expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
-							continue;
+						//if (settings.ValidateReferencedDependencies && !expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles))
+						//	continue;
 
 						// Add the file to the output bundle
 						IncludeResourceInOutputBundle(settings, alternativeOutputBundle, resource);
@@ -577,6 +615,8 @@ namespace UploadFIG
 			if (settings.TestPackageOnly)
 			{
 				// A canonical resource review table
+				Console.WriteLine();
+				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 				Console.WriteLine($"Package Canonical content summary: {resourcesFromMainPackage.Count}");
 				Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
 				foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
@@ -587,9 +627,9 @@ namespace UploadFIG
 				// Dependent Canonical Resources
 				Console.WriteLine();
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-				ReportDependentCanonicalResourcesToConsole(settings, externalCanonicals);
+				ReportDependentCanonicalResourcesToConsole(settings, dependencyResourcesToLoad.Where(r => !registryCanonicals.Any(c => c.resource == r)));
 
-				// Indirect Dependent Canonical Resources
+				// Registry sourced Canonical Resources
 				if (registryCanonicals.Any())
 				{
 					Console.WriteLine();
@@ -852,7 +892,7 @@ namespace UploadFIG
 						{
 							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
 							// to select the latest version.
-							var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
+							var cv = CurrentCanonicalFromPackages.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
 
 							// remove all the others that aren't current.
 							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
@@ -899,7 +939,7 @@ namespace UploadFIG
 						{
 							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
 							// to select the latest version.
-							var cv = Hl7.Fhir.WebApi.CurrentCanonical.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
+							var cv = CurrentCanonicalFromPackages.Current(r.Entry.Select(e => e.Resource as IVersionableConformanceResource));
 							// remove all the others that aren't current.
 							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
 						}
@@ -1154,13 +1194,29 @@ namespace UploadFIG
             }
         }
 
-        private static void ReportDependentCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> externalNonCoreDirectCanonicals)
+		private static void ReportDependentCanonicalResourcesToConsole(Settings settings, IEnumerable<Resource> list)
         {
-            Console.WriteLine($"Requires the following non-core canonical resources: {externalNonCoreDirectCanonicals.Count}");
-			ReportCanonicalDetailsToConsole(settings, externalNonCoreDirectCanonicals);
+            Console.WriteLine($"Canonical resources from dependency packages: {list.Count()}");
+			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
+			foreach (var details in list.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+			{
+				var resource = details as Resource;
+				Console.Write($"\t{resource.TypeName}\t{details.Url}\t{details.Version}");
+				if (resource?.HasAnnotation<PackageCacheItem>() == true)
+				{
+					var cacheDetails = resource.Annotation<PackageCacheItem>();
+					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+				}
+				else if (resource.HasAnnotation<ResourcePackageSource>() == true)
+        {
+					var sourceDetails = resource.Annotation<ResourcePackageSource>();
+					Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+				}
+				Console.WriteLine();
+			}
         }
 
-		private static void ReportCanonicalDetailsToConsole(Settings settings, List<CanonicalDetails> list)
+		private static void ReportCanonicalDetailsToConsole(Settings settings, IEnumerable<CanonicalDetails> list)
 		{
             Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
 			foreach (var details in list.OrderBy(f => $"{f.canonical}|{f.version}"))
@@ -1201,16 +1257,44 @@ namespace UploadFIG
             }
         }
 
-        private static void ReportRegistryCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> registryCanonicals)
+		private static void ReportRegistryCanonicalResourcesToConsole(Settings settings, IEnumerable<CanonicalDetails> registryCanonicals)
         {
-            Console.WriteLine($"Canonical resources from the registry: {registryCanonicals.Count}");
+            Console.WriteLine($"Canonical resources from the registry: {registryCanonicals.Count()}");
 			ReportCanonicalDetailsToConsole(settings, registryCanonicals);
 						}
 
-        private static void ReportUnresolvedCanonicalResourcesToConsole(Settings settings, List<CanonicalDetails> unresolvableCanonicals)
+        private static void ReportUnresolvedCanonicalResourcesToConsole(Settings settings, IEnumerable<CanonicalDetails> unresolvableCanonicals)
         {
-            Console.WriteLine($"Unable to resolve these canonical resources: {unresolvableCanonicals.Count}");
-			ReportCanonicalDetailsToConsole(settings, unresolvableCanonicals);
+			// Merge all the canonical details into a list de-duplicating the canonical versions and merging the RequiredBy into a single list
+			Dictionary<string, CanonicalDetails> mergedCDs = new ();
+			foreach (var cd in unresolvableCanonicals)
+			{
+				var key = $"{cd.canonical}|{cd.version}";
+				if (!mergedCDs.ContainsKey(key))
+				{
+					mergedCDs.Add(key, cd);
+				}
+				else
+				{
+					var newCd = new CanonicalDetails 
+					{
+						canonical = cd.canonical,
+						name = cd.name,
+						version = cd.version,
+						resourceType = cd.resourceType,
+						status = cd.status,
+					};
+					newCd.requiredBy.AddRange(mergedCDs[key].requiredBy);
+					foreach (var req in cd.requiredBy)
+					{
+						if (!newCd.requiredBy.Contains(req))
+							newCd.requiredBy.Add(req);
+					}
+					mergedCDs[key] = newCd;
+				}
+			}
+            Console.WriteLine($"Unable to resolve these canonical resources: {mergedCDs.Values.Count()}");
+			ReportCanonicalDetailsToConsole(settings, mergedCDs.Values);
         }
 
         private static async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Settings settings, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles)

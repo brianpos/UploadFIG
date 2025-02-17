@@ -173,7 +173,7 @@ namespace UploadFIG
 			cd.requiredBy.Add(_resource);
 
 			var matches = _depChecker.ResolveCanonical(_pd, cd, _processor, _errFiles);
-			var useResource = CurrentCanonical.Current(matches);
+			var useResource = CurrentCanonicalFromPackages.Current(matches);
 			if (useResource != null)
 			{
 				var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();

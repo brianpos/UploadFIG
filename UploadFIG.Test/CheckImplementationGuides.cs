@@ -114,7 +114,7 @@ namespace UploadFIG.Test
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(162, Program.successes);
+			Assert.AreEqual(161, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(4, Program.validationErrors);
 		}
@@ -302,13 +302,18 @@ namespace UploadFIG.Test
             var result = await Program.Main(new[] {
                 "-t",
 				"-vq",
+				"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+				"--includeReferencedDependencies",
 				"--includeExamples",
 				"-pid", "hl7.fhir.au.core",
+				// "-pcv",
+				"-sn",
                 "-odf", outputFile,
+				"-ocb", "c:\\temp\\uploadfig-dump-aucore-bundle-raw.json",
             });
             Assert.AreEqual(0, result);
 
-			Assert.AreEqual(25, Program.successes);
+			Assert.AreEqual(234, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
@@ -471,12 +476,15 @@ namespace UploadFIG.Test
 				"-t",
 				"-vq",
 				"--includeExamples",
+				"--includeReferencedDependencies",
 				"-s", "https://build.fhir.org/ig/HL7/davinci-ra/branches/master/package.tgz",
                 // "-fd", "false"
+				"-ocb", @"c:\temp\UploadFIG-dump-DavinciRA-bundle.json",
+				"-pcv",
             });
 			Assert.AreEqual(0, result);
 
-			Assert.AreEqual(25, Program.successes);
+			Assert.AreEqual(55, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}

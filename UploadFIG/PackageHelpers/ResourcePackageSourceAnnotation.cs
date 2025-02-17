@@ -1,6 +1,5 @@
 ﻿using Hl7.Fhir.Model;
 using Hl7.Fhir.Utility;
-using System.Diagnostics.CodeAnalysis;
 
 namespace UploadFIG
 {
@@ -25,32 +24,6 @@ namespace UploadFIG
 				return result;
 			}
 			return null;
-		}
-	}
-
-	public class ResourcePackageSourceComparer : IEqualityComparer<Resource>
-	{
-		public bool Equals(Resource x, Resource y)
-		{
-			var xSource = x.Annotation<ResourcePackageSource>();
-			var ySource = y.Annotation<ResourcePackageSource>();
-			if (xSource != null && ySource != null)
-			{
-				return xSource.PackageId == ySource.PackageId
-					&& xSource.PackageVersion == ySource.PackageVersion
-					&& xSource.Filename == ySource.Filename;
-			}
-			return false;
-		}
-
-		public int GetHashCode([DisallowNull] Resource obj)
-		{
-			var ySource = obj.Annotation<ResourcePackageSource>();
-			if (ySource != null)
-			{
-				return $"{ySource.PackageId}|{ySource.PackageVersion} - {ySource.Filename}".GetHashCode();
-			}
-			return obj.GetHashCode();
 		}
 	}
 }
