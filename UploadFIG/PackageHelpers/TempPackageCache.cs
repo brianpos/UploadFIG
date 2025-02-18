@@ -42,14 +42,18 @@ namespace UploadFIG
         /// <param name="packageId"></param>
         /// <param name="version"></param>
         /// <returns>A stream or null if the package did not exist</returns>
-        public Stream GetPackageStream(string packageId, string version)
+        public Stream GetPackageStream(string packageId, string version, out bool leaveOpen)
         {
 			// Check the in mem cache first - note this is only intended to hold the primary package being processed
 			// not the others as they go
 			Stream result;
 			if (_memCache.TryGetValue($"{packageId}|{version}", out result))
+			{
+				leaveOpen = true;
 				return result;
+			}
 
+			leaveOpen = false;
 			if (version.StartsWith("current") || version == "dev")
             {
                 // Bail for non registry CI content

@@ -72,7 +72,7 @@ namespace UploadFIG
                         break;
                 }
 				if (rawCanonical.resourceType == "unknown")
-                {
+				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"\t{canonical.Uri}\t{canonical.Version ?? "(current)"}\t(unknown resource type to search for)");
 				}
 				else if (existing == null || existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
@@ -857,14 +857,14 @@ namespace UploadFIG
 															)).ToList();
 			if (files.Any())
 			{
-				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion);
+				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion, out var leaveOpen);
 				if (stream == null)
 				{
 					// Need to have a better mechanism here - as can't continue and should just plain barf
 					// Console.WriteLine($"Cannot load package {pd.packageId}|{pd.packageVersion}");
 					return;
 				}
-				using (stream)
+				try
 				{
 					foreach (var f in files)
 					{
@@ -943,6 +943,11 @@ namespace UploadFIG
 							continue;
 						}
 					}
+				}
+				finally
+				{
+					if (!leaveOpen)
+						stream.Dispose();
 				}
 			}
 
@@ -1025,13 +1030,13 @@ namespace UploadFIG
 			if (files.Any())
 			{
 				// grab it!
-				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion);
+				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion, out var leaveOpen);
 				if (stream == null)
 				{
 					// No package to retrieve from...
 					yield break;
 				}
-				using (stream)
+				try
 				{
 					foreach (var f in files)
 					{
@@ -1080,6 +1085,11 @@ namespace UploadFIG
 						}
 						yield return resource as IVersionableConformanceResource;
 					}
+				}
+				finally
+				{
+					if (!leaveOpen)
+						stream.Dispose();
 				}
 			}
 		}
@@ -1157,16 +1167,16 @@ namespace UploadFIG
 					}
 				}
 				if (resource is ValueSet vs)
-					{
+				{
 					foreach (var include in vs.Compose?.Include)
 					{
 						if (!string.IsNullOrEmpty(include.System) && string.IsNullOrEmpty(include.Version))
 						{
 							var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.canonical == include.System);
-						if (cd != null && cd.resource is IVersionableConformanceResource ivr)
-						{
+							if (cd != null && cd.resource is IVersionableConformanceResource ivr)
+							{
 								include.Version = ivr.Version;
-							if (_settings.Verbose)
+								if (_settings.Verbose)
 									Console.WriteLine($"        >  Patching {resource.TypeName}/{resource.Id} ValueSet.compose.include.version = {ivr.Version}");
 							}
 						}

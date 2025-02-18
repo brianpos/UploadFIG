@@ -117,15 +117,20 @@ namespace UploadFIG
                         continue;
 
                     // Grab the dependent package
-                    var packageStream = cache.GetPackageStream(dependent.Key, dependent.Value);
+                    var packageStream = cache.GetPackageStream(dependent.Key, dependent.Value, out var leaveOpen);
                     if (packageStream != null)
                     {
-                        using (packageStream)
+                        try
                         {
                             var dependentDetails = ReadPackageIndexDetails(packageStream, cache, logTabPrefix + "    ");
                             result.dependencies.Add(dependentDetails);
                         }
-                    }
+						finally
+						{
+							if (!leaveOpen)
+								packageStream.Dispose();
+						}
+					}
                 }
             }
             return result;

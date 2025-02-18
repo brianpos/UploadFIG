@@ -85,7 +85,7 @@ namespace UploadFIG.Test
             {
                 var dp = depPackages.Dequeue();
 
-                Stream packageStream = cache.GetPackageStream(dp.Key, dp.Value);
+				Stream packageStream = cache.GetPackageStream(dp.Key, dp.Value, out var leaveOpen);
 
                 if (packageStream == null)
                 {
