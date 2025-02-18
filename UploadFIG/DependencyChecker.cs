@@ -1094,7 +1094,7 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.Gray, $"    Patching package content from {pd.packageId}|{pd.packageVersion}");
 
 			FhirPathCompiler compiler = new FhirPathCompiler();
-			var expr = compiler.Compile("descendants().ofType(canonical) | ValueSet.compose.include.system");
+			var expr = compiler.Compile("descendants().ofType(canonical)");
 			foreach (var resource in pd.resources)
 			{
 				ScopedNode node = new ScopedNode(resource.ToTypedElement(_inspector));
@@ -1155,34 +1155,20 @@ namespace UploadFIG
 
 						Console.WriteLine($"        ?  Skipping {resource.TypeName}/{resource.Id} {sn.LocalLocation} = {canonical.Value}");
 					}
-
-					if (fhirValue.FhirValue is FhirUri uri && sn != null)
+				}
+				if (resource is ValueSet vs)
 					{
-						if (string.IsNullOrEmpty(uri.Value)) // if there is no canonical URL then skip (such as a contained ref)
-							continue;
-						if (IsCoreOrExtensionOrToolsCanonical(uri.Value))
-							continue;
-
-						if (sn.Name == "url" && _inspector.IsConformanceResource(sn.NearestResourceType))
-							continue;
-
-						// resolve this Canonical URL and replace it
-						// internal package dependency
-						var id = pd.Files.Where(f => f.url == uri.Value).FirstOrDefault();
-						if (id != null && id.resource is IVersionableConformanceResource ivrLocal)
+					foreach (var include in vs.Compose?.Include)
+					{
+						if (!string.IsNullOrEmpty(include.System) && string.IsNullOrEmpty(include.Version))
 						{
-							uri.Value += $"|{ivrLocal.Version}";
-							if (_settings.Verbose)
-								Console.WriteLine($"         + Patching {resource.TypeName}/{resource.Id} {sn.LocalLocation} = {uri.Value}    (URI)");
-						}
-
-						var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.canonical == uri.Value);
+							var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.canonical == include.System);
 						if (cd != null && cd.resource is IVersionableConformanceResource ivr)
 						{
-							cd.version = ivr.Version;
-							uri.Value += $"|{ivr.Version}";
+								include.Version = ivr.Version;
 							if (_settings.Verbose)
-								Console.WriteLine($"        >  Patching {resource.TypeName}/{resource.Id} {sn.LocalLocation} = {uri.Value}    (URI)");
+									Console.WriteLine($"        >  Patching {resource.TypeName}/{resource.Id} ValueSet.compose.include.version = {ivr.Version}");
+							}
 						}
 					}
 				}
