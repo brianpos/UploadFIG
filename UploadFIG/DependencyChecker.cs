@@ -71,7 +71,11 @@ namespace UploadFIG
                         existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                 }
-                if (existing == null || existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
+				if (rawCanonical.resourceType == "unknown")
+                {
+					ConsoleEx.WriteLine(ConsoleColor.Red, $"\t{canonical.Uri}\t{canonical.Version ?? "(current)"}\t(unknown resource type to search for)");
+				}
+				else if (existing == null || existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
                 {
                     var versionList = existing.Entry.Select(e => (e.Resource as IVersionableConformanceResource)?.Version).ToList();
 					var color = Console.ForegroundColor;
@@ -197,6 +201,8 @@ namespace UploadFIG
 								continue;
 						}
 
+						if (string.IsNullOrEmpty(canonical.Value)) // happens if there are extensions only and no value
+							continue;
 						if (string.IsNullOrEmpty(canonical.Uri)) // if there is no canonical URL then skip (such as a contained ref)
 							continue;
 						if (resource is CodeSystem cs && cs.ValueSet == canonical.Value)
@@ -1114,6 +1120,8 @@ namespace UploadFIG
 								continue;
 						}
 
+						if (string.IsNullOrEmpty(canonical.Value)) // happens if there are extensions only and no value
+							continue;
 						if (string.IsNullOrEmpty(canonical.Uri)) // if there is no canonical URL then skip (such as a contained ref)
 							continue;
 						if (!string.IsNullOrEmpty(canonical.Version)) // this is already a versioned canonical so we don't want to be messing with this
