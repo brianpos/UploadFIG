@@ -69,10 +69,64 @@ namespace UploadFIG
                 }
             }
 
-            return base.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+			return base.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
         }
 
-        VersionAgnosticSearchParameter ToVaSpd(ModelInfo.SearchParamDefinition spd)
+		internal override void PatchKnownIssues(string packageId, string packageVersion, Resource resource)
+		{
+			if (resource is StructureDefinition sd)
+			{
+				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N5_0)
+				{
+					Console.WriteLine($"    #---> Error validating StructureDefinition/{sd.Id} ({sd.Url}): {sd.Title}");
+					Console.WriteLine($"        Only FHIR version 5.0 is supported - removed inconsistent version {sd.FhirVersion.GetLiteral()}");
+					sd.FhirVersion = null;
+				}
+			}
+			if (packageId == "us.nlm.vsac" && resource is ValueSet vs)
+			{
+				if (vs.Meta?.Profile.Any(p => p == "http://hl7.org/fhir/StructureDefinition/shareablevalueset") == true)
+					vs.Meta.Profile = vs.Meta.Profile.Where(p => p != "http://hl7.org/fhir/StructureDefinition/shareablevalueset");
+
+				var author = vs.GetExtension("http://hl7.org/fhir/StructureDefinition/valueset-author");
+				if (author != null)
+				{
+					// re-write the extension if the datatype is incorrect
+					if (author.Value is FhirString fs)
+						author.Value = new ContactDetail() { Name = fs.Value };
+				}
+				var effectiveDate = vs.GetExtension("http://hl7.org/fhir/StructureDefinition/valueset-effectiveDate");
+				if (effectiveDate != null)
+				{
+					// re-write the extension if the datatype is incorrect
+					if (effectiveDate.Value is Date dt)
+						effectiveDate.Value = new FhirDateTime(dt.Value);
+				}
+
+
+				if (vs.Jurisdiction?.Any() == true)
+				{
+					// remove any empty jurisdictions (DAR) as these don't have a text or coding
+					foreach (var jurisdiction in vs.Jurisdiction.ToArray())
+					{
+						var dar = jurisdiction.GetExtension("http://hl7.org/fhir/StructureDefinition/data-absent-reason");
+						if (dar.Value is FhirString fs)
+						{
+							dar.Value = new Code(fs.Value);
+						}
+						if (dar.Value is Code code)
+						{
+							if (code.Value == "UNKNOWN")
+								code.Value = "unknown";
+							if (code.Value == "unknown")
+								vs.Jurisdiction.Remove(jurisdiction);
+						}
+					}
+				}
+			}
+		}
+
+		VersionAgnosticSearchParameter ToVaSpd(ModelInfo.SearchParamDefinition spd)
         {
             return new VersionAgnosticSearchParameter()
             {

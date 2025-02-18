@@ -64,6 +64,11 @@ namespace UploadFIG
 			return true;
 		}
 
+		internal virtual void PatchKnownIssues(string packageId, string packageVersion, Resource resource)
+		{
+
+		}
+
 		public bool ValidateInvariants(StructureDefinition sd)
 		{
 			bool result = true;

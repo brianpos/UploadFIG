@@ -371,6 +371,14 @@ namespace UploadFIG
 				}
 			}
 
+			foreach (var resource in allResources)
+			{
+				var packageSource = resource.Annotation<ResourcePackageSource>();
+				if (packageSource != null)
+				{
+					expressionValidator.PatchKnownIssues(packageSource.PackageId, packageSource.PackageVersion, resource);
+				}
+			}
 
 			var registryCanonicals = new List<CanonicalDetails>();
 
