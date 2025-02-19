@@ -357,6 +357,12 @@ namespace UploadFIG
 				foreach (var resource in dependencyResourcesToLoad)
 				{
 					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
+					var att = (resource as Resource).Annotation<ResourcePackageSource>();
+					if (att != null)
+					{
+						exampleName += $" in {att.PackageId}|{att.PackageVersion}";
+					}
+
 					try
 					{
 						expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);

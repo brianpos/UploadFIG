@@ -894,6 +894,7 @@ namespace UploadFIG
 								// (What about fml/map files?)
 								continue;
 							}
+							resource.SetAnnotation(new ExampleName() { value = f.filename });
 							resource.SetAnnotation(new ResourcePackageSource()
 							{
 								Filename = f.filename,
@@ -1066,6 +1067,7 @@ namespace UploadFIG
 								// (What about fml/map files?)
 								continue;
 							}
+							resource.SetAnnotation(new ExampleName() { value = f.filename });
 							resource.SetAnnotation(new ResourcePackageSource()
 							{
 								Filename = f.filename,
