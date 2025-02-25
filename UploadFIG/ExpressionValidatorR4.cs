@@ -110,16 +110,19 @@ namespace UploadFIG
 					foreach (var jurisdiction in vs.Jurisdiction.ToArray())
 					{
 						var dar = jurisdiction.GetExtension("http://hl7.org/fhir/StructureDefinition/data-absent-reason");
-						if (dar.Value is FhirString fs)
+						if (dar != null)
 						{
-							dar.Value = new Code(fs.Value);
-						}
-						if (dar.Value is Code code)
-						{
-							if (code.Value == "UNKNOWN")
-								code.Value = "unknown";
-							if (code.Value == "unknown")
-								vs.Jurisdiction.Remove(jurisdiction);
+							if (dar.Value is FhirString fs)
+							{
+								dar.Value = new Code(fs.Value);
+							}
+							if (dar.Value is Code code)
+							{
+								if (code.Value == "UNKNOWN")
+									code.Value = "unknown";
+								if (code.Value == "unknown")
+									vs.Jurisdiction.Remove(jurisdiction);
+							}
 						}
 					}
 				}
