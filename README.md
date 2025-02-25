@@ -97,10 +97,13 @@ Options:
   --verbose                                                  Provide verbose diagnostic output while processing
                                                              (e.g. Filenames processed)
                                                              [default: False]
+  -otb, --outputTransactionBundle <filename>                 The filename to write a json transaction bundle to write all of the resources to (could be used in place of directly deploying the IG)
+  -ocb, --outputCollectionBundle <filename>                  The filename to write a json collection bundle to write all of the resources to (could be used in place of directly deploying the IG)
+                                                             (could be used in place of directly deploying the IG - has limitations noted below)
   -odf, --outputDependenciesFule <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
   -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server []
   -regh, --externalRegistryHeaders <headers>                 Additional headers to supply when connecting to the external FHIR server
-  -rego, --ExternalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources to
+  -rego, --externalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources
   -ets, --externalTerminologyServer <URL>                    The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)
   -etsh, --externalTerminologyServerHeaders <headers>        Additional headers to supply when connecting to the external FHIR terminology server
   -mes, --maxExpansionSize <number>                          The maximum number of codes to include in a ValueSet expansion
@@ -108,6 +111,11 @@ Options:
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```
+
+> **Note:** The `-otb` and `-ocb` flag has some limitations, and is not a full replacement for the direct deployment of the IG to the server.
+> It is not able to cleanly handle the conditional updates that are required for canonical resources, and will not be able to update the server with the correct resource ID.
+> The actual update process to a server compares the content with what is already deployed, and only updates the content if it has changed.
+> Along with safely managing the resources IDs and canonical Versions. Without knowing what is already on the server, this is not possible to correctly manage.
 
 ## Installation
 As a dotnet tool installation is done through the commandline which will download the latest version from nuget.org
@@ -337,12 +345,15 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 (Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
 ``` ps
 > UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json -dh "Authorization:Bearer ******"
-      --includeReferencedDependencies -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
+      --includeReferencedDependencies 
+      -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
+      -ets https://tx.dev.hl7.org.au/fhir
 ```
 And also the inclusion of the `-df json` to select the json format as the hosted Microsoft FHIR Server doesn't support XML
 and the `--includeReferencedDependencies` flag to indicate that dependencies should be scanned (including registry if provided)
 and the `-reg` flag to specify the NCTS as the external registry to use for resolving the other resources that are not in the package.
 and the `-rego` flag to write a local copy of the resources downloaded from the NCTS registry.
+and the `-ets` flag to request the external terminology server to create expansions for ValueSets that are too complex for the Firely SDK terminology service.
 
 The hosted Microsoft server may require an Authorization bearer to connect too, note that you will likely need 
 to quote the content if it has spaces - which is normally there (and may be different on a different OS)
@@ -418,7 +429,12 @@ Done!
 
 ## Change history
 
+### 21 January 2024
+* Add support to reference an external terminology server to create expansions for ValueSets that are not in the external registry `-ets`, `-etsh`
+* New option to output content to a file instead of uploading to a server `-of`
+
 ### 18 December 2024
+* Add support to reference an external registry to resolve dependencies not in packages `-reg`, `-regh`, `-rego`
 * Update Fhirpath static validation engine to resolve issue with complex extensions passing context through functions
   (found in AU base IG)
 
