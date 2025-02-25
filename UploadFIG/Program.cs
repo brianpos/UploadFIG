@@ -690,10 +690,47 @@ namespace UploadFIG
 
 			if (alternativeOutputBundle != null)
 			{
-				// Write the output bundle to a file
-				alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
-				var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
-				File.WriteAllText(settings.OutputTransactionBundle ?? settings.OutputCollectionBundle, json);
+				// Secret package output processor if the filename ends with .tgz
+				var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
+				if (filename.EndsWith(".tgz"))
+				{
+					// Write a tgz package file with all the content in it
+					var fs = new FileStream(filename, FileMode.Create);
+					using (fs)
+					{
+						Stream gzipStream = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Compress, true);
+						TarWriter writer = new TarWriter(gzipStream);
+						using (writer)
+						{
+							foreach (var resource in alternativeOutputBundle.Entry.Select(e => e.Resource).OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}").OfType<Resource>())
+							{
+								var sourceDetails = resource.Annotation<ResourcePackageSource>();
+								string folderName = "unknown";
+								if (sourceDetails != null)
+									folderName = $"{sourceDetails.PackageId}|{sourceDetails.PackageVersion}";
+								if (sourceDetails.PackageId == manifest.Name && sourceDetails.PackageVersion == manifest.Version)
+									folderName = "package";
+								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ExampleName>()?.value ?? $"{resource.TypeName}/{resource.Id}";
+								if (exampleName.StartsWith("package/"))
+									exampleName = exampleName.Substring(8);
+								var entry = new PaxTarEntry(TarEntryType.RegularFile, $"{folderName}/{exampleName}");
+								var json = versionAgnosticProcessor.SerializeJson(resource);
+
+								// write the json string into the entry
+								var bytes = Encoding.UTF8.GetBytes(json);
+								entry.DataStream = new MemoryStream(bytes);
+								writer.WriteEntry(entry);
+							}
+						}
+					}
+				}
+				else
+				{
+					// Write the output bundle to a file
+					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
+					var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
+					File.WriteAllText(filename, json);
+				}
 			}
 
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
