@@ -340,7 +340,7 @@ namespace UploadFIG
 			{
 				if (item is IVersionableConformanceResource ivr)
 				{
-					var matches = dependencyResourcesToLoad.OfType<IVersionableConformanceResource>().Where(t => t.Url == ivr.Url && t.Version == ivr.Version );
+					var matches = dependencyResourcesToLoad.OfType<IVersionableConformanceResource>().Where(t => t.Url == ivr.Url && t.Version == ivr.Version);
 					if (matches.Count() > 1)
 					{
 						var useResource = CurrentCanonicalFromPackages.Current(matches);
@@ -688,50 +688,7 @@ namespace UploadFIG
 				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 			}
 
-			if (alternativeOutputBundle != null)
-			{
-				// Secret package output processor if the filename ends with .tgz
-				var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
-				if (filename.EndsWith(".tgz"))
-				{
-					// Write a tgz package file with all the content in it
-					var fs = new FileStream(filename, FileMode.Create);
-					using (fs)
-					{
-						Stream gzipStream = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Compress, true);
-						TarWriter writer = new TarWriter(gzipStream);
-						using (writer)
-						{
-							foreach (var resource in alternativeOutputBundle.Entry.Select(e => e.Resource).OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}").OfType<Resource>())
-							{
-								var sourceDetails = resource.Annotation<ResourcePackageSource>();
-								string folderName = "unknown";
-								if (sourceDetails != null)
-									folderName = $"{sourceDetails.PackageId}|{sourceDetails.PackageVersion}";
-								if (sourceDetails.PackageId == manifest.Name && sourceDetails.PackageVersion == manifest.Version)
-									folderName = "package";
-								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ExampleName>()?.value ?? $"{resource.TypeName}/{resource.Id}";
-								if (exampleName.StartsWith("package/"))
-									exampleName = exampleName.Substring(8);
-								var entry = new PaxTarEntry(TarEntryType.RegularFile, $"{folderName}/{exampleName}");
-								var json = versionAgnosticProcessor.SerializeJson(resource);
-
-								// write the json string into the entry
-								var bytes = Encoding.UTF8.GetBytes(json);
-								entry.DataStream = new MemoryStream(bytes);
-								writer.WriteEntry(entry);
-							}
-						}
-					}
-				}
-				else
-				{
-					// Write the output bundle to a file
-					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
-					var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
-					File.WriteAllText(filename, json);
-				}
-			}
+			WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor);
 
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
 			{
@@ -767,6 +724,91 @@ namespace UploadFIG
 				}
 			}
 			return 0;
+		}
+
+		private static void WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor)
+		{
+			if (alternativeOutputBundle != null)
+			{
+				// Secret package output processor if the filename ends with .tgz
+				var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
+				if (filename.EndsWith(".tgz"))
+				{
+					// Write a tgz package file with all the content in it
+					var fs = new FileStream(filename, FileMode.Create);
+					using (fs)
+					{
+						Stream gzipStream = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Compress, true);
+						TarWriter writer = new TarWriter(gzipStream);
+						using (writer)
+						{
+							// write the modified manifest and index
+							if (manifest != null)
+							{
+								// tweak the manifest
+								string raw = PackageParser.SerializeManifest(manifest);
+								var modifiedManifest = PackageParser.ParseManifest(raw);
+								modifiedManifest.Description = "IG repacked with all dependencies inside - " + modifiedManifest.Description;
+								if (modifiedManifest.Keywords == null)
+									modifiedManifest.Keywords = new List<string>();
+								modifiedManifest.Keywords.Add("repacked");
+								modifiedManifest.Dependencies = null; // specifically remove the dependencies (as they are now inside)
+								modifiedManifest.Directories = null; // specifically remove the directories (as not to spec anyway)
+								string jsonManifest = PackageParser.SerializeManifest(modifiedManifest);
+								WriteContentToTgz(writer, "package/package.json", jsonManifest);
+							}
+
+							// Write all the files into the project
+							PackageIndex newIndex = new PackageIndex();
+							newIndex.Files = new List<FileDetail>();
+							newIndex.indexVersion = 2;
+							foreach (var resource in alternativeOutputBundle.Entry.Select(e => e.Resource).OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}").OfType<Resource>())
+							{
+								var sourceDetails = resource.Annotation<ResourcePackageSource>();
+								string folderName = "unknown";
+								if (sourceDetails != null)
+									folderName = $"{sourceDetails.PackageId}|{sourceDetails.PackageVersion}";
+								if (sourceDetails.PackageId == manifest.Name && sourceDetails.PackageVersion == manifest.Version)
+									folderName = "package";
+								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ExampleName>()?.value ?? $"{resource.TypeName}/{resource.Id}";
+								if (exampleName.StartsWith("package/"))
+									exampleName = exampleName.Substring(8);
+								var json = versionAgnosticProcessor.SerializeJson(resource);
+								var entryFilename = $"{folderName}/{exampleName}";
+								WriteContentToTgz(writer, entryFilename, json);
+
+								newIndex.Files.Add(new FileDetail()
+								{
+									filename = entryFilename,
+									resourceType = resource.TypeName,
+									id = resource.Id,
+									url = (resource as IVersionableConformanceResource)?.Url,
+									version = (resource as IVersionableConformanceResource)?.Version,
+								});
+							}
+
+							// Write the index
+							string jsonIndex = System.Text.Json.JsonSerializer.Serialize<PackageIndex>(newIndex);
+							WriteContentToTgz(writer, "package/.index.json", jsonIndex);
+						}
+					}
+				}
+				else
+				{
+					// Write the output bundle to a file
+					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
+					var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
+					File.WriteAllText(filename, json);
+				}
+			}
+		}
+
+		private static void WriteContentToTgz(TarWriter writer, string filename, string content)
+		{
+			var entry = new PaxTarEntry(TarEntryType.RegularFile, filename);
+			var bytes = Encoding.UTF8.GetBytes(content);
+			entry.DataStream = new MemoryStream(bytes);
+			writer.WriteEntry(entry);
 		}
 
 		private static async Task PerformValueSetPreExpansion(Settings settings, Common_Processor versionAgnosticProcessor, ExpressionValidator expressionValidator, List<Resource> resourcesToProcess, List<Resource> additionalResources)
