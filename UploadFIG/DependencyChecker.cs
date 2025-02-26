@@ -402,16 +402,6 @@ namespace UploadFIG
             }
         }
 
-        record DependansOnCanonical
-        {
-            public DependansOnCanonical(string value)
-            {
-                CanonicalUrl = value;
-            }
-
-            public string CanonicalUrl { get; init; }
-        }
-
         static List<string> ignoreCanonicals = new (new string[] {
 			// Extensions required by THO (but THO has no dependencies)
 			"http://hl7.org/fhir/StructureDefinition/codesystem-properties-mode",
@@ -468,7 +458,7 @@ namespace UploadFIG
                             cd.requiredBy.Add(resource);
                     }
                 }
-                resource.AddAnnotation(new DependansOnCanonical(canonicalUrl));
+                resource.AddAnnotation(new DependsOnCanonical(canonicalUrl));
             }
         }
 
