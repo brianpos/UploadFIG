@@ -152,14 +152,18 @@ namespace UploadFIG
 			OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
-			Bundle alternativeOutputBundle = null;
+			Bundle alternativeOutputBundle;
 			if (!string.IsNullOrEmpty(settings.OutputTransactionBundle))
 			{
 				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Transaction };
 			}
-			if (!string.IsNullOrEmpty(settings.OutputCollectionBundle))
+			else if (!string.IsNullOrEmpty(settings.OutputCollectionBundle))
 			{
 				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Batch };
+			}
+			else
+			{
+				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Collection };
 			}
 
 			// Validate specific headers being applied for common errors
@@ -728,10 +732,10 @@ namespace UploadFIG
 
 		private static void WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor)
 		{
-			if (alternativeOutputBundle != null)
+			var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
+			if (!string.IsNullOrEmpty(filename))
 			{
 				// Secret package output processor if the filename ends with .tgz
-				var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
 				if (filename.EndsWith(".tgz"))
 				{
 					// Write a tgz package file with all the content in it
@@ -1236,53 +1240,36 @@ namespace UploadFIG
 
         private static void IncludeResourceInOutputBundle(Settings settings, Bundle alternativeOutputBundle, Resource resource)
         {
-            if (alternativeOutputBundle != null)
-            {
-                // The collection bundle will request explicit use of the same ID via put
-                // to replace the resource if it already exists, otherwise create a new resource with the specified ID
-                if (!string.IsNullOrEmpty(settings.OutputCollectionBundle))
-                {
-                    var copyEntry = new Bundle.EntryComponent()
-                    {
-                        // FullUrl = "urn:uuid:" + Guid.NewGuid().ToString("D"),
-                        Resource = resource,
-                        Request = new Bundle.RequestComponent()
-                        {
-                            Method = Bundle.HTTPVerb.PUT,
-                            Url = $"{resource.TypeName}/{resource.Id}",
-                        }
-                    };
-                    alternativeOutputBundle.Entry.Add(copyEntry);
-                    return;
-                }
+			var newEntry = new Bundle.EntryComponent()
+			{
+				// FullUrl = "urn:uuid:" + Guid.NewGuid().ToString("D"),
+				Resource = resource,
+				Request = new Bundle.RequestComponent()
+				{
+					Method = Bundle.HTTPVerb.POST,
+					Url = $"{resource.TypeName}",
+				},
+			};
+			alternativeOutputBundle.Entry.Add(newEntry);
 
-                var newEntry = new Bundle.EntryComponent()
-                {
-                    // FullUrl = "urn:uuid:" + Guid.NewGuid().ToString("D"),
-                    Resource = resource,
-                    Request = new Bundle.RequestComponent()
-                    {
-                        Method = Bundle.HTTPVerb.POST,
-                        Url = $"{resource.TypeName}",
-                        // Consider if there should be a flag for this...
-                        // Method = Bundle.HTTPVerb.PUT,
-                        // Url = $"{resource.TypeName}/{resource.Id}",
-                    }
-                };
-                if (resource is IVersionableConformanceResource ivr_resource)
-                {
-                    // Use the Conditional Update format
-                    // https://build.fhir.org/http.html#cond-update
-                    // noting that this may update resources that are not intended to be updated if
-                    // the package has multiple versions of the same canonical,
-                    // or the destination server has multiple versions
-                    newEntry.Request.Method = Bundle.HTTPVerb.PUT;
-                    newEntry.Request.Url = $"{resource.TypeName}?url={ivr_resource.Url}";
-                }
-                alternativeOutputBundle.Entry.Add(newEntry);
+			if (!string.IsNullOrEmpty(resource.Id))
+			{
+				newEntry.Request.Method = Bundle.HTTPVerb.PUT;
+				newEntry.Request.Url = $"{resource.TypeName}/{resource.Id}";
+			}
 
-            }
-        }
+			if (resource is IVersionableConformanceResource ivr_resource)
+			{
+				// Use the Conditional Update format
+				// https://build.fhir.org/http.html#cond-update
+				// noting that this may update resources that are not intended to be updated if
+				// the package has multiple versions of the same canonical,
+				// or the destination server has multiple versions
+				newEntry.Request.Method = Bundle.HTTPVerb.PUT;
+				newEntry.Request.Url = $"{resource.TypeName}?url={ivr_resource.Url}&version={ivr_resource.Version}";
+				resource.Id = null;
+			}
+		}
 
 		private static void ReportDependentCanonicalResourcesToConsole(Settings settings, IEnumerable<Resource> list)
         {
@@ -1535,139 +1522,139 @@ namespace UploadFIG
             return false;
         }
 
-        static Resource? UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
-        {
-            // Check to see if the resource is the same on the server already
-            // (except for text/version/modified)
-            try
-            {
-                // reset properties that are set on the server anyway
-                if (resource.Meta == null) resource.Meta = new Meta();
-                resource.Meta.LastUpdated = null;
-                resource.Meta.VersionId = null;
+		static Resource? UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
+		{
+			// Check to see if the resource is the same on the server already
+			// (except for text/version/modified)
+			try
+			{
+				// reset properties that are set on the server anyway
+				if (resource.Meta == null) resource.Meta = new Meta();
+				resource.Meta.LastUpdated = null;
+				resource.Meta.VersionId = null;
 
-                Resource? current = null;
-                if (!string.IsNullOrEmpty(resource.Id))
-                    current = clientFhir.Get($"{resource.TypeName}/{resource.Id}");
-                if (current != null)
-                {
-                    Resource original = (Resource)current.DeepCopy();
-                    current.Meta.LastUpdated = null;
-                    current.Meta.VersionId = null;
-                    if (current is DomainResource dr)
-                        dr.Text = (resource as DomainResource)?.Text;
-                    if (current.IsExactly(resource))
-                    {
-                        Console.Write($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
-                        if (resource.HasAnnotation<PackageCacheItem>() == true)
-                        {
-                            var cacheDetails = resource.Annotation<PackageCacheItem>();
-                            Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-                        }
-                        Console.WriteLine();
-                        return original;
-                    }
-                }
-            }
-            catch (FhirOperationException fex)
-            {
-                if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
-                {
-                    Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
-                }
-            }
+				Resource? current = null;
+				if (!string.IsNullOrEmpty(resource.Id))
+					current = clientFhir.Get($"{resource.TypeName}/{resource.Id}");
+				if (current != null)
+				{
+					Resource original = (Resource)current.DeepCopy();
+					current.Meta.LastUpdated = null;
+					current.Meta.VersionId = null;
+					if (current is DomainResource dr)
+						dr.Text = (resource as DomainResource)?.Text;
+					if (current.IsExactly(resource))
+					{
+						Console.Write($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
+						if (resource.HasAnnotation<PackageCacheItem>() == true)
+						{
+							var cacheDetails = resource.Annotation<PackageCacheItem>();
+							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+						}
+						Console.WriteLine();
+						return original;
+					}
+				}
+			}
+			catch (FhirOperationException fex)
+			{
+				if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+				{
+					Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message}");
+				}
+			}
 
 
-            string warningMessage = null;
-            if (resource is IVersionableConformanceResource vcs)
-            {
-                try
-                {
-                    // Search to locate any existing versions of this canonical resource
-                    var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
-                    var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
-                    if (existingResources.Count(e => (e as IVersionableConformanceResource).Version == vcs.Version) > 1)
-                    {
-                        ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Canonical {vcs.Url}|{vcs.Version} has multiple instances already loaded - Must be resolved manually as unable to select which to update");
-                        return null;
-                    }
-                    var existingVersion = existingResources.FirstOrDefault(e => (e as IVersionableConformanceResource).Version == vcs.Version);
-                    var otherCanonicalVersionNumbers = existingResources.Select(e => (e as IVersionableConformanceResource)?.Version).Where(v => v != vcs.Version).ToList();
+			string warningMessage = null;
+			if (resource is IVersionableConformanceResource vcs)
+			{
+				try
+				{
+					// Search to locate any existing versions of this canonical resource
+					var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
+					var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
+					if (existingResources.Count(e => (e as IVersionableConformanceResource).Version == vcs.Version) > 1)
+					{
+						ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Canonical {vcs.Url}|{vcs.Version} has multiple instances already loaded - Must be resolved manually as unable to select which to update");
+						return null;
+					}
+					var existingVersion = existingResources.FirstOrDefault(e => (e as IVersionableConformanceResource).Version == vcs.Version);
+					var otherCanonicalVersionNumbers = existingResources.Select(e => (e as IVersionableConformanceResource)?.Version).Where(v => v != vcs.Version).ToList();
 
-                    // Select the existing resource to "refresh" the entry to what was in the implementation guide,
-                    // or clear the ID to let the server allocate the resource ID
-                    resource.Id = existingVersion?.Id;
+					// Select the existing resource to "refresh" the entry to what was in the implementation guide,
+					// or clear the ID to let the server allocate the resource ID
+					resource.Id = existingVersion?.Id;
 
-                    if (otherCanonicalVersionNumbers.Any())
-                    {
-                        if (settings.PreventDuplicateCanonicalVersions && resource.Id == null)
-                        {
-                            ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Canonical {vcs.Url} already has other versions loaded - {string.Join(", ", otherCanonicalVersionNumbers)}, can't also load {vcs.Version}, adding may cause issues if the server can't determine which is the latest to use");
-                            return null;
-                        }
-                        warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
-                    }
+					if (otherCanonicalVersionNumbers.Any())
+					{
+						if (settings.PreventDuplicateCanonicalVersions && resource.Id == null)
+						{
+							ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Canonical {vcs.Url} already has other versions loaded - {string.Join(", ", otherCanonicalVersionNumbers)}, can't also load {vcs.Version}, adding may cause issues if the server can't determine which is the latest to use");
+							return null;
+						}
+						warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
+					}
 
-                    if (resource.Id != null)
-                    {
-                        // This is an update of the canonical version, check to see if there is a change or that we can just skip loading
-                        Resource original = (Resource)existingVersion.DeepCopy();
-                        existingVersion.Meta.LastUpdated = null;
-                        existingVersion.Meta.VersionId = null;
-                        if (existingVersion is DomainResource dr)
-                            dr.Text = (resource as DomainResource)?.Text;
-                        if (existingVersion.IsExactly(resource))
-                        {
-                            Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
-                            if (resource.HasAnnotation<PackageCacheItem>() == true)
-                            {
-                                var cacheDetails = resource.Annotation<PackageCacheItem>();
-                                Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-                            }
-                            if (!string.IsNullOrEmpty(warningMessage))
-                            {
+					if (resource.Id != null)
+					{
+						// This is an update of the canonical version, check to see if there is a change or that we can just skip loading
+						Resource original = (Resource)existingVersion.DeepCopy();
+						existingVersion.Meta.LastUpdated = null;
+						existingVersion.Meta.VersionId = null;
+						if (existingVersion is DomainResource dr)
+							dr.Text = (resource as DomainResource)?.Text;
+						if (existingVersion.IsExactly(resource))
+						{
+							Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
+							if (resource.HasAnnotation<PackageCacheItem>() == true)
+							{
+								var cacheDetails = resource.Annotation<PackageCacheItem>();
+								Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+							}
+							if (!string.IsNullOrEmpty(warningMessage))
+							{
 								ConsoleEx.WriteLine(ConsoleColor.Yellow, $"\t{warningMessage}");
-                            }
-                            Console.WriteLine();
-                            return original;
-                        }
-                    }
-                }
-                catch (FhirOperationException fex)
-                {
-                    if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
-                    {
-                        Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message} {vcs.Url}|{vcs.Version}");
-                    }
-                }
-            }
+							}
+							Console.WriteLine();
+							return original;
+						}
+					}
+				}
+				catch (FhirOperationException fex)
+				{
+					if (fex.Status != System.Net.HttpStatusCode.NotFound && fex.Status != System.Net.HttpStatusCode.Gone)
+					{
+						Console.Error.WriteLine($"Warning: {resource.TypeName}/{resource.Id} {fex.Message} {vcs.Url}|{vcs.Version}");
+					}
+				}
+			}
 
-            // Now that we've established that it is new/different, upload it
-            if (settings.CheckPackageInstallationStateOnly)
-                return null;
+			// Now that we've established that it is new/different, upload it
+			if (settings.CheckPackageInstallationStateOnly)
+				return null;
 
-            Resource result;
-            string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
-            if (!string.IsNullOrEmpty(resource.Id))
-                result = clientFhir.Update(resource);
-            else
-                result = clientFhir.Create(resource);
+			Resource result;
+			string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
+			if (!string.IsNullOrEmpty(resource.Id))
+				result = clientFhir.Update(resource);
+			else
+				result = clientFhir.Create(resource);
 
-            if (result is IVersionableConformanceResource r)
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
-            else
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
-            if (resource.HasAnnotation<PackageCacheItem>() == true)
-            {
-                var cacheDetails = resource.Annotation<PackageCacheItem>();
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-            }
-            if (!string.IsNullOrEmpty(warningMessage))
-            {
-                ConsoleEx.Write(ConsoleColor.Yellow, $"\t{warningMessage}");
-            }
-            Console.WriteLine();
-            return result;
-        }
-    }
+			if (result is IVersionableConformanceResource r)
+				ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
+			else
+				ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+			if (resource.HasAnnotation<PackageCacheItem>() == true)
+			{
+				var cacheDetails = resource.Annotation<PackageCacheItem>();
+				ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+			}
+			if (!string.IsNullOrEmpty(warningMessage))
+			{
+				ConsoleEx.Write(ConsoleColor.Yellow, $"\t{warningMessage}");
+			}
+			Console.WriteLine();
+			return result;
+		}
+	}
 }
