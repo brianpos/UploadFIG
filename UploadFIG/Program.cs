@@ -692,7 +692,7 @@ namespace UploadFIG
 				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 			}
 
-			WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor);
+			WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
 
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
 			{
@@ -730,7 +730,7 @@ namespace UploadFIG
 			return 0;
 		}
 
-		private static void WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor)
+		private static void WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
 		{
 			var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
 			if (!string.IsNullOrEmpty(filename))
@@ -801,10 +801,159 @@ namespace UploadFIG
 				{
 					// Write the output bundle to a file
 					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
+					ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
 					var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
 					File.WriteAllText(filename, json);
 				}
 			}
+		}
+
+		public static void ReOrderBundleEntries(Bundle alternativeOutputBundle, List<CanonicalDetails> allUnresolvedCanonicals)
+		{
+			// Scan over the entry list and ensure order them so that any dependencies are before the resources that depend on them
+			Queue<Bundle.EntryComponent> entries = new Queue<Bundle.EntryComponent>(alternativeOutputBundle.Entry);
+			var reOrderedList = new List<Bundle.EntryComponent>();
+			var definedCanonicals = new StringCollection();
+			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => c.canonical).ToArray());
+			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => $"{c.canonical}|{c.version}").ToArray());
+			var futureCanonicals = new Dictionary<string, Resource>();
+			var lastEntry = alternativeOutputBundle.Entry.LastOrDefault();
+			while (entries.Any())
+			{
+				var entry = entries.Dequeue();
+
+				var ivr = entry.Resource as IVersionableConformanceResource;
+				var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
+				var unresolvedDeps = entry.Resource.Annotations<DependsOnCanonical>().Where(d => !definedCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+
+				// Reset end of queue indicator, which means all canonicals have been found.
+				if (entry == lastEntry)
+					lastEntry = null;
+
+				if (!unresolvedDeps.Any())
+				{
+					System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical}");
+					reOrderedList.Add(entry);
+					if (ivr != null)
+					{
+						if (!definedCanonicals.Contains(ivr.Url))
+							definedCanonicals.Add(ivr.Url);
+						definedCanonicals.Add(versionedCanonical);
+						if (futureCanonicals.ContainsKey(ivr.Url))
+							futureCanonicals.Remove(ivr.Url);
+						if (futureCanonicals.ContainsKey(versionedCanonical))
+							futureCanonicals.Remove(versionedCanonical);
+					}
+					continue;
+				}
+
+				if (ivr != null)
+				{
+					if (!futureCanonicals.ContainsKey(ivr.Url))
+						futureCanonicals.Add(ivr.Url, entry.Resource);
+					if (!futureCanonicals.ContainsKey(versionedCanonical))
+						futureCanonicals.Add(versionedCanonical, entry.Resource);
+				}
+
+				// Check to see if all the deps are coming
+				if (lastEntry == null)
+				{
+					var missingDeps = unresolvedDeps.Where(d => !futureCanonicals.ContainsKey(d.CanonicalUrl)).ToList();
+					if (missingDeps.Any())
+					{
+						System.Diagnostics.Trace.WriteLine($"    unknown deps {versionedCanonical}: missing {string.Join(", ", missingDeps.Select(d => d.CanonicalUrl))}");
+						// This could be due to errors during processing, so lets assume they are "just missing"
+						definedCanonicals.AddRange(missingDeps.Select(d => d.CanonicalUrl).ToArray());
+					}
+					else
+					{
+						// This is the area where we may have circular dependencies being detected
+
+						// Check for circular dependencies to break
+						var nonCircularDeps = unresolvedDeps.Where(d => !HasCircularDependency(entry.Resource, d.CanonicalUrl, futureCanonicals, definedCanonicals));
+						if (!nonCircularDeps.Any())
+						{
+							// This is all circular dependencies, so lets add it anyway
+							System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical} (ignoring circular deps: {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))})");
+							reOrderedList.Add(entry);
+							if (ivr != null)
+							{
+								if (!definedCanonicals.Contains(ivr.Url))
+									definedCanonicals.Add(ivr.Url);
+								definedCanonicals.Add(versionedCanonical);
+								if (futureCanonicals.ContainsKey(ivr.Url))
+									futureCanonicals.Remove(ivr.Url);
+								if (futureCanonicals.ContainsKey(versionedCanonical))
+									futureCanonicals.Remove(versionedCanonical);
+							}
+							continue;
+						}
+						// wasn't found, so defer it again
+						System.Diagnostics.Trace.WriteLine($"* Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+					}
+				}
+				else
+				{
+					System.Diagnostics.Trace.WriteLine($"Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+				}
+
+				// else, add it back to the end of the queue
+				entries.Enqueue(entry);
+			}
+
+			// swap out the entry list
+			alternativeOutputBundle.Entry = reOrderedList;
+		}
+
+		public static bool HasCircularDependency(Resource resource, string canonicalUrl, Dictionary<string, Resource> futureCanonicals, StringCollection skipCanonicals)
+		{
+			var allDependencies = new List<Resource>();
+			allDependencies.Add(resource);
+
+			var ivr = resource as IVersionableConformanceResource;
+			var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
+			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+
+			foreach (var dep in unresolvedDeps)
+			{
+				if (futureCanonicals.TryGetValue(dep.CanonicalUrl, out Resource depResource))
+				{
+					if (canonicalUrl != dep.CanonicalUrl)
+						continue;
+					var cr = HasCircularDependencyOn(ivr, depResource, futureCanonicals, skipCanonicals, allDependencies);
+					if (cr == true)
+						return true;
+				}
+			}
+
+			return false;
+		}
+
+		public static bool? HasCircularDependencyOn(IVersionableConformanceResource ivrRoot, Resource resource, Dictionary<string, Resource> futureCanonicals, StringCollection skipCanonicals, List<Resource> allDependencies)
+		{
+			if (allDependencies.Contains(resource))
+				return null; // This was a circular dependency, however not via the ivrRoot - so can't declare anything
+
+			allDependencies.Add(resource);
+
+			var ivr = resource as IVersionableConformanceResource;
+			var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
+			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+
+			foreach (var dep in unresolvedDeps)
+			{
+				if (dep.CanonicalUrl == ivrRoot.Url || dep.CanonicalUrl == $"{ivrRoot.Url}|{ivrRoot.Version}")
+					return true;
+				if (futureCanonicals.TryGetValue(dep.CanonicalUrl, out Resource depResource))
+				{
+					if (allDependencies.Contains(depResource))
+						continue;
+					if (HasCircularDependencyOn(ivrRoot, depResource, futureCanonicals, skipCanonicals, allDependencies) == true)
+						return true;
+				}
+			}
+
+			return false;
 		}
 
 		private static void WriteContentToTgz(TarWriter writer, string filename, string content)

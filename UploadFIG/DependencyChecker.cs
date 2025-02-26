@@ -458,7 +458,9 @@ namespace UploadFIG
                             cd.requiredBy.Add(resource);
                     }
                 }
-                resource.AddAnnotation(new DependsOnCanonical(canonicalUrl));
+				var deps = resource.Annotations<DependsOnCanonical>();
+				if (!deps.Any(d => d.CanonicalUrl == canonicalUrl))
+					resource.AddAnnotation(new DependsOnCanonical(canonicalUrl));
             }
         }
 
