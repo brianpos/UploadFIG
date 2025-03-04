@@ -98,12 +98,13 @@ namespace UploadFIG
             }
         }
 
-        /// <summary>
-        /// Scan the provided set of resources and return any canonicals that are referenced by the resources.
-        /// </summary>
-        /// <param name="resourcesToProcess"></param>
-        /// <returns></returns>
-        public IEnumerable<CanonicalDetails> ScanForCanonicals(IEnumerable<Resource> resourcesToProcess)
+		#region << Scan For Canonicals >>
+		/// <summary>
+		/// Scan the provided set of resources and return any canonicals that are referenced by the resources.
+		/// </summary>
+		/// <param name="resourcesToProcess"></param>
+		/// <returns></returns>
+		public IEnumerable<CanonicalDetails> ScanForCanonicals(IEnumerable<Resource> resourcesToProcess)
         {
             return ScanForCanonicals(new List<CanonicalDetails>(), resourcesToProcess);
         }
@@ -782,6 +783,7 @@ namespace UploadFIG
             var referenceProfile = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-referenceProfile");
             CheckRequiresCanonical(resource, "StructureDefinition", unitValusetUrl, requiresCanonicals, (value) => { unitValusetUrl = value; });
         }
+		#endregion
 
 		/// <summary>
 		/// Detect any resources required for this package, tagging dependent packages to load their content too
@@ -1138,21 +1140,8 @@ namespace UploadFIG
 						Resource resource = null;
 						try
 						{
-							if (exampleName.EndsWith(".xml"))
-							{
-								using (var xr = SerializationUtil.XmlReaderFromStream(stream))
-								{
-									resource = versionAgnosticProcessor.ParseXml(xr);
-								}
-							}
-							else if (exampleName.EndsWith(".json"))
-							{
-								using (var jr = SerializationUtil.JsonReaderFromStream(stream))
-								{
-									resource = versionAgnosticProcessor.ParseJson(jr);
-								}
-							}
-							else
+							resource = parsePackageContentStream(versionAgnosticProcessor, stream, exampleName);
+							if (resource == null)
 							{
 								// Not a file that we can process
 								// (What about fml/map files?)
