@@ -258,6 +258,7 @@ namespace UploadFIG
 			var packageCache = new TempPackageCache();
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
 			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache);
+			var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
@@ -272,13 +273,12 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, $"Scanning package {manifest.Name} content:");
 			// read the root package content
-			List<Resource> resourcesFromMainPackage = await ReadResourcesFromPackage(pd, settings, sourceStream, versionAgnosticProcessor, errs, errFiles);
+			List<Resource> resourcesFromMainPackage = await depChecker.ReadResourcesFromPackage(pd, (name) => SkipFile(settings, name), sourceStream, versionAgnosticProcessor, errs, errFiles, settings.Verbose, settings.ResourceTypes);
 
 			// Scan through the resources and resolve any canonicals
 			Console.WriteLine();
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, "Scanning dependencies:");
-			var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
 			depChecker.LoadDependentResources(pd, versionAgnosticProcessor, errFiles);
 			var externalCanonicals = pd.RequiresCanonicals.ToList();
 
@@ -1523,111 +1523,6 @@ namespace UploadFIG
 			}
             Console.WriteLine($"Unable to resolve these canonical resources: {mergedCDs.Values.Count()}");
 			ReportCanonicalDetailsToConsole(settings, mergedCDs.Values);
-        }
-
-        private static async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Settings settings, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles)
-        {
-            // skip back to the start (for cases where the package.json isn't the first resource)
-            sourceStream.Seek(0, SeekOrigin.Begin);
-            Stream gzipStream = new System.IO.Compression.GZipStream(sourceStream, System.IO.Compression.CompressionMode.Decompress, true);
-            MemoryStream ms = new MemoryStream();
-            using (gzipStream)
-            {
-                // Unzip the tar file into a memory stream
-                await gzipStream.CopyToAsync(ms);
-                ms.Seek(0, SeekOrigin.Begin);
-            }
-            var reader = new TarReader(ms);
-
-            List<Resource> resourcesToProcess = new();
-            TarEntry entry;
-            while ((entry = reader.GetNextEntry()) != null)
-            {
-                if (SkipFile(settings, entry.Name))
-                    continue;
-                if (entry.EntryType != TarEntryType.Directory)
-                {
-                    var exampleName = entry.Name;
-                    if (settings.Verbose)
-                        Console.WriteLine($"Processing: {exampleName}");
-                    var stream = entry.DataStream;
-                    using (stream)
-                    {
-                        Resource resource = null;
-                        try
-                        {
-                            if (exampleName.EndsWith(".xml"))
-                            {
-                                using (var xr = SerializationUtil.XmlReaderFromStream(stream))
-                                {
-                                    resource = versionAgnosticProcessor.ParseXml(xr);
-                                }
-                            }
-                            else if (exampleName.EndsWith(".json"))
-                            {
-                                using (var jr = SerializationUtil.JsonReaderFromStream(stream))
-                                {
-                                    resource = versionAgnosticProcessor.ParseJson(jr);
-                                }
-                            }
-                            else
-                            {
-                                // Not a file that we can process
-                                // (What about fml/map files?)
-                                continue;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-                            System.Threading.Interlocked.Increment(ref failures);
-                            if (!errs.Contains(ex.Message))
-                                errs.Add(ex.Message);
-                            errFiles.Add(exampleName);
-                            continue;
-                        }
-
-                        // Skip resource types we're not intentionally importing
-                        // (usually examples)
-                        if (!settings.ResourceTypes.Contains(resource.TypeName))
-                        {
-                            if (settings.Verbose)
-                                Console.WriteLine($"    ----> Ignoring {exampleName} because {resource.TypeName} is not a requested type");
-                            continue;
-                        }
-
-                        resourcesToProcess.Add(resource);
-                        resource.SetAnnotation(new ResourcePackageSource()
-                        {
-                            Filename = exampleName,
-                            PackageId = pd.packageId,
-                            PackageVersion = pd.packageVersion
-                        });
-
-						FileDetail indexDetails = pd.Files.FirstOrDefault(f => "package/" + f.filename == exampleName);
-						if (indexDetails == null)
-						{
-							indexDetails = new FileDetail()
-							{
-								filename = exampleName,
-								resourceType = resource.TypeName,
-								id = resource.Id,
-							};
-							if (resource is IVersionableConformanceResource vcr)
-							{
-								indexDetails.url = vcr.Url;
-								indexDetails.version = vcr.Version;
-								pd.CanonicalFiles.Add($"{vcr.Url}|{vcr.Version}", indexDetails);
-								if (!pd.CanonicalFiles.ContainsKey(vcr.Url))
-									pd.CanonicalFiles.Add(vcr.Url, indexDetails);
-							}
-							pd.Files.Add(indexDetails);
-						}
-						indexDetails.resource = resource;
-                    }
-                }
-            }
-            return resourcesToProcess;
         }
 
         static bool SkipFile(Settings settings, string filename)

@@ -5,7 +5,7 @@ using System.Xml;
 
 namespace UploadFIG
 {
-    abstract class Common_Processor
+    public abstract class Common_Processor
     {
         public ModelInspector ModelInspector { get; protected set; }
         public List<string> SupportedResources { get; protected set; }
