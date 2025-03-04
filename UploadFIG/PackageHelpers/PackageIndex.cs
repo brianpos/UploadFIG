@@ -34,5 +34,8 @@ namespace UploadFIG
 
 		[JsonIgnore]
 		public Hl7.Fhir.Model.Resource resource { get; set; }
+
+		[JsonIgnore]
+		public bool hasDuplicateDefinitions { get; set; } = false;
 	}
 }

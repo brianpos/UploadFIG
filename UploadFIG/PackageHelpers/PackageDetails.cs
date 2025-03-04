@@ -20,7 +20,9 @@ namespace UploadFIG.PackageHelpers
 
 		public List<FileDetail> Files { get; set; } = new List<FileDetail>();
 
-		public IEnumerable<CanonicalDetails> RequiresCanonicals { get; set; }
+		public Dictionary<string, FileDetail> CanonicalFiles { get; set; } = new Dictionary<string, FileDetail>();
+
+		public IEnumerable<CanonicalDetails> RequiresCanonicals { get; set; } = new List<CanonicalDetails>();	
 
 		public IEnumerable<CanonicalDetails> UnresolvedCanonicals {  get { return RequiresCanonicals.Where(c => c.resource == null).ToArray(); } }
 

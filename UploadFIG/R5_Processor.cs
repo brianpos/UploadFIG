@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using Hl7.Fhir.Serialization;
 using Hl7.Fhir.Model;
 using r5::Hl7.Fhir.Serialization;
+using System.Text.Json;
 
 namespace UploadFIG
 {
@@ -24,12 +25,17 @@ namespace UploadFIG
 			ot.Add(typeof(r5::Hl7.Fhir.Model.ExtendedContactDetail));
 
 			OpenTypes = ot.ToArray();
+
+			// Json writer settings
+			var jps = new FhirJsonPocoSerializerSettings();
+			_serializerOptions = new JsonSerializerOptions().ForFhir(serializerSettings: jps);
+			_serializerOptions.WriteIndented = true; // make it pretty
         }
 
         // disable validation during parsing (not its job)
         FhirXmlParser _xmlParser = new FhirXmlParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
         FhirJsonParser _jsonParser = new FhirJsonParser(new ParserSettings() { AcceptUnknownMembers = true, AllowUnrecognizedEnums = true, PermissiveParsing = true });
-		FhirJsonSerializer _jsonSerializer = new FhirJsonSerializer(new SerializerSettings() { Pretty = true });
+		JsonSerializerOptions _serializerOptions;
 
 		public override Resource ParseJson(JsonReader jr)
         {
@@ -51,9 +57,9 @@ namespace UploadFIG
 			return _xmlParser.Parse<Resource>(xml);
 		}
 
-		public override string SerializeJson(Resource resource)
+		public async override Task SerializeJson(Stream stream, Resource resource)
 		{
-			return _jsonSerializer.SerializeToString(resource);
+			await System.Text.Json.JsonSerializer.SerializeAsync(stream, resource, _serializerOptions);
 		}
 	}
 }

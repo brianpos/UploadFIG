@@ -692,7 +692,7 @@ namespace UploadFIG
 				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 			}
 
-			WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
+			await WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
 
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
 			{
@@ -730,7 +730,7 @@ namespace UploadFIG
 			return 0;
 		}
 
-		private static void WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
+		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
 		{
 			var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
 			if (!string.IsNullOrEmpty(filename))
@@ -777,9 +777,8 @@ namespace UploadFIG
 								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ExampleName>()?.value ?? $"{resource.TypeName}/{resource.Id}";
 								if (exampleName.StartsWith("package/"))
 									exampleName = exampleName.Substring(8);
-								var json = versionAgnosticProcessor.SerializeJson(resource);
 								var entryFilename = $"{folderName}/{exampleName}";
-								WriteContentToTgz(writer, entryFilename, json);
+								await WriteContentToTgz(writer, entryFilename, resource, versionAgnosticProcessor);
 
 								newIndex.Files.Add(new FileDetail()
 								{
@@ -802,8 +801,11 @@ namespace UploadFIG
 					// Write the output bundle to a file
 					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
 					ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
-					var json = versionAgnosticProcessor.SerializeJson(alternativeOutputBundle);
-					File.WriteAllText(filename, json);
+					var fs = new FileStream(filename, FileMode.Create);
+					using (fs)
+					{
+						await versionAgnosticProcessor.SerializeJson(fs, alternativeOutputBundle);
+					}
 				}
 			}
 		}
@@ -962,6 +964,19 @@ namespace UploadFIG
 			var bytes = Encoding.UTF8.GetBytes(content);
 			entry.DataStream = new MemoryStream(bytes);
 			writer.WriteEntry(entry);
+		}
+
+		private static async Task WriteContentToTgz(TarWriter writer, string filename, Resource resource, Common_Processor versionAgnosticProcessor)
+		{
+			var ms = new MemoryStream();
+			using (ms)
+			{
+				await versionAgnosticProcessor.SerializeJson(ms, resource);
+				ms.Seek(0, SeekOrigin.Begin);
+				var entry = new PaxTarEntry(TarEntryType.RegularFile, filename);
+				entry.DataStream = ms;
+				await writer.WriteEntryAsync(entry);
+			}
 		}
 
 		private static async Task PerformValueSetPreExpansion(Settings settings, Common_Processor versionAgnosticProcessor, ExpressionValidator expressionValidator, List<Resource> resourcesToProcess, List<Resource> additionalResources)
@@ -1216,8 +1231,12 @@ namespace UploadFIG
 					var bundle = new Bundle();
 					bundle.Type = Bundle.BundleType.Collection;
 					bundle.Entry.AddRange(additionalResources.Select(r => new Bundle.EntryComponent() { Resource = r }));
-					var json = versionAgnosticProcessor.SerializeJson(bundle);
-					File.WriteAllText(settings.ExternalRegistryExportFile, json);
+
+					var fs = new FileStream(settings.ExternalRegistryExportFile, FileMode.Create);
+					using (fs)
+					{
+						await versionAgnosticProcessor.SerializeJson(fs, bundle);
+					}
 				}
 			}
 			return additionalResources;
@@ -1616,6 +1635,9 @@ namespace UploadFIG
 							{
 								indexDetails.url = vcr.Url;
 								indexDetails.version = vcr.Version;
+								pd.CanonicalFiles.Add($"{vcr.Url}|{vcr.Version}", indexDetails);
+								if (!pd.CanonicalFiles.ContainsKey(vcr.Url))
+									pd.CanonicalFiles.Add(vcr.Url, indexDetails);
 							}
 							pd.Files.Add(indexDetails);
 						}

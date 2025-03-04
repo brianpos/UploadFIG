@@ -76,7 +76,7 @@ namespace UploadFIG
 		{
 			if (resource is StructureDefinition sd)
 			{
-				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N4_3)
+				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N4_3 && sd.FhirVersion != FHIRVersion.N4_3_0)
 				{
 					Console.WriteLine($"    #---> Error validating StructureDefinition/{sd.Id} ({sd.Url}): {sd.Title}");
 					Console.WriteLine($"        Only FHIR version 4.3 is supported - removed inconsistent version {sd.FhirVersion.GetLiteral()}");

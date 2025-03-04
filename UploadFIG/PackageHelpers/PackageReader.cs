@@ -1,13 +1,8 @@
 ﻿using Firely.Fhir.Packages;
-using Hl7.Fhir.Rest;
-using System;
-using System.Collections.Generic;
+using Hl7.Fhir.Model;
+using System.Diagnostics;
 using System.Formats.Tar;
-using System.Linq;
-using System.Runtime.Intrinsics.Arm;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
@@ -102,10 +97,30 @@ namespace UploadFIG
             PackageDetails result = new PackageDetails() {
                 packageId = manifest.Name,
                 packageVersion = manifest.Version,
-                Files = index.Files,
+                Files = index?.Files ?? new List<FileDetail>(), // stub version packages don't have, just dependencies
             };
 
-            if (manifest.Dependencies != null)
+			// Tap off the canonical resources into the canonical resources dictionary
+			foreach (var item in result.Files)
+			{
+				if (!string.IsNullOrEmpty(item.url))
+				{
+					var versionedCanonical = $"{item.url}|{item.version}";
+					if (!result.CanonicalFiles.ContainsKey(versionedCanonical))
+						result.CanonicalFiles.Add(versionedCanonical, item);
+					if (!result.CanonicalFiles.ContainsKey(item.url))
+						result.CanonicalFiles.Add(item.url, item);
+					else
+					{
+						// Multiple versions of the same canonical in the same package
+						Trace.WriteLine($"Multiple versions of {item.url} ({item.resourceType}) in {result.packageId}|{result.packageVersion} ({item.filename})");
+						item.hasDuplicateDefinitions = true;
+						result.CanonicalFiles[item.url].hasDuplicateDefinitions = true;
+					}
+				}
+			}
+
+			if (manifest.Dependencies != null)
             {
                 foreach (var dependent in manifest.Dependencies)
                 {
@@ -133,10 +148,11 @@ namespace UploadFIG
 					}
                 }
             }
+			GC.Collect();
             return result;
         }
 
-        public static String? ReadResourceContent(Stream sourceStream, string filename)
+        public static Resource ReadResourceContent(Stream sourceStream, string filename, Func<string, Stream, Resource> parse)
         {
             if (sourceStream.Position != 0)
                 sourceStream.Position = 0;
@@ -161,11 +177,7 @@ namespace UploadFIG
                                 {
                                     using (stream)
                                     {
-                                        StreamReader sr = new StreamReader(stream);
-                                        using (sr)
-                                        {
-                                            return sr.ReadToEnd();
-                                        }
+										return parse(filename, stream);
                                     }
                                 }
                             }

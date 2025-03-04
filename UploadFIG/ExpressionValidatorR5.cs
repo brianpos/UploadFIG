@@ -76,13 +76,14 @@ namespace UploadFIG
 		{
 			if (resource is StructureDefinition sd)
 			{
-				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N5_0)
+				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N5_0 && sd.FhirVersion != FHIRVersion.N5_0_0)
 				{
 					Console.WriteLine($"    #---> Error validating StructureDefinition/{sd.Id} ({sd.Url}): {sd.Title}");
 					Console.WriteLine($"        Only FHIR version 5.0 is supported - removed inconsistent version {sd.FhirVersion.GetLiteral()}");
 					sd.FhirVersion = null;
 				}
 			}
+
 			if (packageId == "us.nlm.vsac" && resource is ValueSet vs)
 			{
 				if (vs.Meta?.Profile.Any(p => p == "http://hl7.org/fhir/StructureDefinition/shareablevalueset") == true)
