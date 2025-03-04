@@ -8,7 +8,6 @@ using Hl7.Fhir.Utility;
 using Hl7.FhirPath;
 using Hl7.FhirPath.Expressions;
 using Hl7.FhirPath.Sprache;
-using r4::Hl7.Fhir.StructuredDataCapture;
 using UploadFIG.PackageHelpers;
 
 namespace UploadFIG
@@ -58,6 +57,28 @@ namespace UploadFIG
 			{
 				if (!ValidateInvariants(sd))
 					validationErrors++;
+
+				// Check if there are any types in the differentials that aren't valid for this version of FHIR
+				if (sd.Differential?.Element?.Any() == true)
+				{
+					foreach (var element in sd.Differential.Element)
+					{
+						foreach (var t in element.Type)
+						{
+							CheckElementType(exampleName, ref validationErrors, element, t, "Differential");
+						}
+					}
+				}
+				if (sd.Snapshot?.Element?.Any() == true)
+				{
+					foreach (var element in sd.Snapshot.Element)
+					{
+						foreach (var t in element.Type)
+						{
+							CheckElementType(exampleName, ref validationErrors, element, t, "Snapshot");
+						}
+					}
+				}
 			}
 			return true;
 		}
@@ -140,6 +161,62 @@ namespace UploadFIG
 				Console.WriteLine();
 				return false;
 			}
+			return true;
+		}
+
+		protected void CheckElementType(string exampleName, ref long validationErrors, ElementDefinition element, ElementDefinition.TypeRefComponent t, string sourceElement)
+		{
+			if (!IsValidType(t.Code))
+			{
+				if (!(element.Path.EndsWith(".resource") && _processor.ModelInspector.IsKnownResource(t.Code)))
+				{
+					ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {sourceElement} Element {element.ElementId} has type `{t.Code}` which is not valid in FHIR v{_processor.ModelInspector.FhirVersion}");
+					validationErrors++;
+				}
+			}
+
+			// Check the target profile(s)
+			if (t.TargetProfile?.Any() == true)
+			{
+				// Non versioned should expand?
+				foreach (var tp in t.TargetProfile)
+				{
+					// skip R5 pre-adoption extensions (till that is a resolvable thing)
+					if (!tp.StartsWith("http://hl7.org/fhir/5.0/StructureDefinition/") && _source.FindStructureDefinition(tp) == null)
+					{
+						ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {sourceElement} Element {element.ElementId} has target profile `{tp}` which does not resolve in FHIR v{_processor.ModelInspector.FhirVersion}");
+						validationErrors++;
+					}
+				}
+			}
+
+			// Check type profiles
+			if (t.Profile?.Any() == true)
+			{
+				foreach (var tp in t.Profile)
+				{
+					// skip R5 pre-adoption extensions (till that is a resolvable thing)
+					if (!tp.StartsWith("http://hl7.org/fhir/5.0/StructureDefinition/") && _source.FindStructureDefinition(tp) == null)
+					{
+						ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {sourceElement} Element {element.ElementId} has type profile `{tp}` which does not resolve in FHIR v{_processor.ModelInspector.FhirVersion}");
+						validationErrors++;
+					}
+				}
+			}
+
+		}
+
+		protected bool IsValidType(string code)
+		{
+			if (code == null)
+				return true; // don't warn on missing types.
+
+			if (!this._processor.ModelInspector.IsDataType(code)
+				&& !this._processor.ModelInspector.IsPrimitive(code)
+				&& code != "Resource"
+				&& !code.StartsWith("http://hl7.org/fhirpath/System.")
+				)
+				return false;
 			return true;
 		}
 	}
