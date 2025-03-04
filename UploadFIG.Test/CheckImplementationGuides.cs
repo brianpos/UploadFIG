@@ -177,6 +177,34 @@ namespace UploadFIG.Test
 		}
 
 		[TestMethod]
+		public async Task CheckExtensionsCiR4()
+		{
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4.tgz",
+				"-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4 (3).tgz"
+			});
+			Assert.AreEqual(0, result);
+		}
+
+		[TestMethod]
+		public async Task CheckExtensionsCiR4B()
+		{
+			var result = await Program.Main(new[]
+			{
+				"-t",
+				"-vq",
+				"--includeExamples",
+				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4b.tgz",
+				"-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4b (2).tgz"
+			});
+			Assert.AreEqual(0, result);
+		}
+
+		[TestMethod]
         public async Task CheckExtensionsCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
@@ -327,6 +355,7 @@ namespace UploadFIG.Test
             {
                 "-t",
 				"-vq",
+				"--includeReferencedDependencies",
 				"--includeExamples",
 				"-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
                 "-odf", outputFile,
@@ -497,14 +526,16 @@ namespace UploadFIG.Test
 				"-t",
 				"-vq",
 				"--includeExamples",
+				"--includeReferencedDependencies",
+				"-sn",
 				"-pcv",
 				"-s", "https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz",
                 // "-fd", "false"
-				"-ocb", "c:\\temp\\uploadfig-dump-daviniCRD-bundle.json",
+				"-ocb", @"c:\temp\uploadfig-dump-daviniCRD-bundle.json",
             });
 			Assert.AreEqual(0, result);
 
-			Assert.AreEqual(47, Program.successes);
+			Assert.AreEqual(226, Program.successes);
 			Assert.AreEqual(0, Program.failures);
 			Assert.AreEqual(0, Program.validationErrors);
 		}
