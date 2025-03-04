@@ -319,7 +319,7 @@ namespace UploadFIG
 
 			foreach (var resource in resourcesFromMainPackage)
 			{
-				var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
+				var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
 					expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
@@ -355,29 +355,28 @@ namespace UploadFIG
 			}
 			dependencyResourcesToLoad.RemoveAll(m => dupCanonicals.Contains(m));
 
-
 			if (settings.ValidateReferencedDependencies)
 			{
 				foreach (var resource in dependencyResourcesToLoad)
 				{
-					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
 					var att = (resource as Resource).Annotation<ResourcePackageSource>();
-					if (att != null)
-					{
-						exampleName += $" in {att.PackageId}|{att.PackageVersion}";
-					}
+					string exampleName;
+					if (att.Filename != null)
+						exampleName = $"{att.Filename} in {att.PackageId}|{att.PackageVersion}";
+					else
+						exampleName = $"Registry {resource.TypeName}/{resource.Id}";
 
 					try
 					{
-						expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
-					}
-					catch (Exception ex)
-					{
-						ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-						System.Threading.Interlocked.Increment(ref failures);
-						// DebugDumpOutputXml(resource);
-						errFiles.Add(exampleName);
-					}
+							expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+						}
+						catch (Exception ex)
+						{
+							ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
+							System.Threading.Interlocked.Increment(ref failures);
+							// DebugDumpOutputXml(resource);
+							errFiles.Add(exampleName);
+						}
 				}
 			}
 
@@ -440,7 +439,7 @@ namespace UploadFIG
 				ConsoleEx.WriteLine(ConsoleColor.White, "Validate/upload dependencies:");
 				foreach (var resource in dependencyResourcesToLoad)
 				{
-					var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
+					var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
 					try
 					{
 						if (settings.StripNarratives)
@@ -530,7 +529,7 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.White, "Validate/upload package content:");
 			foreach (var resource in resourcesFromMainPackage)
 			{
-				var exampleName = resource.Annotation<ExampleName>()?.value ?? $"Registry {resource.TypeName}/{resource.Id}";
+				var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
 					if (settings.StripNarratives)
@@ -774,7 +773,7 @@ namespace UploadFIG
 									folderName = $"{sourceDetails.PackageId}|{sourceDetails.PackageVersion}";
 								if (sourceDetails.PackageId == manifest.Name && sourceDetails.PackageVersion == manifest.Version)
 									folderName = "package";
-								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ExampleName>()?.value ?? $"{resource.TypeName}/{resource.Id}";
+								var exampleName = sourceDetails?.Filename ?? resource.Annotation<ResourcePackageSource>()?.Filename ?? $"{resource.TypeName}/{resource.Id}";
 								if (exampleName.StartsWith("package/"))
 									exampleName = exampleName.Substring(8);
 								var entryFilename = $"{folderName}/{exampleName}";
@@ -988,14 +987,6 @@ namespace UploadFIG
 				ConsoleEx.WriteLine(ConsoleColor.White, $"Validate ValueSet complexity (and pre-expand if possible using {settings.ExternalTerminologyServer}):");
 				var valueSets = resourcesToProcess.OfType<ValueSet>();
 				var codeSystems = resourcesToProcess.OfType<CodeSystem>();
-				//foreach(ValueSet vs in valueSets)
-				//{
-				//	if (expressionValidator.InMemoryResolver.ResolveByCanonicalUri(vs.Url) == null)
-				//	{
-				//		expressionValidator.InMemoryResolver.Add(vs, new PackageCacheItem());
-				//	}
-				//}
-
 
 				var expanderSettings = ValueSetExpanderSettings.CreateDefault();
 				expanderSettings.ValueSetSource = expressionValidator.Source;
@@ -1134,11 +1125,6 @@ namespace UploadFIG
 				clientRegistry.Settings.VerifyFhirVersion = false;
 
 				// Check that the resources are available on the external registry
-				PackageCacheItem registryCacheItemFake = new PackageCacheItem()
-				{
-					packageId = "registry",
-					packageVersion = settings.ExternalRegistry,
-				};
 				foreach (var dc in unresolvableCanonicals.ToArray()) // clone the list so that we can trim it down it while processing
 				{
 					try
@@ -1160,12 +1146,18 @@ namespace UploadFIG
 							var resolvedResource = r.Entry.First().Resource;
 							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
 							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
-							resolvedResource.SetAnnotation(registryCacheItemFake);
 							additionalResources.Add(resolvedResource);
 							// UploadFile(settings, clientFhir, resolvedResource);
 							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
 							indirectCanonicals.Add(dc);
 							dc.resource = resolvedResource;
+
+							// Add a fake package source entry (indicating which registry)
+							dc.resource.SetAnnotation(new ResourcePackageSource()
+							{
+								PackageId = "registry",
+								PackageVersion = settings.ExternalRegistry
+							});
 						}
 						if (!r.Entry.Any())
 						{
@@ -1206,12 +1198,18 @@ namespace UploadFIG
 							var resolvedResource = r.Entry.First().Resource;
 							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
 							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
-							resolvedResource.SetAnnotation(registryCacheItemFake);
 							additionalResources.Insert(0, resolvedResource); // put dependencies at the start of the list
 																			 // UploadFile(settings, clientFhir, resolvedResource);
 							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
 							indirectCanonicals.Add(dc);
 							dc.resource = resolvedResource;
+
+							// Add a fake package source entry (indicating which registry)
+							dc.resource.SetAnnotation(new ResourcePackageSource()
+							{
+								PackageId = "registry",
+								PackageVersion = settings.ExternalRegistry
+							});
 						}
 						if (!r.Entry.Any())
 						{
@@ -1447,12 +1445,7 @@ namespace UploadFIG
 			{
 				var resource = details as Resource;
 				Console.Write($"\t{resource.TypeName}\t{details.Url}\t{details.Version}");
-				if (resource?.HasAnnotation<PackageCacheItem>() == true)
-				{
-					var cacheDetails = resource.Annotation<PackageCacheItem>();
-					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-				}
-				else if (resource.HasAnnotation<ResourcePackageSource>() == true)
+				if (resource.HasAnnotation<ResourcePackageSource>() == true)
 				{
 					var sourceDetails = resource.Annotation<ResourcePackageSource>();
 					Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
@@ -1467,12 +1460,7 @@ namespace UploadFIG
 			foreach (var details in list.OrderBy(f => $"{f.canonical}|{f.version}"))
 			{
 				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
-				if (details.resource?.HasAnnotation<PackageCacheItem>() == true)
-				{
-					var cacheDetails = details.resource.Annotation<PackageCacheItem>();
-					Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-				}
-				else if (details.resource?.HasAnnotation<ResourcePackageSource>() == true)
+				if (details.resource?.HasAnnotation<ResourcePackageSource>() == true)
 				{
 					var sourceDetails = details.resource.Annotation<ResourcePackageSource>();
 					Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
@@ -1486,12 +1474,7 @@ namespace UploadFIG
 							Console.Write($"\t\t\t\t\t^- {cr.Url}|{cr.Version}");
 						else
 							Console.Write($"\t\t\t\t\t^- {dr.TypeName}/{dr.Id}");
-						if (dr.HasAnnotation<PackageCacheItem>() == true)
-						{
-							var cacheDetails = dr.Annotation<PackageCacheItem>();
-							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
-						}
-						else if (dr.HasAnnotation<ResourcePackageSource>())
+						if (dr.HasAnnotation<ResourcePackageSource>())
 						{
 							var sourceDetails = dr.Annotation<ResourcePackageSource>();
 							Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
@@ -1620,7 +1603,6 @@ namespace UploadFIG
                             PackageId = pd.packageId,
                             PackageVersion = pd.packageVersion
                         });
-                        resource.SetAnnotation(new ExampleName() { value = exampleName });
 
 						FileDetail indexDetails = pd.Files.FirstOrDefault(f => "package/" + f.filename == exampleName);
 						if (indexDetails == null)
@@ -1717,10 +1699,10 @@ namespace UploadFIG
 					if (current.IsExactly(resource))
 					{
 						Console.Write($"    {original.TypeName}/{original.Id} unchanged {(resource as IVersionableConformanceResource)?.Version}");
-						if (resource.HasAnnotation<PackageCacheItem>() == true)
+						if (resource.HasAnnotation<ResourcePackageSource>() == true)
 						{
-							var cacheDetails = resource.Annotation<PackageCacheItem>();
-							Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+							var sourceDetails = resource.Annotation<ResourcePackageSource>();
+							Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
 						}
 						Console.WriteLine();
 						return original;
@@ -1777,10 +1759,10 @@ namespace UploadFIG
 						if (existingVersion.IsExactly(resource))
 						{
 							Console.Write($"    unchanged\t{existingVersion.TypeName}\t{(resource as IVersionableConformanceResource)?.Url}|{(resource as IVersionableConformanceResource)?.Version}");
-							if (resource.HasAnnotation<PackageCacheItem>() == true)
+							if (resource.HasAnnotation<ResourcePackageSource>() == true)
 							{
-								var cacheDetails = resource.Annotation<PackageCacheItem>();
-								Console.Write($"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+								var sourceDetails = resource.Annotation<ResourcePackageSource>();
+								Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
 							}
 							if (!string.IsNullOrEmpty(warningMessage))
 							{
@@ -1815,10 +1797,10 @@ namespace UploadFIG
 				ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
 			else
 				ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
-			if (resource.HasAnnotation<PackageCacheItem>() == true)
+			if (resource.HasAnnotation<ResourcePackageSource>() == true)
 			{
-				var cacheDetails = resource.Annotation<PackageCacheItem>();
-				ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({cacheDetails.packageId}|{cacheDetails.packageVersion})");
+				var sourceDetails = resource.Annotation<ResourcePackageSource>();
+				ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
 			}
 			if (!string.IsNullOrEmpty(warningMessage))
 			{
