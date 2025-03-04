@@ -894,7 +894,7 @@ namespace UploadFIG
 							Console.WriteLine($"    Detected {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion}");
 
 						if (f.hasDuplicateDefinitions)
-							Console.WriteLine($"    Detected multiple versions of {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion} ({String.Join(", ", files.Where(f2 => f2.url ))})");
+							Console.WriteLine($"    Detected multiple versions of {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion} ({String.Join(", ", files.Where(f2 => f2.url == f.url ).Select(f2 => f2.filename))})");
 						try
 						{
 							Resource resource = null;
