@@ -419,6 +419,9 @@ namespace UploadFIG
 			// Extensions that just aren't required for general production server usage, and adversely impact the dependency list artificially
 			"http://hl7.org/fhir/StructureDefinition/ActorDefinition",
 			"http://hl7.org/fhir/StructureDefinition/structuredefinition-conformance-derivedFrom",
+
+			// Known VSAC invalid canonical that's in lots of their older packages
+			"vsacOpModifier",
 		});
 
         private void CheckRequiresCanonical(Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals, Action<string> patchVersionedCanonical = null)
