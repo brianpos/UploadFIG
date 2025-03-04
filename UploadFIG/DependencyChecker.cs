@@ -23,6 +23,13 @@ namespace UploadFIG
 		ModelInspector _inspector;
 		FHIRVersion _fhirVersion;
 		TempPackageCache _packageCache;
+
+		/// <summary>
+		/// Cache of loaded resource instances, indexed by packageId|packageVersion|filename
+		/// Used to prevent re-reading the same instance multiple times.
+		/// </summary>
+		Dictionary<string, Resource> _cacheResources = new Dictionary<string, Resource>();
+
 		public DependencyChecker(Settings settings, FHIRVersion fhirVersion, ModelInspector inspector, TempPackageCache packageCache)
 		{
 			_settings = settings;
@@ -829,6 +836,25 @@ namespace UploadFIG
 			}
 		}
 
+		private static Resource parsePackageContentStream(Common_Processor versionAgnosticProcessor, Stream stream, string filename)
+		{
+			if (filename.EndsWith(".xml"))
+			{
+				using (var xr = SerializationUtil.XmlReaderFromStream(stream))
+				{
+					return versionAgnosticProcessor.ParseXml(xr);
+				}
+			}
+			else if (filename.EndsWith(".json"))
+			{
+				using (var jr = SerializationUtil.JsonReaderFromStream(stream))
+				{
+					return versionAgnosticProcessor.ParseJson(jr);
+				}
+			}
+			return null;
+		}
+
 		private void LoadCanonicalResource(PackageDetails pd, IEnumerable<CanonicalDetails> canonicals, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
 			// Tag items that were already loaded due to another parent package
@@ -866,21 +892,21 @@ namespace UploadFIG
 
 						if (_settings.Verbose)
 							Console.WriteLine($"    Detected {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion}");
-						var data = PackageReader.ReadResourceContent(stream, f.filename);
-						Resource resource = null;
+
+						if (f.hasDuplicateDefinitions)
+							Console.WriteLine($"    Detected multiple versions of {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion} ({String.Join(", ", files.Where(f2 => f2.url ))})");
 						try
 						{
-							if (f.filename.EndsWith(".xml"))
+							Resource resource = null;
+							var resourceKey = $"{pd.packageId}|{pd.packageVersion}|{f.filename}";
+							if (!_cacheResources.TryGetValue(resourceKey, out resource))
 							{
-								resource = versionAgnosticProcessor.ParseXml(data);
-								f.resource = resource;
+								resource = PackageReader.ReadResourceContent(stream, f.filename,
+									(stream, filename) => parsePackageContentStream(versionAgnosticProcessor, filename, stream));
+								_cacheResources.Add(resourceKey, resource);
 							}
-							else if (f.filename.EndsWith(".json"))
-							{
-								resource = versionAgnosticProcessor.ParseJson(data);
-								f.resource = resource;
-							}
-							else
+							f.resource = resource;
+							if (resource == null)
 							{
 								// Not a file that we can process
 								// (What about fml/map files?)
@@ -1005,79 +1031,70 @@ namespace UploadFIG
 					yield return resource;
 			}
 
-			// Is there a resource that is already included?
-			foreach (var resource in pd.resources.Where(r => r is IVersionableConformanceResource ivr && ivr.Url == canonicalUrl.canonical &&
-											(string.IsNullOrEmpty(canonicalUrl.version) || canonicalUrl.version == ivr.Version)))
+			FileDetail detail = null;
+			if (!string.IsNullOrEmpty(canonicalUrl.version))
 			{
-				if (resource is IVersionableConformanceResource ivr)
-				{
-					yield return ivr;
-				}
+				// Check for the versioned canonical
+				pd.CanonicalFiles.TryGetValue(canonicalUrl.canonical + "|" + canonicalUrl.version, out detail);
 			}
 
-			// See if the file wasn't already loaded
-			var files = pd.Files.Where(f => canonicalUrl.canonical == f.url
-																&& (f.version == canonicalUrl.version || string.IsNullOrEmpty(canonicalUrl.version))
-																&& !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id)
-															).ToList();
-			if (files.Any())
+			if (detail == null)
 			{
-				// grab it!
+				// Check for the un-versioned canonical
+				pd.CanonicalFiles.TryGetValue(canonicalUrl.canonical, out detail);
+			}
+
+			if (detail == null || detail.detectedInvalidContent)
+				yield break;
+
+			if (detail.resource == null)
+			{
+				// we need to load it in.
 				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion, out var leaveOpen);
 				if (stream == null)
 				{
 					// No package to retrieve from...
 					yield break;
 				}
+
 				try
 				{
-					foreach (var f in files)
+					if (_settings.Verbose)
+						Console.WriteLine($"    Detected {detail.url}|{detail.version} in {pd.packageId}|{pd.packageVersion}");
+					Resource resource = null;
+					try
 					{
-						// If the content was already discovered as invalid, no need to try again.
-						if (f.detectedInvalidContent)
-							continue;
-
-						if (_settings.Verbose)
-							Console.WriteLine($"    Detected {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion}");
-						var data = PackageReader.ReadResourceContent(stream, f.filename);
-						Resource resource = null;
-						try
+						var resourceKey = $"{pd.packageId}|{pd.packageVersion}|{detail.filename}";
+						if (!_cacheResources.TryGetValue(resourceKey, out resource))
 						{
-							if (f.filename.EndsWith(".xml"))
-							{
-								resource = versionAgnosticProcessor.ParseXml(data);
-								f.resource = resource;
-							}
-							else if (f.filename.EndsWith(".json"))
-							{
-								resource = versionAgnosticProcessor.ParseJson(data);
-								f.resource = resource;
-							}
-							else
-							{
-								// Not a file that we can process
-								// (What about fml/map files?)
-								continue;
-							}
-							resource.SetAnnotation(new ExampleName() { value = f.filename });
-							resource.SetAnnotation(new ResourcePackageSource()
-							{
-								Filename = f.filename,
-								PackageId = pd.packageId,
-								PackageVersion = pd.packageVersion
-							});
+							resource = PackageReader.ReadResourceContent(stream, detail.filename,
+								(stream, filename) => parsePackageContentStream(versionAgnosticProcessor, filename, stream));
+							_cacheResources.Add(resourceKey, resource);
 						}
-						catch (Exception ex)
+						detail.resource = resource;
+						if (resource == null)
 						{
-							Console.Error.WriteLine($"ERROR: ({f.filename}) {ex.Message}");
-							//System.Threading.Interlocked.Increment(ref failures);
-							//if (!errs.Contains(ex.Message))
-							//	errs.Add(ex.Message);
-							errFiles.Add(f.filename);
-							f.detectedInvalidContent = true;
-							continue;
+							// Not a file that we can process
+							// (What about fml/map files?)
+							yield break;
 						}
-						yield return resource as IVersionableConformanceResource;
+						resource.SetAnnotation(new ExampleName() { value = detail.filename });
+						resource.SetAnnotation(new ResourcePackageSource()
+						{
+							Filename = detail.filename,
+							PackageId = pd.packageId,
+							PackageVersion = pd.packageVersion
+						});
+					}
+					catch (Exception ex)
+					{
+						Console.Error.WriteLine($"ERROR: ({detail.filename}) {ex.Message}");
+						//System.Threading.Interlocked.Increment(ref failures);
+						//if (!errs.Contains(ex.Message))
+						//	errs.Add(ex.Message);
+						errFiles.Add(detail.filename);
+						detail.detectedInvalidContent = true;
+						yield break;
 					}
 				}
 				finally
@@ -1086,6 +1103,9 @@ namespace UploadFIG
 						stream.Dispose();
 				}
 			}
+
+			if (detail.resource is IVersionableConformanceResource ivr)
+				yield return ivr;
 		}
 
 
