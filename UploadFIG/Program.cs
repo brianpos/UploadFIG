@@ -83,6 +83,7 @@ namespace UploadFIG
                 new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
                 new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
+                new Option<List<string>>(new string[]{ "-ip", "--ignorePackages" }, () => settings.IgnorePackages, "While loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0" ),
                 destinationServerOption,
                 new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
@@ -240,7 +241,7 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.White, "Package dependencies:");
 			var packageCache = new TempPackageCache();
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
-			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache);
+			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache, settings.IgnorePackages);
 			var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)

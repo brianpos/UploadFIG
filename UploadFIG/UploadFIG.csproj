@@ -43,10 +43,10 @@
     <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.11.3" GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Hl7.Fhir.Specification.Data.R5" Version="5.11.3" GeneratePathProperty="true" ExcludeAssets="all" />
 
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
     <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta4.22272.1" />
   </ItemGroup>
 

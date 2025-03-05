@@ -58,6 +58,8 @@ Options:
                                                              package
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
                                                              processing the package and resource dependencies
+  -ip, --ignorePackages <packageId|ver>                      While loading in dependencies, ignore these versioned packages. 
+                                                             e.g. us.nlm.vsac|0.18.0
   -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
   -dh, --destinationServerHeaders <destinationServerHeaders> Headers to add to the request to the destination FHIR Server
                                                              e.g. `Authentication: Bearer xxxxxxxxxxx`
@@ -445,6 +447,19 @@ Then use curl to upload the bundle to the server (and report the results to the 
 > Other resources will just POST the resource to create a new instance.
 > And updates all records, not just ones that are changed.
 
+### Deploy the CRD IG with only US-Core 6.1.0 (not 7.0.0 or 3.1.1) into a bundle
+And version pin all the canonical references (including the dependencies) to the specific version of the US-Core IG,
+using the `-pcv` Patch Canonical Versions flag
+
+``` cmd
+# download the CI build CRD IG package, extract all the resources into a batch bundle and write it to the file `bundle.json`
+> UploadFIG -t -s https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz
+            --includeReferencedDependencies
+            -ip hl7.fhir.us.core|7.0.0 -ip hl7.fhir.us.core|3.1.1
+            -pcv
+            -of bundle.json
+```
+
 ---
 
 ## Change history
@@ -463,6 +478,9 @@ This has been a big release with lots of changes, mostly arround processing depe
   *This is useful if the target server regenerates its own snapshots on submission.*
 * The processing of package dependencies now more accurately reflects the actual resources that are required by the package,
   and canonical versioning considers the actual version of the resource that is required by the package based on context.
+* Added `-ip` or `--ignorePackages` flag to ignore specific versioned packages when processing dependencies
+  *This is really useful if wanting to exclude specific versions of a package where multiple are available*
+  *e.g. only use us-core 6.1.0, and not 7.0.0 or 3.1.1*
 
 ### 21 January 2025
 * Add support to reference an external terminology server to create expansions for ValueSets that are not in the external registry `-ets`, `-etsh`

@@ -68,10 +68,15 @@ namespace UploadFIG
 		public List<string> IgnoreCanonicals { get; set; }
 
         /// <summary>
-        /// The URL of the FHIR Server to upload the package contents to
+        /// while loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0
         /// </summary>
-        /// <remarks>If the TestPackageOnly is used, this is optional</remarks>
-        public string DestinationServerAddress { get; set; }
+        public List<string> IgnorePackages { get; set; }
+
+		/// <summary>
+		/// The URL of the FHIR Server to upload the package contents to
+		/// </summary>
+		/// <remarks>If the TestPackageOnly is used, this is optional</remarks>
+		public string DestinationServerAddress { get; set; }
 
         /// <summary>
         /// Headers to add to the request to the destination FHIR Server

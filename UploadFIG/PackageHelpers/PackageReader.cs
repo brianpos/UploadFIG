@@ -87,7 +87,7 @@ namespace UploadFIG
 
         static Regex _matches = new Regex("^hl7\\.fhir\\.r\\d+[A-Za-z]?\\.(core|expansions|examples|search|elements|corexml)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        public static PackageDetails ReadPackageIndexDetails(Stream sourceStream, TempPackageCache cache, string logTabPrefix = "")
+        public static PackageDetails ReadPackageIndexDetails(Stream sourceStream, TempPackageCache cache, List<string> ignorePackages, string logTabPrefix = "")
         {
             var manifest = ReadManifest(sourceStream);
             var index = ReadPackageIndex(sourceStream);
@@ -131,13 +131,18 @@ namespace UploadFIG
                     if (_matches.IsMatch(dependent.Key))
                         continue;
 
+                    // Skip Ignored packages
+                    var versionedPackageId = $"{dependent.Key}|{dependent.Value}";
+                    if (ignorePackages != null && ignorePackages.Contains(versionedPackageId))
+                        continue;
+
                     // Grab the dependent package
                     var packageStream = cache.GetPackageStream(dependent.Key, dependent.Value, out var leaveOpen);
                     if (packageStream != null)
                     {
                         try
                         {
-                            var dependentDetails = ReadPackageIndexDetails(packageStream, cache, logTabPrefix + "    ");
+                            var dependentDetails = ReadPackageIndexDetails(packageStream, cache, ignorePackages, logTabPrefix + "    ");
                             result.dependencies.Add(dependentDetails);
                         }
 						finally
