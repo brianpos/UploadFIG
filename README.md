@@ -429,7 +429,7 @@ Done!
 
 ## Change history
 
-### 21 January 2024
+### 21 January 2025
 * Add support to reference an external terminology server to create expansions for ValueSets that are not in the external registry `-ets`, `-etsh`
 * New option to output content to a file instead of uploading to a server `-of`
 
