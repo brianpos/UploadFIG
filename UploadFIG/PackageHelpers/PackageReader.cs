@@ -134,7 +134,10 @@ namespace UploadFIG
                     // Skip Ignored packages
                     var versionedPackageId = $"{dependent.Key}|{dependent.Value}";
                     if (ignorePackages != null && ignorePackages.Contains(versionedPackageId))
+                    {
+                        ConsoleEx.WriteLine(ConsoleColor.Yellow, $"{logTabPrefix}    {versionedPackageId} - Skipping");
                         continue;
+                    }
 
                     // Grab the dependent package
                     var packageStream = cache.GetPackageStream(dependent.Key, dependent.Value, out var leaveOpen);
