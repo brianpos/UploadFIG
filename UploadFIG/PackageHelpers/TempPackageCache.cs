@@ -73,13 +73,13 @@ namespace UploadFIG
 				var examplesPkg = pc.GetPackage(new PackageReference(packageId, null)).WaitResult();
 				string contents = Encoding.UTF8.GetString(examplesPkg);
 				var pl = JsonConvert.DeserializeObject<PackageListing>(contents);
-				Console.WriteLine($"Package ID: {pl?.Name}");
-				Console.WriteLine($"Package Title: {pl?.Description}");
-				Console.WriteLine($"All Versions: {String.Join(", ", pl.Versions.Keys)}");
+				// Console.WriteLine($"Package ID: {pl?.Name}");
+				// Console.WriteLine($"Package Title: {pl?.Description}");
+				// Console.WriteLine($"All Versions: {String.Join(", ", pl.Versions.Keys)}");
 
 				// Recheck the range order here (highly likely upside down now)
 				var validVersions = pl.Versions.Keys.Select(v => SemanticVersioning.Version.Parse(v, true)).Where(sv => range.IsSatisfied(sv)).OrderDescending();
-				Console.WriteLine($"Valid Versions: {String.Join(", ", validVersions.Select(v => v.ToString()))}");
+				// Console.WriteLine($"Valid Versions: {String.Join(", ", validVersions.Select(v => v.ToString()))}");
 
 				if (validVersions.Any())
 				{
