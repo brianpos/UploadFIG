@@ -430,6 +430,22 @@ Destination server canonical resource dependency verification:
 Done!
 ```
 
+### Deploy an IG using a transaction bundle and curl
+If you want to deploy the IG using a transaction bundle, you can use the `-of` flag to write the bundle to a file
+and then use curl to upload the bundle to the server.
+``` cmd
+# download the HL7 Australia au-base IG package, extract all the resources into a 
+# transaction bundle and write it to the file `transaction-bundle.json`
+> UploadFIG -t -pid hl7.fhir.au.base -ocb transaction-bundle.json
+```
+Then use curl to upload the bundle to the server (and report the results to the file `result.json`)
+``` cmd
+> curl -X POST -H "Content-Type: application/fhir+json" --data @transaction-bundle.json https://localhost:44391/ -o result.json
+```
+> **Note:** that this transaction bundle uses conditional updates to select the ID of the resource to update for canonical resources.
+> Other resources will just POST the resource to create a new instance.
+> And updates all records, not just ones that are changed.
+
 ---
 
 ## Change history

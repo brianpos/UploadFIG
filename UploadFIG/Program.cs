@@ -82,7 +82,7 @@ namespace UploadFIG
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
                 new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
-                new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing resource dependencies"),
+                new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
                 destinationServerOption,
                 new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
@@ -105,10 +105,10 @@ namespace UploadFIG
                 new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
                 new Option<string>(new string[] { "-reg", "--externalRegistry" }, () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
                 new Option<List<string>>(new string[] { "-regh", "--externalRegistryHeaders" }, () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
+                new Option<string>(new string[] { "-rego", "--externalRegistryExportFile" }, () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
                 new Option<string>(new string[] { "-ets", "--externalTerminologyServer" }, () => settings.ExternalTerminologyServer, "The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)"),
                 new Option<List<string>>(new string[] { "-etsh", "--externalTerminologyServerHeaders" }, () => settings.ExternalTerminologyServerHeaders, "Additional headers to supply when connecting to the external FHIR terminology server"),
                 new Option<long?>(new string [] { "-mes", "--maxExpansionSize" }, () => settings.MaxExpansionSize, "The maximum number of codes to include in a ValueSet expansion"),
-                new Option<string>(new string[] { "-rego", "--externalRegistryExportFile" }, () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
             };
 
             // Include the conditional validation rules to check that there is a source for the package to load from
