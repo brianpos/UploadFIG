@@ -161,14 +161,9 @@ namespace UploadFIG
 		public bool ValidateReferencedDependencies { get; set; }
 
 		/// <summary>
-		/// The filename to write a json transaction bundle to write all of the resources to (could be used in place of directly deploying the IG)
+		/// The filename to write a json batch bundle to write all of the resources to (could be used in place of directly deploying the IG)
 		/// </summary>
-		public string OutputTransactionBundle { get; set; }
-
-		/// <summary>
-		/// The filename to write a json collection bundle to write all of the resources to (could be used in place of directly deploying the IG)
-		/// </summary>
-		public string OutputCollectionBundle { get; set; }
+		public string OutputBundle { get; set; }
 
 		/// <summary>
 		/// The filename of a file to write the discovered dependencies of this IG to

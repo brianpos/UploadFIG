@@ -100,8 +100,7 @@ namespace UploadFIG
 				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
-                new Option<string>(new string[] { "-otb", "--outputTransactionBundle" }, () => settings.OutputTransactionBundle, "The filename to write a json transaction bundle to write all of the resources to (could be used in place of directly deploying the IG)"),
-                new Option<string>(new string[] { "-ocb", "--outputCollectionBundle" }, () => settings.OutputCollectionBundle, "The filename to write a json collection bundle to write all of the resources to (could be used in place of directly deploying the IG)"),
+                new Option<string>(new string[] { "-of", "--outputBundle" }, () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
                 new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
                 new Option<string>(new string[] { "-reg", "--externalRegistry" }, () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
                 new Option<List<string>>(new string[] { "-regh", "--externalRegistryHeaders" }, () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
@@ -126,10 +125,6 @@ namespace UploadFIG
                 conditionalRequiredParams2.AddRange(testPackageOnlyOption.Aliases);
                 if (!args.Any(a => conditionalRequiredParams2.Contains(a)))
                     result.ErrorMessage = "The destinationServerAddress and testPackageOnly are both missing, please provide one or the other to indicate if just testing, or uploading to a server";
-
-                // And another check to ensure that both the output bundle options are used, only 1 is permitted
-                if (!string.IsNullOrEmpty(settings.OutputTransactionBundle) && !string.IsNullOrEmpty(settings.OutputCollectionBundle))
-                    result.ErrorMessage = "Only one of the outputTransactionBundle or outputCollectionBundle options can be used at a time";
             });
 
             rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
@@ -152,19 +147,7 @@ namespace UploadFIG
 			OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
-			Bundle alternativeOutputBundle;
-			if (!string.IsNullOrEmpty(settings.OutputTransactionBundle))
-			{
-				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Transaction };
-			}
-			else if (!string.IsNullOrEmpty(settings.OutputCollectionBundle))
-			{
-				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Batch };
-			}
-			else
-			{
-				alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Collection };
-			}
+			Bundle alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Batch };
 
 			// Validate specific headers being applied for common errors
 			if (settings.DestinationServerHeaders?.Any() == true)
@@ -731,7 +714,7 @@ namespace UploadFIG
 
 		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
 		{
-			var filename = settings.OutputTransactionBundle ?? settings.OutputCollectionBundle;
+			var filename = settings.OutputBundle;
 			if (!string.IsNullOrEmpty(filename))
 			{
 				// Secret package output processor if the filename ends with .tgz

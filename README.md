@@ -103,10 +103,9 @@ Options:
   --verbose                                                  Provide verbose diagnostic output while processing
                                                              (e.g. Filenames processed)
                                                              [default: False]
-  -otb, --outputTransactionBundle <filename>                 The filename to write a json transaction bundle to write all of the resources to (could be used in place of directly deploying the IG)
-  -ocb, --outputCollectionBundle <filename>                  The filename to write a json collection bundle to write all of the resources to (could be used in place of directly deploying the IG)
+  -of, --outputBundle <filename>                             The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)
   -odf, --outputDependenciesFile <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
-  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server []
+  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server
   -regh, --externalRegistryHeaders <headers>                 Additional headers to supply when connecting to the external FHIR server
   -rego, --externalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources
   -ets, --externalTerminologyServer <URL>                    The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)
@@ -117,7 +116,7 @@ Options:
   -?, -h, --help                                             Show help and usage information
 ```
 
-> **Note:** The `-otb` and `-ocb` flag has some limitations, and is not a full replacement for the direct deployment of the IG to the server.
+> **Note:** The `-of` flag has some limitations, and is not a full replacement for the direct deployment of the IG to the server.
 > It is not able to cleanly handle the conditional updates that are required for canonical resources, and may not be able to update the server with the correct resource ID.
 > The actual update process to a server compares the content with what is already deployed, and only updates the content if it has changed.
 > Along with safely managing the resources IDs and canonical Versions. Without knowing what is already on the server, this is not possible to correctly manage.
@@ -430,13 +429,13 @@ Destination server canonical resource dependency verification:
 Done!
 ```
 
-### Deploy an IG using a transaction bundle and curl
+### Deploy an IG using a batch bundle and curl
 If you want to deploy the IG using a transaction bundle, you can use the `-of` flag to write the bundle to a file
 and then use curl to upload the bundle to the server.
 ``` cmd
 # download the HL7 Australia au-base IG package, extract all the resources into a 
 # transaction bundle and write it to the file `transaction-bundle.json`
-> UploadFIG -t -pid hl7.fhir.au.base -ocb transaction-bundle.json
+> UploadFIG -t -pid hl7.fhir.au.base -of transaction-bundle.json
 ```
 Then use curl to upload the bundle to the server (and report the results to the file `result.json`)
 ``` cmd
@@ -459,8 +458,7 @@ This has been a big release with lots of changes, mostly arround processing depe
 * Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions
 * Added `-pcv` or `--patchCanonicalVersions` flag to patch canonical URL references to be version specific where they resolve within the package or its dependencies
 * Added `-mes` or `--maxExpansionSize` flag to set the maximum number of codes to include in a ValueSet expansion
-* Added `-ocb` or `--outputCollectionBundle` flag to write a json collection bundle to write all of the resources to
-* Added `-otb` or `--outputTransactionBundle` flag to write a json transaction bundle to write all of the resources to
+* Added `-of` or `--outputBundle` filename to write a json batch bundle containing all of the processed resources
 * Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions, this is different to `-rs` which regenerates them.
   *This is useful if the target server regenerates its own snapshots on submission.*
 * The processing of package dependencies now more accurately reflects the actual resources that are required by the package,
