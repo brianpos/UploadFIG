@@ -27,7 +27,7 @@ namespace UploadFIG
 			base.PreValidation(pd, depChecker, verboseMode, errFiles);
 			_searchParameters = depChecker.AllResources(pd).OfType<SearchParameter>().ToList();
 			CommonZipSource zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
-			_inMemoryResolver = new InMemoryResolver(pd, depChecker, _processor, errFiles);
+			_inMemoryResolver = new InMemoryResolver(pd, depChecker, _processor, errFiles, verboseMode);
 			_source = new CachedResolver(
 							new MultiResolver(
 								zipSource,

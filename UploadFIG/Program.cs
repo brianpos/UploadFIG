@@ -298,7 +298,7 @@ namespace UploadFIG
 				if (useResource != null)
 				{
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
-					if (distinctVersionSources.Count() > 1)
+					if (distinctVersionSources.Count() > 1 && settings.Verbose)
 					{
 						Console.Write($"    Resolved {canonicalUrl.canonical}|{canonicalUrl.version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));

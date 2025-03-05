@@ -821,7 +821,7 @@ namespace UploadFIG
 				if (useResource != null)
 				{
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
-					if (distinctVersionSources.Count() > 1)
+					if (distinctVersionSources.Count() > 1 && _settings.Verbose)
 					{
 						Console.Write($"    Resolved {canonical.canonical}|{canonical.version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
@@ -943,7 +943,7 @@ namespace UploadFIG
 											if (useResource != null)
 											{
 												var distinctVersionSources = options.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
-												if (distinctVersionSources.Count() > 1)
+												if (distinctVersionSources.Count() > 1 && _settings.Verbose)
 												{
 													Console.Write($"    Resolved {can.canonical}|{can.version} with ");
 													ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));

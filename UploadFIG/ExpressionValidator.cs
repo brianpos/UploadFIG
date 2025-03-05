@@ -223,18 +223,20 @@ namespace UploadFIG
 
 	internal class InMemoryResolver : IResourceResolver
 	{
-		internal InMemoryResolver(PackageDetails pd, DependencyChecker depChecker, Common_Processor versionAgnosticProcessor, List<String> errFiles)
+		internal InMemoryResolver(PackageDetails pd, DependencyChecker depChecker, Common_Processor versionAgnosticProcessor, List<String> errFiles, bool verbose)
 		{
 			_pd = pd;
 			_depChecker = depChecker;
 			_processor = versionAgnosticProcessor;
 			_errFiles = errFiles;
+			_verbose = verbose;
 		}
 		PackageDetails _pd;
 		DependencyChecker _depChecker;
 		Resource _resource;
 		Common_Processor _processor;
 		List<String> _errFiles;
+		bool _verbose;
 
 		public void ProcessingResource(Resource resource)
 		{
@@ -257,7 +259,7 @@ namespace UploadFIG
 			if (useResource != null)
 			{
 				var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
-				if (distinctVersionSources.Count() > 1)
+				if (distinctVersionSources.Count() > 1 && _verbose)
 				{
 					Console.Write($"    Resolved {cd.canonical}|{cd.version} with ");
 					ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
