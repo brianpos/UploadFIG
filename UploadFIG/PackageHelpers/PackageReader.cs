@@ -160,6 +160,39 @@ namespace UploadFIG
             return result;
         }
 
+        public static void ReadAdditionalPackageIndexDetails(PackageDetails pd, List<string> additionalPackages, TempPackageCache cache, List<string> ignorePackages)
+        {
+            if (pd == null || additionalPackages == null || additionalPackages.Count == 0)
+                return;
+
+            foreach (var packageIdAndVersion in additionalPackages)
+            {
+                var parts = packageIdAndVersion.Split('|');
+                if (parts.Length != 2)
+                {
+                    ConsoleEx.WriteLine(ConsoleColor.Red, $"Invalid packageId|version: {packageIdAndVersion}");
+                    continue;
+                }
+
+                // Grab the dependent package
+                var packageStream = cache.GetPackageStream(parts[0], parts[1], out var leaveOpen);
+                if (packageStream != null)
+                {
+                    try
+                    {
+                        var dependentDetails = ReadPackageIndexDetails(packageStream, cache, null, "    ");
+                        pd.dependencies.Add(dependentDetails);
+                    }
+                    finally
+                    {
+                        if (!leaveOpen)
+                            packageStream.Dispose();
+                    }
+                }
+            }
+            GC.Collect();
+        }
+
         public static Resource ReadResourceContent(Stream sourceStream, string filename, Func<string, Stream, Resource> parse)
         {
             if (sourceStream.Position != 0)

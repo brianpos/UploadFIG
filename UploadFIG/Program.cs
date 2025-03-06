@@ -81,6 +81,7 @@ namespace UploadFIG
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
                 new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
+                new Option<List<string>>(new string[]{ "-ap", "--additionalPackages"}, () => settings.AdditionalPackages, "Set of additional packages to include in the processing\r\nThese will be processes as though they are dependencies of the root package"),
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
                 new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
                 new Option<List<string>>(new string[]{ "-ip", "--ignorePackages" }, () => settings.IgnorePackages, "While loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0" ),
@@ -242,7 +243,8 @@ namespace UploadFIG
 			var packageCache = new TempPackageCache();
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
 			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache, settings.IgnorePackages);
-			var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
+            PackageReader.ReadAdditionalPackageIndexDetails(pd, settings.AdditionalPackages, packageCache, settings.IgnorePackages);
+            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
