@@ -465,7 +465,7 @@ using the `-pcv` Patch Canonical Versions flag
 ## Change history
 
 ### 5 February 2025
-This has been a big release with lots of changes, mostly arround processing dependencies
+This has been a big release with lots of changes, mostly around processing dependencies
 
 * References both fhir package registries to resolve dependencies (https://packages.simplifier.net and https://packages2.fhir.org/packages)
 * Added `Library` to the default resource types to process
