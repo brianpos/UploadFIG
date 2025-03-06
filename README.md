@@ -42,26 +42,28 @@ Usage:
 Options:
   -s, --sourcePackagePath <sourcePackagePath>                The explicit path of a package to process (over-rides
                                                              PackageId/Version)
+  -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
+                                                             Registry)
   -fd, --forceDownload                                       Force the download of the package from the source package path
                                                              (If not specified, will use the last downloaded package)
                                                              [default: True]
-  -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
-                                                             Registry)
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
                                                              Registry)
   -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
                                                              [default: StructureDefinition|ValueSet|CodeSystem|Questionnaire
-                                                             |SearchParameter|Library|ConceptMap|StructureMap]
+                                                             |SearchParameter|ConceptMap|StructureMap|Library]
   -sf, --selectFiles <selectFiles>                           Only process these selected files
-                                                             e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json
+                                                             (e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)
   -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
                                                              package
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
-                                                             processing the package
+                                                             processing the package and resource dependencies
+  -ip, --ignorePackages <packageId|ver>                      While loading in dependencies, ignore these versioned packages. 
+                                                             e.g. us.nlm.vsac|0.18.0
   -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
   -dh, --destinationServerHeaders <destinationServerHeaders> Headers to add to the request to the destination FHIR Server
                                                              e.g. `Authentication: Bearer xxxxxxxxxxx`
-  -df, --destinationFormat                                   The format to upload to the destination server
+  -df, --destinationFormat <json|xml>                        The format to upload to the destination server
                                                              [default: xml]
   -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
                                                              Does not require a DestinationServerAddress, will not try to connect
@@ -83,24 +85,31 @@ Options:
   -cn, --checkAndCleanNarratives                             Check and clean any narratives in the package and remove suspect ones
                                                              (based on the MS FHIR Server's rules)
                                                              [default: False]
-  -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the
-                                                             FHIR Server, but do not update any of the contents of the FHIR Server
+  -sn, --stripNarratives                                     Strip all narratives from the resources in the package
+                                                             [default: False]
+  -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the FHIR Server,
+                                                             but do not update any of the contents of the FHIR Server
                                                              [default: False]
   -gs, --generateSnapshots                                   Generate the snapshots for any missing snapshots in StructureDefinitions
                                                              [default: False]
   -rs, --regenerateSnapshots                                 Re-Generate all snapshots in StructureDefinitions
                                                              [default: False]
+  -rms, --removeSnapshots                                    Remove all snapshots in StructureDefinitions
+                                                             [default: False]
+  -pcv, --patchCanonicalVersions                             Patch canonical URL references to be version specific where they resolve within the package [default: False]
   --includeReferencedDependencies                            Upload any referenced resources from resource dependencies being included
                                                              [default: False]
   --includeExamples                                          Also include files in the examples sub-directory
                                                              (Still needs resource type specified)
+                                                             [default: False]
   --verbose                                                  Provide verbose diagnostic output while processing
                                                              (e.g. Filenames processed)
                                                              [default: False]
-  -odf, --outputDependenciesFule <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
-  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server []
+  -of, --outputBundle <filename>                             The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)
+  -odf, --outputDependenciesFile <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
+  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server
   -regh, --externalRegistryHeaders <headers>                 Additional headers to supply when connecting to the external FHIR server
-  -rego, --ExternalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources to
+  -rego, --externalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources
   -ets, --externalTerminologyServer <URL>                    The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)
   -etsh, --externalTerminologyServerHeaders <headers>        Additional headers to supply when connecting to the external FHIR terminology server
   -mes, --maxExpansionSize <number>                          The maximum number of codes to include in a ValueSet expansion
@@ -108,6 +117,11 @@ Options:
   --version                                                  Show version information
   -?, -h, --help                                             Show help and usage information
 ```
+
+> **Note:** The `-of` flag has some limitations, and is not a full replacement for the direct deployment of the IG to the server.
+> It is not able to cleanly handle the conditional updates that are required for canonical resources, and may not be able to update the server with the correct resource ID.
+> The actual update process to a server compares the content with what is already deployed, and only updates the content if it has changed.
+> Along with safely managing the resources IDs and canonical Versions. Without knowing what is already on the server, this is not possible to correctly manage.
 
 ## Installation
 As a dotnet tool installation is done through the commandline which will download the latest version from nuget.org
@@ -186,11 +200,11 @@ Scanning dependencies:
 Scanning indirect dependencies:
 
 Unable to resolve these canonical resources: 2
-	Resource Type	Canonical Url	Version	Package Source
-	CodeSystem	http://hl7.org/fhir/fhir-types	
-					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
-	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
-					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
+    Resource Type	Canonical Url	Version	Package Source
+    CodeSystem	http://hl7.org/fhir/fhir-types	
+                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
+    CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
 ```
 In verbose mode the utility will also report out the list of required resources in the package dependencies, along with the resource
 that required them to be included - very useful for tracing out why resources were included.
@@ -242,40 +256,40 @@ and another section for indirectly required canonical resources.
 ``` txt
 --------------------------------------
 Requires the following non-core canonical resources: 20
-	Resource Type	Canonical Url	Version	Package Source
-	ValueSet	http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.114222.4.11.3591		(us.nlm.vsac|0.11.0)
-	StructureDefinition	http://hl7.org/fhir/5.0/StructureDefinition/extension-CommunicationRequest.payload.content[x]	
-	CodeSystem	http://hl7.org/fhir/fhir-types	
-	StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/elementdefinition-json-name	
-	StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/json-primitive-choice	
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-location		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-medication		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitionerrole		(hl7.fhir.us.core|3.1.1)
-	ValueSet	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes		(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-task		(hl7.fhir.uv.sdc|3.0.0)
-	CodeSystem	http://loinc.org		(hl7.terminology.r4|5.3.0)
-	CodeSystem	http://www.ama-assn.org/go/cpt		(hl7.terminology.r4|5.3.0)
-	CodeSystem	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets		(hl7.terminology.r4|5.3.0)
-	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+    Resource Type	Canonical Url	Version	Package Source
+    ValueSet	http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.114222.4.11.3591		(us.nlm.vsac|0.11.0)
+    StructureDefinition	http://hl7.org/fhir/5.0/StructureDefinition/extension-CommunicationRequest.payload.content[x]	
+    CodeSystem	http://hl7.org/fhir/fhir-types	
+    StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/elementdefinition-json-name	
+    StructureDefinition	http://hl7.org/fhir/tools/StructureDefinition/json-primitive-choice	
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-location		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-medication		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitionerrole		(hl7.fhir.us.core|3.1.1)
+    ValueSet	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes		(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-task		(hl7.fhir.uv.sdc|3.0.0)
+    CodeSystem	http://loinc.org		(hl7.terminology.r4|5.3.0)
+    CodeSystem	http://www.ama-assn.org/go/cpt		(hl7.terminology.r4|5.3.0)
+    CodeSystem	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets		(hl7.terminology.r4|5.3.0)
+    CodeSystem	urn:oid:2.16.840.1.113883.6.285	
 
 --------------------------------------
 Indirectly requires the following non-core canonical resources: 31
-	Resource Type	Canonical Url	Version	Package Source
-	CodeSystem	http://hl7.org/fhir/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
-					^- http://hl7.org/fhir/ValueSet/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
-	CodeSystem	http://hl7.org/fhir/sid/icd-10-cm		(hl7.terminology.r4|5.3.0)
-					^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
-	CodeSystem	http://hl7.org/fhir/sid/icd-9-cm	
-					^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
-	StructureDefinition	http://hl7.org/fhir/StructureDefinition/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
-					^- http://loinc.org|3.1.0	(hl7.terminology.r4|5.3.0)
-					^- http://www.nlm.nih.gov/research/umls/rxnorm|3.0.1	(hl7.terminology.r4|5.3.0)
+    Resource Type	Canonical Url	Version	Package Source
+    CodeSystem	http://hl7.org/fhir/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
+                    ^- http://hl7.org/fhir/ValueSet/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
+    CodeSystem	http://hl7.org/fhir/sid/icd-10-cm		(hl7.terminology.r4|5.3.0)
+                    ^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
+    CodeSystem	http://hl7.org/fhir/sid/icd-9-cm	
+                    ^- http://hl7.org/fhir/us/core/ValueSet/us-core-condition-code|3.1.1	(hl7.fhir.us.core|3.1.1)
+    StructureDefinition	http://hl7.org/fhir/StructureDefinition/codesystem-properties-mode		(hl7.fhir.uv.extensions.r4|1.0.0)
+                    ^- http://loinc.org|3.1.0	(hl7.terminology.r4|5.3.0)
+                    ^- http://www.nlm.nih.gov/research/umls/rxnorm|3.0.1	(hl7.terminology.r4|5.3.0)
 ```
 The verbose mode will also include tracing information is also shown in the directly required resources as is found in the indirect section.
 
@@ -337,12 +351,15 @@ Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and
 (Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
 ``` ps
 > UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json -dh "Authorization:Bearer ******"
-      --includeReferencedDependencies -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
+      --includeReferencedDependencies 
+      -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
+      -ets https://tx.dev.hl7.org.au/fhir
 ```
 And also the inclusion of the `-df json` to select the json format as the hosted Microsoft FHIR Server doesn't support XML
 and the `--includeReferencedDependencies` flag to indicate that dependencies should be scanned (including registry if provided)
 and the `-reg` flag to specify the NCTS as the external registry to use for resolving the other resources that are not in the package.
 and the `-rego` flag to write a local copy of the resources downloaded from the NCTS registry.
+and the `-ets` flag to request the external terminology server to create expansions for ValueSets that are too complex for the Firely SDK terminology service.
 
 The hosted Microsoft server may require an Authorization bearer to connect too, note that you will likely need 
 to quote the content if it has spaces - which is normally there (and may be different on a different OS)
@@ -381,11 +398,11 @@ Scanning dependencies:
 Scanning indirect dependencies:
 
 Unable to resolve these canonical resources: 2
-	Resource Type	Canonical Url	Version	Package Source
-	CodeSystem	http://hl7.org/fhir/fhir-types	
-					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
-	CodeSystem	urn:oid:2.16.840.1.113883.6.285	
-					^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
+    Resource Type	Canonical Url	Version	Package Source
+    CodeSystem	http://hl7.org/fhir/fhir-types	
+                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
+    CodeSystem	urn:oid:2.16.840.1.113883.6.285	
+                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
 
 --------------------------------------
 Validate/upload dependencies:
@@ -405,20 +422,72 @@ Validate/upload package content:
     created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/taskReason|2.0.1
 
 Destination server canonical resource dependency verification:
-	http://hl7.org/fhir/fhir-types	(current)	(missing)
-	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes	(current)	3.1.1
-	http://loinc.org	(current)	3.1.0
-	http://www.ama-assn.org/go/cpt	(current)	(missing)
-	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets	(current)	1.0.1
-	urn:oid:2.16.840.1.113883.6.285	(current)	(missing)
+    http://hl7.org/fhir/fhir-types	(current)	(missing)
+    http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes	(current)	3.1.1
+    http://loinc.org	(current)	3.1.0
+    http://www.ama-assn.org/go/cpt	(current)	(missing)
+    https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets	(current)	1.0.1
+    urn:oid:2.16.840.1.113883.6.285	(current)	(missing)
 Done!
+```
+
+### Deploy an IG using a batch bundle and curl
+If you want to deploy the IG using a transaction bundle, you can use the `-of` flag to write the bundle to a file
+and then use curl to upload the bundle to the server.
+``` cmd
+# download the HL7 Australia au-base IG package, extract all the resources into a 
+# transaction bundle and write it to the file `transaction-bundle.json`
+> UploadFIG -t -pid hl7.fhir.au.base -of transaction-bundle.json
+```
+Then use curl to upload the bundle to the server (and report the results to the file `result.json`)
+``` cmd
+> curl -X POST -H "Content-Type: application/fhir+json" --data @transaction-bundle.json https://localhost:44391/ -o result.json
+```
+> **Note:** that this transaction bundle uses conditional updates to select the ID of the resource to update for canonical resources.
+> Other resources will just POST the resource to create a new instance.
+> And updates all records, not just ones that are changed.
+
+### Deploy the CRD IG with only US-Core 6.1.0 (not 7.0.0 or 3.1.1) into a bundle
+And version pin all the canonical references (including the dependencies) to the specific version of the US-Core IG,
+using the `-pcv` Patch Canonical Versions flag
+
+``` cmd
+# download the CI build CRD IG package, extract all the resources into a batch bundle and write it to the file `bundle.json`
+> UploadFIG -t -s https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz
+            --includeReferencedDependencies
+            -ip hl7.fhir.us.core|7.0.0 -ip hl7.fhir.us.core|3.1.1
+            -pcv
+            -of bundle.json
 ```
 
 ---
 
 ## Change history
 
+### 5 February 2025
+This has been a big release with lots of changes, mostly around processing dependencies
+
+* References both fhir package registries to resolve dependencies (https://packages.simplifier.net and https://packages2.fhir.org/packages)
+* Added `Library` to the default resource types to process
+* Added `-sn` or `--stripNarratives` flag to remove all narratives from the resources processed
+* Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions
+* Added `-pcv` or `--patchCanonicalVersions` flag to patch canonical URL references to be version specific where they resolve within the package or its dependencies
+* Added `-mes` or `--maxExpansionSize` flag to set the maximum number of codes to include in a ValueSet expansion
+* Added `-of` or `--outputBundle` filename to write a json batch bundle containing all of the processed resources
+* Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions, this is different to `-rs` which regenerates them.
+  *This is useful if the target server regenerates its own snapshots on submission.*
+* The processing of package dependencies now more accurately reflects the actual resources that are required by the package,
+  and canonical versioning considers the actual version of the resource that is required by the package based on context.
+* Added `-ip` or `--ignorePackages` flag to ignore specific versioned packages when processing dependencies
+  *This is really useful if wanting to exclude specific versions of a package where multiple are available*
+  *e.g. only use us-core 6.1.0, and not 7.0.0 or 3.1.1*
+
+### 21 January 2025
+* Add support to reference an external terminology server to create expansions for ValueSets that are not in the external registry `-ets`, `-etsh`
+* New option to output content to a file instead of uploading to a server `-of`
+
 ### 18 December 2024
+* Add support to reference an external registry to resolve dependencies not in packages `-reg`, `-regh`, `-rego`
 * Update Fhirpath static validation engine to resolve issue with complex extensions passing context through functions
   (found in AU base IG)
 

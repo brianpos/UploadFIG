@@ -8,6 +8,8 @@ using Hl7.FhirPath;
 using Hl7.FhirPath.Sprache;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Specification.Source;
+using UploadFIG.PackageHelpers;
+using r4::Hl7.Fhir.StructuredDataCapture;
 
 namespace UploadFIG
 {
@@ -18,15 +20,15 @@ namespace UploadFIG
 		{
 			_validateQuestionnaire = validateQuestionnaire;
 		}
-		public bool _validateQuestionnaire;
+		bool _validateQuestionnaire;
 
 		List<SearchParameter> _searchParameters;
-		public override void PreValidation(Dictionary<string, string> dependencies, List<Resource> resources, bool verboseMode)
+		public override void PreValidation(PackageDetails pd, DependencyChecker depChecker, bool verboseMode, List<String> errFiles)
 		{
-			base.PreValidation(dependencies, resources, verboseMode);
-			_searchParameters = resources.OfType<SearchParameter>().ToList();
+			base.PreValidation(pd, depChecker, verboseMode, errFiles);
+			_searchParameters = depChecker.AllResources(pd).OfType<SearchParameter>().ToList();
 			CommonZipSource zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
-			_inMemoryResolver = new InMemoryResolver(_processor, _profiles, _dependencyProfiles);
+			_inMemoryResolver = new InMemoryResolver(pd, depChecker, _processor, errFiles, verboseMode);
 			_source = new CachedResolver(
 							new MultiResolver(
 								zipSource,
@@ -37,6 +39,8 @@ namespace UploadFIG
 
 		internal override bool Validate(string exampleName, Resource resource, ref long failures, ref long validationErrors, List<string> errFiles)
 		{
+			_inMemoryResolver.ProcessingResource(resource);
+
 			if (resource is SearchParameter sp)
 			{
 				if (!sp.Base.Any())
@@ -53,7 +57,7 @@ namespace UploadFIG
 			}
 			if (resource is Questionnaire q && _validateQuestionnaire)
 			{
-				var validator = new r4.Hl7.Fhir.StructuredDataCapture.QuestionnaireValidator();
+				var validator = new r4.Hl7.Fhir.StructuredDataCapture.QuestionnaireValidator(_source, new ValidationSettings() { TerminologyServerAddress = null });
 				var outcome = validator.Validate(q).WaitResult();
 				if (!outcome.Success)
 				{
@@ -66,6 +70,63 @@ namespace UploadFIG
 			}
 
 			return base.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+		}
+
+		internal override void PatchKnownIssues(string packageId, string packageVersion, Resource resource)
+		{
+			if (resource is StructureDefinition sd)
+			{
+				if (sd.FhirVersion.HasValue && sd.FhirVersion != FHIRVersion.N4_0 && sd.FhirVersion != FHIRVersion.N4_0_1)
+				{
+					Console.WriteLine($"    #---> Warning validating StructureDefinition/{sd.Id} ({sd.Url}): {sd.Title}");
+					Console.WriteLine($"        Only FHIR version 4.0 is supported - removed inconsistent version {sd.FhirVersion.GetLiteral()}");
+					sd.FhirVersion = null;
+				}
+			}
+			if (packageId == "us.nlm.vsac" && resource is ValueSet vs)
+			{
+				if (vs.Meta?.Profile.Any(p => p == "http://hl7.org/fhir/StructureDefinition/shareablevalueset") == true)
+					vs.Meta.Profile = vs.Meta.Profile.Where(p => p != "http://hl7.org/fhir/StructureDefinition/shareablevalueset");
+
+				var author = vs.GetExtension("http://hl7.org/fhir/StructureDefinition/valueset-author");
+				if (author != null)
+				{
+					// re-write the extension if the datatype is incorrect
+					if (author.Value is FhirString fs)
+						author.Value = new ContactDetail() { Name = fs.Value };
+				}
+				var effectiveDate = vs.GetExtension("http://hl7.org/fhir/StructureDefinition/valueset-effectiveDate");
+				if (effectiveDate != null)
+				{
+					// re-write the extension if the datatype is incorrect
+					if (effectiveDate.Value is Date dt)
+						effectiveDate.Value = new FhirDateTime(dt.Value);
+				}
+
+
+				if (vs.Jurisdiction?.Any() == true)
+				{
+					// remove any empty jurisdictions (DAR) as these don't have a text or coding
+					foreach (var jurisdiction in vs.Jurisdiction.ToArray())
+					{
+						var dar = jurisdiction.GetExtension("http://hl7.org/fhir/StructureDefinition/data-absent-reason");
+						if (dar != null)
+						{
+							if (dar.Value is FhirString fs)
+							{
+								dar.Value = new Code(fs.Value);
+							}
+							if (dar.Value is Code code)
+							{
+								if (code.Value == "UNKNOWN")
+									code.Value = "unknown";
+								if (code.Value == "unknown")
+									vs.Jurisdiction.Remove(jurisdiction);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		VersionAgnosticSearchParameter ToVaSpd(ModelInfo.SearchParamDefinition spd)
@@ -165,10 +226,7 @@ namespace UploadFIG
 
 			if (outcome.Errors > 0 || outcome.Fatals > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Red, $"    #---> Error validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();
@@ -176,10 +234,7 @@ namespace UploadFIG
 			}
 			if (outcome.Warnings > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Yellow;
-				Console.WriteLine($"    #---> Warning validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Yellow, $"    #---> Warning validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();
@@ -187,10 +242,7 @@ namespace UploadFIG
 			}
 			if (outcome.Issue.Count(i => i.Severity == OperationOutcome.IssueSeverity.Information) > 0)
 			{
-				var ocolor = Console.ForegroundColor;
-				Console.ForegroundColor = ConsoleColor.Gray;
-				Console.WriteLine($"    #---> Information validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
-				Console.ForegroundColor = ocolor;
+				ConsoleEx.WriteLine(ConsoleColor.Gray, $"    #---> Information validating search parameter {sp.Url}: {String.Join(",", sp.Base.Select(b => b.GetLiteral()))} - {sp.Code}");
 
 				ReportOutcomeMessages(outcome);
 				Console.WriteLine();

@@ -5,7 +5,7 @@ using System.Xml;
 
 namespace UploadFIG
 {
-    abstract class Common_Processor
+    public abstract class Common_Processor
     {
         public ModelInspector ModelInspector { get; protected set; }
         public List<string> SupportedResources { get; protected set; }
@@ -15,6 +15,6 @@ namespace UploadFIG
         public abstract Resource ParseJson(JsonReader jr);
 		public abstract Resource ParseXml(string xml);
 		public abstract Resource ParseJson(string json);
-        public abstract string SerializeJson(Resource resource);
+		public abstract Task SerializeJson(Stream stream, Resource resource);
 	}
 }

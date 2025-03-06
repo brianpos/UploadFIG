@@ -20,6 +20,10 @@ namespace UploadFIG
         /// <summary>
         /// Always download the file even if there is a local copy
         /// </summary>
+		/// <remarks>
+		/// This is really only useful in debugging to continue to use the last downloaded version of the package
+		/// (particularly when using raw packages from the web and not registry - often used for testing CI builds)
+		/// </remarks>
         public bool ForceDownload { get; set; } = true;
 
         /// <summary>
@@ -36,29 +40,43 @@ namespace UploadFIG
 
         /// <summary>
         /// Which resource types should be processed by the uploader
+		/// (Is used as a filter on the root package only)
         /// </summary>
         public List<string> ResourceTypes { get; set; }
 
         /// <summary>
         /// Only process these selected files (Type/Id)
+		/// (Root package only, dependent profiles will be loaded as required)
         /// </summary>
         public List<string> SelectFiles { get; set; }
 
-        /// <summary>
-        /// Any specific files that should be ignored/skipped when processing the package
-        /// </summary>
-        public List<string> IgnoreFiles { get; set; }
+		/// <summary>
+		/// Any specific files that should be ignored/skipped when processing the package
+		/// (Is used as a filter on the root package only)
+		/// </summary>
+		public List<string> IgnoreFiles { get; set; }
+
+		/// <summary>
+		/// Any specific Canonical URls that should be ignored/skipped when processing dependencies of resources
+		/// (applies to all packages when scanning dependencies)
+		/// </summary>
+		/// <remarks>
+		/// This will check for versioned, or un-versioned canonicals
+		/// e.g. Filtering a versioned canonical will only remove explicit references to that version
+		/// Filtering an un-versioned canonical will remove all references to that canonical (versioned or not)
+		/// </remarks>
+		public List<string> IgnoreCanonicals { get; set; }
 
         /// <summary>
-        /// Any specific Canonical URls that should be ignored/skipped when processing the package
+        /// while loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0
         /// </summary>
-        public List<string> IgnoreCanonicals { get; set; }
+        public List<string> IgnorePackages { get; set; }
 
-        /// <summary>
-        /// The URL of the FHIR Server to upload the package contents to
-        /// </summary>
-        /// <remarks>If the TestPackageOnly is used, this is optional</remarks>
-        public string DestinationServerAddress { get; set; }
+		/// <summary>
+		/// The URL of the FHIR Server to upload the package contents to
+		/// </summary>
+		/// <remarks>If the TestPackageOnly is used, this is optional</remarks>
+		public string DestinationServerAddress { get; set; }
 
         /// <summary>
         /// Headers to add to the request to the destination FHIR Server
@@ -66,7 +84,7 @@ namespace UploadFIG
         public List<string> DestinationServerHeaders { get; set; }
 
         /// <summary>
-        /// The format of the content to upload to the destination FHIR server
+        /// The format of the content to upload to the destination FHIR server (xml/json)
         /// </summary>
         public upload_format? DestinationFormat { get; set; }
 
@@ -82,19 +100,34 @@ namespace UploadFIG
         public bool ValidateQuestionnaires { get; set; }
 
         /// <summary>
-        /// Check and clean any narratives in the package and remove suspect ones (based on the MS FHIR Server's rules)
+        /// Check and clean any narratives in the package and remove suspect ones (based on the Microsoft FHIR Server's rules)
         /// </summary>
         public bool CheckAndCleanNarratives { get; set; }
 
-        /// <summary>
-        /// Generate the snapshots for any missing snapshots in StructureDefinitions
-        /// </summary>
-        public bool GenerateSnapshots { get; set; }
+		/// <summary>
+		/// Strip all narratives from the resources in the package
+		/// </summary>
+		public bool StripNarratives { get; set; }
+
+		/// <summary>
+		/// Generate the snapshots for any missing snapshots in StructureDefinitions
+		/// </summary>
+		public bool GenerateSnapshots { get; set; }
 
 		/// <summary>
 		/// Re-Generate all snapshots in StructureDefinitions
 		/// </summary>
 		public bool ReGenerateSnapshots { get; set; }
+
+		/// <summary>
+		/// Remove all snapshots in StructureDefinitions
+		/// </summary>
+		public bool RemoveSnapshots { get; set; }
+
+		/// <summary>
+		/// Patch canonical URL references to be version specific where they resolve within the package
+		/// </summary>
+		public bool PatchCanonicalVersions { get; set; }
 
 		/// <summary>
 		/// Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs
@@ -118,6 +151,7 @@ namespace UploadFIG
 
         /// <summary>
         /// Specifically include processing of examples folder
+		/// (Only applied to root package)
         /// </summary>
         public bool IncludeExamples { get; set; }
 
@@ -131,10 +165,15 @@ namespace UploadFIG
 		/// </summary>
 		public bool ValidateReferencedDependencies { get; set; }
 
-        /// <summary>
-        /// The filename of a file to write the discovered dependencies of this IG to
-        /// </summary>
-        public string OutputDependenciesFile { get; set; }
+		/// <summary>
+		/// The filename to write a json batch bundle to write all of the resources to (could be used in place of directly deploying the IG)
+		/// </summary>
+		public string OutputBundle { get; set; }
+
+		/// <summary>
+		/// The filename of a file to write the discovered dependencies of this IG to
+		/// </summary>
+		public string OutputDependenciesFile { get; set; }
 
 		/// <summary>
 		/// The URL of an external FHIR registry to use for resolving dependencies
@@ -156,7 +195,7 @@ namespace UploadFIG
 		/// for expansions where a local terminology server is not available, and is too complex
 		/// for the Firely SDK's built-in terminology service to handle
 		/// </summary>
-		public string ExternalTerminologyServer { get; set; }
+		public string ExternalTerminologyServer { get; set; } // = "https://r4.ontoserver.csiro.au/fhir"; // = "https://tx.dev.hl7.org.au/fhir"
 
 		/// <summary>
 		/// Additional headers to supply when accessing the external FHIR registry
