@@ -214,13 +214,13 @@ namespace UploadFIG.Test
 			}
 
 			// Also scan the resources required by these dependencies
-			var packageContents = output.containedCanonicals.Select(ec => new CanonicalDetails() { resourceType = ec.resourceType, canonical = ec.canonical, version = ec.version }).ToList();
+			var packageContents = output.containedCanonicals.Select(ec => new CanonicalDetails() { ResourceType = ec.ResourceType, Canonical = ec.Canonical, Version = ec.Version }).ToList();
 			var downloadedResources = bun.Entry.Select(e => e.Resource).ToList();
 			var downloadedContents = downloadedResources.Select(ec => new CanonicalDetails() 
 			{ 
-				resourceType = ec.TypeName, 
-				canonical = (ec as IVersionableConformanceResource).Url, 
-				version = (ec as IVersionableConformanceResource).Version 
+				ResourceType = ec.TypeName, 
+				Canonical = (ec as IVersionableConformanceResource).Url, 
+				Version = (ec as IVersionableConformanceResource).Version 
 			}).ToList();
 			//var dependentCanonicals = DependencyChecker.ScanForCanonicals(packageContents.Union(downloadedContents), downloadedResources, r4b.Hl7.Fhir.Model.ModelInfo.ModelInspector);
 			//foreach (var dc in dependentCanonicals)

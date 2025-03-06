@@ -248,9 +248,9 @@ namespace UploadFIG
 			Canonical c = new Canonical(uri);
 			var cd = new CanonicalDetails()
 			{
-				canonical = c.Uri,
-				version = c.Version,
-				resourceType = "StructureDefinition",
+				Canonical = c.Uri,
+				Version = c.Version,
+				ResourceType = "StructureDefinition",
 			};
 			cd.requiredBy.Add(_resource);
 
@@ -261,7 +261,7 @@ namespace UploadFIG
 				var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
 				if (distinctVersionSources.Count() > 1 && _verbose)
 				{
-					Console.Write($"    Resolved {cd.canonical}|{cd.version} with ");
+					Console.Write($"    Resolved {cd.Canonical}|{cd.Version} with ");
 					ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 					Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 				}

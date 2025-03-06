@@ -51,6 +51,12 @@ namespace UploadFIG
         public List<string> SelectFiles { get; set; }
 
 		/// <summary>
+        /// Set of additional packages to include in the processing
+        /// These will be processes as though they are dependencies of the root package
+        /// </summary>
+        public List<string> AdditionalPackages { get; set; }
+
+        /// <summary>
 		/// Any specific files that should be ignored/skipped when processing the package
 		/// (Is used as a filter on the root package only)
 		/// </summary>

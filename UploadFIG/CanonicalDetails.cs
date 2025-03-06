@@ -1,4 +1,5 @@
-﻿using Hl7.Fhir.Model;
+﻿using System.Text.Json.Serialization;
+using Hl7.Fhir.Model;
 
 namespace UploadFIG
 {
@@ -6,11 +7,21 @@ namespace UploadFIG
 	public class CanonicalDetails : IComparable<CanonicalDetails>
 	{
         public CanonicalDetails() { }
-		public string resourceType { get; set; }
-        public string canonical { get; set; }
-        public string version { get; set; }
-        public string status { get; set; }
-        public string name { get; set; }
+
+        [JsonPropertyName("resourceType")]
+        public string ResourceType { get; set; }
+
+        [JsonPropertyName("canonical")]
+        public string Canonical { get; set; }
+
+        [JsonPropertyName("version")]
+        public string Version { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
 
         public Resource resource { get; set; }
 
@@ -20,9 +31,9 @@ namespace UploadFIG
 		{
 			if (other == null)
 				return -1;
-			int result = string.CompareOrdinal(canonical, other.canonical);
+			int result = string.CompareOrdinal(Canonical, other.Canonical);
 			if (result == 0)
-				result = string.CompareOrdinal(version, other.version);
+				result = string.CompareOrdinal(Version, other.Version);
 			return result;
 		}
 	}

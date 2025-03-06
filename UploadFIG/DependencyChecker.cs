@@ -44,11 +44,11 @@ namespace UploadFIG
             Console.WriteLine("");
             Console.WriteLine("Destination server canonical resource dependency verification:");
             // Verify that the set of canonicals are available on the server
-            foreach (var rawCanonical in requiresCanonicals.OrderBy(c => c.canonical))
+            foreach (var rawCanonical in requiresCanonicals.OrderBy(c => c.Canonical))
             {
-                var canonical = new Canonical(rawCanonical.canonical, rawCanonical.version, null);
+                var canonical = new Canonical(rawCanonical.Canonical, rawCanonical.Version, null);
                 Bundle existing = null;
-                switch (rawCanonical.resourceType)
+                switch (rawCanonical.ResourceType)
                 {
                     case "StructureDefinition":
                         existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
@@ -79,7 +79,7 @@ namespace UploadFIG
                         existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                 }
-				if (rawCanonical.resourceType == "unknown")
+				if (rawCanonical.ResourceType == "unknown")
 				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"\t{canonical.Uri}\t{canonical.Version ?? "(current)"}\t(unknown resource type to search for)");
 				}
@@ -216,7 +216,7 @@ namespace UploadFIG
 							continue;
 						if (resource is CodeSystem cs && cs.ValueSet == canonical.Value)
 							continue;
-						if (requiresCanonicals.Any(c => c.canonical == canonical.Value))
+						if (requiresCanonicals.Any(c => c.Canonical == canonical.Value))
 							continue;
 						if (!IsCoreOrExtensionOrToolsCanonical(canonical.Value))
 							CheckRequiresCanonical(resource, "unknown", canonical.Value, requiresCanonicals, (newValue) => canonical.Value = newValue);
@@ -224,7 +224,7 @@ namespace UploadFIG
 				}
 			}
 
-			return requiresCanonicals.Where(r => !initialCanonicals.Any(ic => ic.canonical == r.canonical));
+			return requiresCanonicals.Where(r => !initialCanonicals.Any(ic => ic.Canonical == r.Canonical));
         }
 
 		private void ScanForExtensions(List<CanonicalDetails> requiresCanonicals, Resource resource, Base prop)
@@ -261,15 +261,15 @@ namespace UploadFIG
             // Now check for the ones that we've internally got covered :)
             foreach (var resource in excludeResources.OfType<IVersionableConformanceResource>())
             {
-                var nodes = initialCanonicals.Where(rc => rc.canonical == resource.Url).ToArray(); // not checking the type as that sometimes has "unknown" in it
+                var nodes = initialCanonicals.Where(rc => rc.Canonical == resource.Url).ToArray(); // not checking the type as that sometimes has "unknown" in it
                 if (nodes.Any())
                 {
 					foreach (var node in nodes)
 					{
-						if (string.IsNullOrEmpty(node.version) || resource.Version == node.version)
+						if (string.IsNullOrEmpty(node.Version) || resource.Version == node.Version)
 						{
-							if (node.resourceType == "unknown")
-								node.resourceType = (resource as Resource).TypeName;
+							if (node.ResourceType == "unknown")
+								node.ResourceType = (resource as Resource).TypeName;
 							filteredCanonicals.Remove(node);
 						}
 					}
@@ -281,8 +281,8 @@ namespace UploadFIG
 
 		public IEnumerable<CanonicalDetails> FilterCanonicals(IEnumerable<CanonicalDetails> canonicals, PackageDetails pd)
 		{
-			var localResourcesNotLoaded = pd.Files.Where(f => canonicals.Any(c => f.url == c.canonical && c.resource == null)).ToArray();
-			var result = canonicals.Where(c => !pd.Files.Any(f => f.url == c.canonical)).ToArray();
+			var localResourcesNotLoaded = pd.Files.Where(f => canonicals.Any(c => f.url == c.Canonical && c.resource == null)).ToArray();
+			var result = canonicals.Where(c => !pd.Files.Any(f => f.url == c.Canonical)).ToArray();
 			return result;
 		}
 
@@ -322,7 +322,7 @@ namespace UploadFIG
             List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
 
             // Filter the types from the core resource profiles
-            var coreCanonicals = initialCanonicals.Where(v => IsCoreOrExtensionOrToolsCanonical(v.canonical)).ToList();
+            var coreCanonicals = initialCanonicals.Where(v => IsCoreOrExtensionOrToolsCanonical(v.Canonical)).ToList();
             foreach (var coreCanonical in coreCanonicals)
             {
                 filteredCanonicals.Remove(coreCanonical);
@@ -371,7 +371,7 @@ namespace UploadFIG
             // Now check for the ones that we've internally got covered :)
             foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
             {
-                var node = requiresCanonicals.FirstOrDefault(rc => rc.canonical == resource.Url);
+                var node = requiresCanonicals.FirstOrDefault(rc => rc.Canonical == resource.Url);
                 if (node != null)
                 {
                     requiresCanonicals.Remove(node);
@@ -379,7 +379,7 @@ namespace UploadFIG
             }
 
             // And the types from the core resource profiles
-            var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v.canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.canonical))).ToList();
+            var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v.Canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.Canonical))).ToList();
             foreach (var coreCanonical in coreCanonicals)
             {
                 requiresCanonicals.Remove(coreCanonical);
@@ -404,7 +404,7 @@ namespace UploadFIG
 
             // Scan for core/core extensions dependencies
             var coreSource = new CachedResolver(zipSource);
-            var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.canonical) != null).ToList();
+            var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.Canonical) != null).ToList();
             foreach (var coreCanonical in extensionCanonicals)
             {
                 requiresCanonicals.Remove(coreCanonical);
@@ -446,18 +446,18 @@ namespace UploadFIG
 				if (IsCoreOrExtensionOrToolsCanonical(c.Uri))
 					return;
 					
-				var usedBy = requiresCanonicals.Where(s => s.canonical == c.Uri 
-					&& (s.resourceType == canonicalType || canonicalType == "unknown")
-					&& (string.IsNullOrEmpty(c.Version) || string.IsNullOrEmpty(s.version) || c.Version == s.version)
+				var usedBy = requiresCanonicals.Where(s => s.Canonical == c.Uri 
+					&& (s.ResourceType == canonicalType || canonicalType == "unknown")
+					&& (string.IsNullOrEmpty(c.Version) || string.IsNullOrEmpty(s.Version) || c.Version == s.Version)
 					);
                 if (!usedBy.Any())
                 {
                     var cd =
                     new CanonicalDetails()
                     {
-                        canonical = c.Uri,
-                        version = c.Version,
-                        resourceType = canonicalType,
+                        Canonical = c.Uri,
+                        Version = c.Version,
+                        ResourceType = canonicalType,
                     };
                     cd.requiredBy.Add(resource);
                     requiresCanonicals.Add(cd);
@@ -799,15 +799,15 @@ namespace UploadFIG
 			// Determine all the canonicals that are required for this package for the loaded resources
 			var existingResources = pd.resources.ToList();
 			var allRequiredCanonicals = ScanForCanonicals(pd.resources).ToList();
-			var unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
+			var unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.Canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
 			int safetyCatch = 0;
 			while (unloadedRequiredLocalResources.Any() && safetyCatch < 10) // provide a safety net in the event that not all files load
 			{
 				// iteratively check if there are more contained resource that haven't been loaded as more are included in the set.
-				var localCanonicals = allRequiredCanonicals.Where(c => pd.Files.Any(f => f.url == c.canonical)).ToArray();
+				var localCanonicals = allRequiredCanonicals.Where(c => pd.Files.Any(f => f.url == c.Canonical)).ToArray();
 				LoadCanonicalResource(pd, localCanonicals, versionAgnosticProcessor, errFiles);
 				allRequiredCanonicals = allRequiredCanonicals.Union(ScanForCanonicals(allRequiredCanonicals, pd.resources.Except(existingResources))).ToList();
-				unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
+				unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.Canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
 				safetyCatch++;
 				existingResources = pd.resources.ToList();
 			};
@@ -823,7 +823,7 @@ namespace UploadFIG
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
 					if (distinctVersionSources.Count() > 1 && _settings.Verbose)
 					{
-						Console.Write($"    Resolved {canonical.canonical}|{canonical.version} with ");
+						Console.Write($"    Resolved {canonical.Canonical}|{canonical.Version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 					}
@@ -864,19 +864,19 @@ namespace UploadFIG
 		private void LoadCanonicalResource(PackageDetails pd, IEnumerable<CanonicalDetails> canonicals, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
 			// Tag items that were already loaded due to another parent package
-			var itemsToBeTagged = canonicals.Where(cd => cd.resource == null && pd.Files.Any(f => f.url == cd.canonical
-																&& (f.version == cd.version || string.IsNullOrEmpty(cd.version))
+			var itemsToBeTagged = canonicals.Where(cd => cd.resource == null && pd.Files.Any(f => f.url == cd.Canonical
+																&& (f.version == cd.Version || string.IsNullOrEmpty(cd.Version))
 																&& pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id)));
 			foreach (var cd in itemsToBeTagged)
 			{
-				var possibleFiles = pd.Files.Where(f => f.url == cd.canonical && (f.version == cd.version || string.IsNullOrEmpty(cd.version)));
+				var possibleFiles = pd.Files.Where(f => f.url == cd.Canonical && (f.version == cd.Version || string.IsNullOrEmpty(cd.Version)));
 				var possibleResources = pd.resources.Where(r => possibleFiles.Any(f => r.TypeName == f.resourceType && r.Id == f.id));
 				cd.resource = possibleResources.FirstOrDefault();
 			}
 
 			// See if there are any remaining items that need loading
-			var files = pd.Files.Where(f => canonicals.Any(cd => cd.canonical == f.url 
-																&& (f.version == cd.version || string.IsNullOrEmpty(cd.version))
+			var files = pd.Files.Where(f => canonicals.Any(cd => cd.Canonical == f.url 
+																&& (f.version == cd.Version || string.IsNullOrEmpty(cd.Version))
 																&& !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id)
 															)).ToList();
 			if (files.Any())
@@ -927,7 +927,7 @@ namespace UploadFIG
 
 							if (resource is IVersionableConformanceResource ivr)
 							{
-								foreach (var can in canonicals.Where(c => c.canonical == ivr.Url))
+								foreach (var can in canonicals.Where(c => c.Canonical == ivr.Url))
 								{
 									if (can.resource == null)
 									{
@@ -945,7 +945,7 @@ namespace UploadFIG
 												var distinctVersionSources = options.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
 												if (distinctVersionSources.Count() > 1 && _settings.Verbose)
 												{
-													Console.Write($"    Resolved {can.canonical}|{can.version} with ");
+													Console.Write($"    Resolved {can.Canonical}|{can.Version} with ");
 													ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 													Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 												}
@@ -1037,16 +1037,16 @@ namespace UploadFIG
 			}
 
 			FileDetail detail = null;
-			if (!string.IsNullOrEmpty(canonicalUrl.version))
+			if (!string.IsNullOrEmpty(canonicalUrl.Version))
 			{
 				// Check for the versioned canonical
-				pd.CanonicalFiles.TryGetValue(canonicalUrl.canonical + "|" + canonicalUrl.version, out detail);
+				pd.CanonicalFiles.TryGetValue(canonicalUrl.Canonical + "|" + canonicalUrl.Version, out detail);
 			}
 
 			if (detail == null)
 			{
 				// Check for the un-versioned canonical
-				pd.CanonicalFiles.TryGetValue(canonicalUrl.canonical, out detail);
+				pd.CanonicalFiles.TryGetValue(canonicalUrl.Canonical, out detail);
 			}
 
 			if (detail == null || detail.detectedInvalidContent)
@@ -1261,11 +1261,11 @@ namespace UploadFIG
 							continue;
 						}
 
-						var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.canonical == canonical.Value && (string.IsNullOrEmpty(c.version) || string.IsNullOrEmpty(canonical.Version) || c.version == canonical.Version));
+						var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.Canonical == canonical.Value && (string.IsNullOrEmpty(c.Version) || string.IsNullOrEmpty(canonical.Version) || c.Version == canonical.Version));
 						if (cd != null && cd.resource is IVersionableConformanceResource ivr)
 						{
-							if (string.IsNullOrEmpty(cd.version))
-								cd.version = ivr.Version;
+							if (string.IsNullOrEmpty(cd.Version))
+								cd.Version = ivr.Version;
 							canonical.Value += $"|{ivr.Version}";
 							if (_settings.Verbose)
 								Console.WriteLine($"        >  Patching {resource.TypeName}/{resource.Id} {sn.LocalLocation} = {canonical.Value}");
@@ -1281,7 +1281,7 @@ namespace UploadFIG
 					{
 						if (!string.IsNullOrEmpty(include.System) && string.IsNullOrEmpty(include.Version))
 						{
-							var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.canonical == include.System);
+							var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.Canonical == include.System);
 							if (cd != null && cd.resource is IVersionableConformanceResource ivr)
 							{
 								include.Version = ivr.Version;

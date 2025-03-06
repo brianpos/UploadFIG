@@ -81,6 +81,7 @@ namespace UploadFIG
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
                 new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
+                new Option<List<string>>(new string[]{ "-ap", "--additionalPackages"}, () => settings.AdditionalPackages, "Set of additional packages to include in the processing\r\nThese will be processes as though they are dependencies of the root package"),
                 new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
                 new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
                 new Option<List<string>>(new string[]{ "-ip", "--ignorePackages" }, () => settings.IgnorePackages, "While loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0" ),
@@ -242,7 +243,8 @@ namespace UploadFIG
 			var packageCache = new TempPackageCache();
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
 			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache, settings.IgnorePackages);
-			var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
+            PackageReader.ReadAdditionalPackageIndexDetails(pd, settings.AdditionalPackages, packageCache, settings.IgnorePackages);
+            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
@@ -284,7 +286,7 @@ namespace UploadFIG
 					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
 					if (distinctVersionSources.Count() > 1 && settings.Verbose)
 					{
-						Console.Write($"    Resolved {canonicalUrl.canonical}|{canonicalUrl.version} with ");
+						Console.Write($"    Resolved {canonicalUrl.Canonical}|{canonicalUrl.Version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 					}
@@ -683,20 +685,20 @@ namespace UploadFIG
 				{
 					dumpOutput.containedCanonicals.Add(new CanonicalDetails()
 					{
-						resourceType = (resource as Resource).TypeName,
-						canonical = resource.Url,
-						version = resource.Version,
-						status = resource.Status.GetLiteral(),
-						name = resource.Name,
+						ResourceType = (resource as Resource).TypeName,
+						Canonical = resource.Url,
+						Version = resource.Version,
+						Status = resource.Status.GetLiteral(),
+						Name = resource.Name,
 					});
 					// Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
 				}
 				dumpOutput.externalCanonicalsRequired.AddRange(
 					externalCanonicals.Select(rc => new DependentResource()
 					{
-						resourceType = rc.resourceType,
-						canonical = rc.canonical,
-						version = rc.version,
+						resourceType = rc.ResourceType,
+						canonical = rc.Canonical,
+						version = rc.Version,
 					})
 					);
 				try
@@ -799,8 +801,8 @@ namespace UploadFIG
 			Queue<Bundle.EntryComponent> entries = new Queue<Bundle.EntryComponent>(alternativeOutputBundle.Entry);
 			var reOrderedList = new List<Bundle.EntryComponent>();
 			var definedCanonicals = new StringCollection();
-			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => c.canonical).ToArray());
-			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => $"{c.canonical}|{c.version}").ToArray());
+			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => c.Canonical).ToArray());
+			definedCanonicals.AddRange(allUnresolvedCanonicals.Select(c => $"{c.Canonical}|{c.Version}").ToArray());
 			var futureCanonicals = new Dictionary<string, Resource>();
 			var lastEntry = alternativeOutputBundle.Entry.LastOrDefault();
 			while (entries.Any())
@@ -1114,8 +1116,8 @@ namespace UploadFIG
 					try
 					{
 						if (settings.Verbose)
-							Console.WriteLine($"Searching registry for {dc.resourceType} {dc.canonical}");
-						var r = await clientRegistry.SearchAsync(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+							Console.WriteLine($"Searching registry for {dc.ResourceType} {dc.Canonical}");
+						var r = await clientRegistry.SearchAsync(dc.ResourceType, new[] { $"url={dc.Canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
 						if (r.Entry.Count > 1)
 						{
 							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
@@ -1132,7 +1134,7 @@ namespace UploadFIG
 							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
 							additionalResources.Add(resolvedResource);
 							// UploadFile(settings, clientFhir, resolvedResource);
-							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
+							unresolvableCanonicals.RemoveAll(uc => uc.Canonical == dc.Canonical);
 							indirectCanonicals.Add(dc);
 							dc.resource = resolvedResource;
 
@@ -1151,15 +1153,15 @@ namespace UploadFIG
 					}
 					catch (Exception ex)
 					{
-						System.Console.WriteLine($"Error searching for {dc.resourceType} {dc.canonical} at {settings.ExternalRegistry} {ex.Message}");
+						System.Console.WriteLine($"Error searching for {dc.ResourceType} {dc.Canonical} at {settings.ExternalRegistry} {ex.Message}");
 					}
 				}
 				// now perform another scan for their dependencies too
 				var initialCanonicals = additionalResources.Select(ec => new CanonicalDetails()
 				{
-					resourceType = ec.TypeName,
-					canonical = (ec as IVersionableConformanceResource).Url,
-					version = (ec as IVersionableConformanceResource).Version
+					ResourceType = ec.TypeName,
+					Canonical = (ec as IVersionableConformanceResource).Url,
+					Version = (ec as IVersionableConformanceResource).Version
 				}).ToList();
 				var dependentCanonicals = depChecker.ScanForCanonicals(initialCanonicals.Union(externalCanonicals), additionalResources);
 				foreach (var dc in dependentCanonicals)
@@ -1167,8 +1169,8 @@ namespace UploadFIG
 					try
 					{
 						if (settings.Verbose)
-							Console.WriteLine($"Searching registry for {dc.resourceType} {dc.canonical}");
-						var r = clientRegistry.Search(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+							Console.WriteLine($"Searching registry for {dc.ResourceType} {dc.Canonical}");
+						var r = clientRegistry.Search(dc.ResourceType, new[] { $"url={dc.Canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
 						if (r.Entry.Count > 1)
 						{
 							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
@@ -1184,7 +1186,7 @@ namespace UploadFIG
 							resolvedResource.Meta?.Tag?.RemoveAll(t => t.Code == "SUBSETTED");
 							additionalResources.Insert(0, resolvedResource); // put dependencies at the start of the list
 																			 // UploadFile(settings, clientFhir, resolvedResource);
-							unresolvableCanonicals.RemoveAll(uc => uc.canonical == dc.canonical);
+							unresolvableCanonicals.RemoveAll(uc => uc.Canonical == dc.Canonical);
 							indirectCanonicals.Add(dc);
 							dc.resource = resolvedResource;
 
@@ -1203,7 +1205,7 @@ namespace UploadFIG
 					}
 					catch (Exception ex)
 					{
-						System.Console.WriteLine($"Error searching for {dc.resourceType} {dc.canonical} at {settings.ExternalRegistry} {ex.Message}");
+						System.Console.WriteLine($"Error searching for {dc.ResourceType} {dc.Canonical} at {settings.ExternalRegistry} {ex.Message}");
 					}
 				}
 
@@ -1441,9 +1443,9 @@ namespace UploadFIG
 		private static void ReportCanonicalDetailsToConsole(Settings settings, IEnumerable<CanonicalDetails> list)
 		{
 			Console.WriteLine("\tResource Type\tCanonical Url\tVersion\tPackage Source");
-			foreach (var details in list.OrderBy(f => $"{f.canonical}|{f.version}"))
+			foreach (var details in list.OrderBy(f => $"{f.Canonical}|{f.Version}"))
 			{
-				Console.Write($"\t{details.resourceType}\t{details.canonical}\t{details.version}");
+				Console.Write($"\t{details.ResourceType}\t{details.Canonical}\t{details.Version}");
 				if (details.resource?.HasAnnotation<ResourcePackageSource>() == true)
 				{
 					var sourceDetails = details.resource.Annotation<ResourcePackageSource>();
@@ -1481,7 +1483,7 @@ namespace UploadFIG
 			Dictionary<string, CanonicalDetails> mergedCDs = new ();
 			foreach (var cd in unresolvableCanonicals)
 			{
-				var key = $"{cd.canonical}|{cd.version}";
+				var key = $"{cd.Canonical}|{cd.Version}";
 				if (!mergedCDs.ContainsKey(key))
 				{
 					mergedCDs.Add(key, cd);
@@ -1490,11 +1492,11 @@ namespace UploadFIG
 				{
 					var newCd = new CanonicalDetails 
 					{
-						canonical = cd.canonical,
-						name = cd.name,
-						version = cd.version,
-						resourceType = cd.resourceType,
-						status = cd.status,
+						Canonical = cd.Canonical,
+						Name = cd.Name,
+						Version = cd.Version,
+						ResourceType = cd.ResourceType,
+						Status = cd.Status,
 					};
 					newCd.requiredBy.AddRange(mergedCDs[key].requiredBy);
 					foreach (var req in cd.requiredBy)

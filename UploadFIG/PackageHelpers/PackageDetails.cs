@@ -39,15 +39,15 @@ namespace UploadFIG.PackageHelpers
 				foreach (var rc in RequiresCanonicals.Order())
 				{
 					if (rc.resource == null)
-						Console.WriteLine($"{tabPrefix}      - {rc.canonical}|{rc.version}");
+						Console.WriteLine($"{tabPrefix}      - {rc.Canonical}|{rc.Version}");
 					else if (rc.resource is IVersionableConformanceResource ivr)
 					{
 						var packageSource = ResourcePackageSource.PackageSourceVersion(ivr);
-						Console.WriteLine($"{tabPrefix}      + {rc.canonical}|{packageSource}");
+						Console.WriteLine($"{tabPrefix}      + {rc.Canonical}|{packageSource}");
 					}
 					else
 					{
-						Console.WriteLine($"{tabPrefix}      + {rc.canonical}|{rc.version}");
+						Console.WriteLine($"{tabPrefix}      + {rc.Canonical}|{rc.Version}");
 					}
 					if (debugRequiredByProps)
 					{

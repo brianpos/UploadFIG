@@ -54,6 +54,8 @@ Options:
                                                              |SearchParameter|ConceptMap|StructureMap|Library]
   -sf, --selectFiles <selectFiles>                           Only process these selected files
                                                              (e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)
+  -ap, --AdditionalPackages <packageId|ver>                  Set of additional packages to include in the processing
+                                                             These will be processes as though they are dependencies of the root package
   -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
                                                              package
   -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
@@ -464,7 +466,13 @@ using the `-pcv` Patch Canonical Versions flag
 
 ## Change history
 
-### 5 February 2025
+### 6 March 2025
+* Add the `-ap` or `--AdditionalPackages` flag to include additional packages in the processing<br/>
+  *These will be processed as though they are dependencies of the root package.*
+  *This is useful if you want to include additional packages that are not dependencies of the root package*
+  *Particularly to resolve resources from a newer terminology.hl7.org or hl7.fhir.uv.extensions package version*
+
+### 5 March 2025
 This has been a big release with lots of changes, mostly around processing dependencies
 
 * References both fhir package registries to resolve dependencies (https://packages.simplifier.net and https://packages2.fhir.org/packages)
