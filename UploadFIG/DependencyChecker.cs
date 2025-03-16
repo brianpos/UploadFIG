@@ -827,7 +827,8 @@ namespace UploadFIG
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 					}
-					canonical.resource = useResource as Resource;
+                    useResource.MarkUsedBy(canonical);
+                    canonical.resource = useResource.resource as Resource;
 				}
 			}
 
@@ -1027,7 +1028,7 @@ namespace UploadFIG
 		/// <param name="versionAgnosticProcessor"></param>
 		/// <param name="errFiles"></param>
 		/// <returns></returns>
-		internal IEnumerable<IVersionableConformanceResource> ResolveCanonical(PackageDetails pd, CanonicalDetails canonicalUrl, Common_Processor versionAgnosticProcessor, List<String> errFiles)
+		internal IEnumerable<FileDetail> ResolveCanonical(PackageDetails pd, CanonicalDetails canonicalUrl, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
 			// Is this in any of the dependencies?
 			foreach (var dep in pd.dependencies)
@@ -1109,7 +1110,7 @@ namespace UploadFIG
 			}
 
 			if (detail.resource is IVersionableConformanceResource ivr)
-				yield return ivr;
+				yield return detail;
 		}
 
 		public async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Func<string, bool> SkipFile, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles, bool verbose, List<string> resourceTypeNames)
@@ -1197,6 +1198,7 @@ namespace UploadFIG
 							}
 							pd.Files.Add(indexDetails);
 						}
+                        indexDetails.UsedBy.Add("(root package)");
 						indexDetails.resource = resource;
 					}
 				}

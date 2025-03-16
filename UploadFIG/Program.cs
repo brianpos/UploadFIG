@@ -283,15 +283,16 @@ namespace UploadFIG
 				var useResource = CurrentCanonicalFromPackages.Current(matches);
 				if (useResource != null)
 				{
-					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
+					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m.resource as IVersionableConformanceResource)).Distinct();
 					if (distinctVersionSources.Count() > 1 && settings.Verbose)
 					{
 						Console.Write($"    Resolved {canonicalUrl.Canonical}|{canonicalUrl.Version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 					}
-					canonicalUrl.resource = useResource as Resource;
-					allUnresolvedCanonicals.Remove(canonicalUrl);
+					canonicalUrl.resource = useResource.resource as Resource;
+                    useResource.MarkUsedBy(canonicalUrl);
+                    allUnresolvedCanonicals.Remove(canonicalUrl);
 				}
 			}
 

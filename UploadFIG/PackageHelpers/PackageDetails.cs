@@ -12,7 +12,7 @@ namespace UploadFIG.PackageHelpers
 
 		public IEnumerable<Hl7.Fhir.Model.Resource> resources { get
 			{
-				return Files.Select(f => f.resource).Where(r => r != null);
+				return Files.Where(f => f.resource != null && f.UsedBy.Any()).Select(f => f.resource);
 			}
 		}
 

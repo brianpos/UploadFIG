@@ -265,9 +265,11 @@ namespace UploadFIG
 					ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 					Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 				}
-				cd.resource = useResource as Resource;
+                useResource.MarkUsedBy(useResource.resource);
+				cd.resource = useResource.resource as Resource;
 			}
-			return useResource as Resource;
+
+            return useResource?.resource as Resource;
 		}
 
 		public Resource ResolveByUri(string uri)

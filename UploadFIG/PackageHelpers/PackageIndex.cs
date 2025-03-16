@@ -1,4 +1,6 @@
 ﻿using System.Text.Json.Serialization;
+using Hl7.Fhir.ElementModel;
+using Hl7.Fhir.Model;
 
 namespace UploadFIG
 {
@@ -37,5 +39,21 @@ namespace UploadFIG
 
 		[JsonIgnore]
 		public bool hasDuplicateDefinitions { get; set; } = false;
-	}
+
+        /// <summary>
+        /// Still need to work out what this is indexing here, but an empty value means it's not used and can be ignored
+        /// </summary>
+        [JsonIgnore]
+        public List<string> UsedBy { get; set; } = new ();
+
+        public void MarkUsedBy(CanonicalDetails details)
+        {
+            MarkUsedBy(details.requiredBy.First());
+        }
+
+        public void MarkUsedBy(Resource resource)
+        {
+            UsedBy.Add($"{resource.TypeName}/{resource.Id}");
+        }
+    }
 }
