@@ -29,6 +29,16 @@ namespace UploadFIG
         public static long successes = 0;
         public static long failures = 0;
         public static long validationErrors = 0;
+        public static readonly string[] defaultResourceTypes = new[] {
+                    "StructureDefinition",
+                    "ValueSet",
+                    "CodeSystem",
+                    "Questionnaire",
+                    "SearchParameter",
+                    "ConceptMap",
+                    "StructureMap",
+                    "Library",
+                };
 
         /// <summary>Main entry-point for this application.</summary>
         /// <param name="args">An array of command-line argument strings.</param>
@@ -47,16 +57,7 @@ namespace UploadFIG
 
             // Provide defaults if not provided
             if (settings.ResourceTypes?.Any() != true)
-                settings.ResourceTypes = new[] {
-                    "StructureDefinition",
-                    "ValueSet",
-                    "CodeSystem",
-                    "Questionnaire",
-                    "SearchParameter",
-                    "ConceptMap",
-                    "StructureMap",
-                    "Library",
-                }.ToList();
+                settings.ResourceTypes = defaultResourceTypes.ToList();
 
 
             Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
@@ -144,9 +145,28 @@ namespace UploadFIG
             return await rootCommand.InvokeAsync(args);
         }
 
+        public class Result
+        {
+            public int Value;
+            public OutputDependenciesFile OutputDependencies;
+            public Bundle AlternativeOutputBundle;
+
+            public Common_Processor Processor;
+
+            public long successes = 0;
+            public long failures = 0;
+            public long validationErrors = 0;
+        }
+
         public static async Task<int> UploadPackage(Settings settings)
-		{
-			OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
+        {
+            var result = await UploadPackageInternal(settings);
+            return result.Value;
+        }
+
+        public static async Task<Result> UploadPackageInternal(Settings settings)
+        {
+            OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
 			Bundle alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Batch };
@@ -162,7 +182,7 @@ namespace UploadFIG
 						var kv = header.Split(new char[] { ':' }, 2);
 						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
 						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
-							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
+                            ConsoleEx.WriteLine(ConsoleColor.Yellow, $"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
 					}
 				}
 			}
@@ -170,7 +190,7 @@ namespace UploadFIG
 			// Prepare a temp working folder to hold this downloaded package
 			Stream sourceStream = await GetSourcePackageStream(settings, dumpOutput);
 			if (sourceStream == null)
-				return -1;
+				return new Result { Value = -1 };
 
 			using (var md5 = MD5.Create())
 			{
@@ -185,10 +205,10 @@ namespace UploadFIG
 
 			if (manifest == null)
 			{
-				// There was no manifest
-				Console.WriteLine($"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
-				return -1;
-			}
+                // There was no manifest
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
+                return new Result { Value = -1 };
+            }
 
 			Console.WriteLine();
 
@@ -217,10 +237,10 @@ namespace UploadFIG
 			}
 			else
 			{
-				Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
-				return -1;
-			}
-			if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
+				ConsoleEx.WriteLine(ConsoleColor.Red, $"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
+                return new Result { Value = -1 };
+            }
+            if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
 				Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
 			else
 				Console.WriteLine($"Detected FHIR Version {versionInPackage} - using {fhirVersion.GetLiteral()}");
@@ -238,6 +258,9 @@ namespace UploadFIG
 				}
 			}
 
+			var errs = new List<String>();
+			var errFiles = new List<String>();
+
 			// Load all the package details (via indexes only) into memory (including dependencies)
 			ConsoleEx.WriteLine(ConsoleColor.White, "Package dependencies:");
 			var packageCache = new TempPackageCache();
@@ -248,9 +271,6 @@ namespace UploadFIG
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
-
-			var errs = new List<String>();
-			var errFiles = new List<String>();
 
 			// Server to upload the resources to
 			BaseFhirClient clientFhir = PrepareTargetFhirClient(settings, versionAgnosticProcessor);
@@ -678,30 +698,33 @@ namespace UploadFIG
 				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
 			}
 
-			await WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
+            // Prepare the bundle order
+            alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
+            ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
+            await WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
 
+		    foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+		    {
+			    dumpOutput.containedCanonicals.Add(new CanonicalDetails()
+			    {
+				    ResourceType = (resource as Resource).TypeName,
+				    Canonical = resource.Url,
+				    Version = resource.Version,
+				    Status = resource.Status.GetLiteral(),
+				    Name = resource.Name,
+			    });
+			    // Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+		    }
+		    dumpOutput.externalCanonicalsRequired.AddRange(
+			    externalCanonicals.Select(rc => new DependentResource()
+			    {
+				    resourceType = rc.ResourceType,
+				    canonical = rc.Canonical,
+				    version = rc.Version,
+			    })
+			);
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
 			{
-				foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
-				{
-					dumpOutput.containedCanonicals.Add(new CanonicalDetails()
-					{
-						ResourceType = (resource as Resource).TypeName,
-						Canonical = resource.Url,
-						Version = resource.Version,
-						Status = resource.Status.GetLiteral(),
-						Name = resource.Name,
-					});
-					// Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
-				}
-				dumpOutput.externalCanonicalsRequired.AddRange(
-					externalCanonicals.Select(rc => new DependentResource()
-					{
-						resourceType = rc.ResourceType,
-						canonical = rc.Canonical,
-						version = rc.Version,
-					})
-					);
 				try
 				{
 					// Write dumpOutput to a JSON string
@@ -713,7 +736,15 @@ namespace UploadFIG
 					Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
 				}
 			}
-			return 0;
+			return new Result {
+                Value = 0,
+                AlternativeOutputBundle = alternativeOutputBundle,
+                OutputDependencies = dumpOutput,
+                failures = failures,
+                successes = successes,
+                validationErrors = validationErrors,
+                Processor = versionAgnosticProcessor,
+            };
 		}
 
 		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
@@ -785,8 +816,6 @@ namespace UploadFIG
 				else
 				{
 					// Write the output bundle to a file
-					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
-					ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
 					var fs = new FileStream(filename, FileMode.Create);
 					using (fs)
 					{
