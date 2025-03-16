@@ -59,7 +59,7 @@ namespace UploadFIG
 					validationErrors++;
 
 				// Check if there are any types in the differentials that aren't valid for this version of FHIR
-				if (sd.Differential?.Element?.Any() == true)
+				if (sd.Kind != StructureDefinition.StructureDefinitionKind.Logical && sd.Differential?.Element?.Any() == true)
 				{
 					foreach (var element in sd.Differential.Element)
 					{
@@ -69,7 +69,7 @@ namespace UploadFIG
 						}
 					}
 				}
-				if (sd.Snapshot?.Element?.Any() == true)
+				if (sd.Kind != StructureDefinition.StructureDefinitionKind.Logical && sd.Snapshot?.Element?.Any() == true)
 				{
 					foreach (var element in sd.Snapshot.Element)
 					{
