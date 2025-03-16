@@ -210,6 +210,10 @@ namespace UploadFIG
                 return new Result { Value = -1 };
             }
 
+            if (settings.ResourceTypes.Count == 1 && settings.ResourceTypes[0] == "*")
+            {
+                settings.ResourceTypes.Clear();
+            }
 			Console.WriteLine();
 
 			// Select the version of the processor to use

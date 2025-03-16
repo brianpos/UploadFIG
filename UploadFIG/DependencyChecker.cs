@@ -1164,7 +1164,7 @@ namespace UploadFIG
 
 						// Skip resource types we're not intentionally importing
 						// (usually examples)
-						if (!resourceTypeNames.Contains(resource.TypeName))
+						if (resourceTypeNames.Any() && !resourceTypeNames.Contains(resource.TypeName))
 						{
 							if (verbose)
 								Console.WriteLine($"    ----> Ignoring {exampleName} because {resource.TypeName} is not a requested type");
