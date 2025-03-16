@@ -221,7 +221,16 @@ namespace UploadFIG
 			ExpressionValidator expressionValidator = null;
 			FHIRVersion? fhirVersion = null;
 			var versionInPackage = manifest.GetFhirVersion();
-			if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
+            if (versionInPackage == null)
+            {
+                // There was no manifest
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package where the manifest does not define a fhir version (package.json)");
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"e.g. \"fhirVersions\" : [\"4.0.1\"]");
+                return new Result { Value = -1 };
+
+                // Note: Could try and "deduce" the fhir version from which fhir core packages are included, however those aren't mandatory either
+            }
+            else if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
 			{
 				fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4.Hl7.Fhir.Model.ModelInfo.Version);
 				versionAgnosticProcessor = new R4_Processor();
