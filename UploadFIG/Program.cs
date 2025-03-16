@@ -214,7 +214,7 @@ namespace UploadFIG
             {
                 settings.ResourceTypes.Clear();
             }
-			Console.WriteLine();
+            Console.WriteLine();
 
 			// Select the version of the processor to use
 			Common_Processor versionAgnosticProcessor = null;
@@ -280,7 +280,7 @@ namespace UploadFIG
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
 			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache, settings.IgnorePackages);
             PackageReader.ReadAdditionalPackageIndexDetails(pd, settings.AdditionalPackages, packageCache, settings.IgnorePackages);
-            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
+            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache, versionAgnosticProcessor, errFiles);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
@@ -412,7 +412,7 @@ namespace UploadFIG
 			var registryCanonicals = new List<CanonicalDetails>();
 
 			// Check for missing canonicals on the registry
-			List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
+			List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(pd, settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
 			dependencyResourcesToLoad.InsertRange(0, additionalResourcesFromRegistry);
 
 			Console.WriteLine();
@@ -1123,7 +1123,7 @@ namespace UploadFIG
 			}
 		}
 
-		private static async Task<List<Resource>> ScanExternalRegistry(Settings settings, Common_Processor versionAgnosticProcessor, DependencyChecker depChecker, List<CanonicalDetails> externalCanonicals, List<CanonicalDetails> unresolvableCanonicals, List<CanonicalDetails> indirectCanonicals)
+		private static async Task<List<Resource>> ScanExternalRegistry(PackageDetails pd, Settings settings, Common_Processor versionAgnosticProcessor, DependencyChecker depChecker, List<CanonicalDetails> externalCanonicals, List<CanonicalDetails> unresolvableCanonicals, List<CanonicalDetails> indirectCanonicals)
 		{
 			List<Resource> additionalResources = new List<Resource>();
 			if (!string.IsNullOrEmpty(settings.ExternalRegistry))
@@ -1206,7 +1206,7 @@ namespace UploadFIG
 					Canonical = (ec as IVersionableConformanceResource).Url,
 					Version = (ec as IVersionableConformanceResource).Version
 				}).ToList();
-				var dependentCanonicals = depChecker.ScanForCanonicals(initialCanonicals.Union(externalCanonicals), additionalResources);
+				var dependentCanonicals = depChecker.ScanForCanonicals(pd, initialCanonicals.Union(externalCanonicals), additionalResources);
 				foreach (var dc in dependentCanonicals)
 				{
 					try
