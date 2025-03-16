@@ -1,12 +1,102 @@
 extern alias r4b;
 
+using System.Text;
 using Hl7.Fhir.Model;
+using Hl7.Fhir.Utility;
+using Newtonsoft.Json;
 
 namespace UploadFIG.Test
 {
     [TestClass]
     public class CheckImplementationGuides
     {
+        private string _cacheFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "PackageCache");
+
+        private StringBuilder _sb;
+        private TextWriter _writer;
+        private TextWriter _rawWriter;
+
+        [TestInitialize()]
+        public void Initialize()
+        {
+            // Grab the console output from the test into a StringBuilder
+            _sb = new();
+            _writer = new StringWriter(_sb);
+            _rawWriter = Console.Out;
+            Console.SetOut(_writer);
+        }
+
+        [TestCleanup]
+        public void Cleanup()
+        {
+            // Put the captured console out to the original console stream
+            Console.SetOut(_rawWriter);
+            Console.WriteLine(_sb);
+        }
+
+        public async Task CheckTestResults(string testName, Program.Result results)
+        {
+            string testResultPath = Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "TestResult", testName);
+
+            // Check the console output
+            if (File.Exists(testResultPath + ".txt"))
+            {
+                // this times results
+                System.IO.File.WriteAllText(testResultPath + "2.txt", _sb.ToString());
+
+                var expectedResult = File.ReadAllText(testResultPath + ".txt");
+                Assert.AreEqual(expectedResult, _sb.ToString());
+            }
+            else
+            {
+                System.IO.File.WriteAllText(testResultPath + ".txt", _sb.ToString());
+            }
+
+            // Check the dependencies file
+            JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            if (File.Exists(testResultPath + "_deps.json"))
+            {
+                // this times results
+                System.IO.File.WriteAllText(testResultPath + "_deps2.json", JsonConvert.SerializeObject(results.OutputDependencies, serializerSettings));
+
+                var expectedDeps = File.ReadAllText(testResultPath + "_deps.json");
+                OutputDependenciesFile expectedItems = JsonConvert.DeserializeObject<OutputDependenciesFile>(expectedDeps, serializerSettings);
+                // Assert.AreEqual(expectedDeps, _sb.ToString());
+                var expectedUrls = expectedItems.containedCanonicals.Select(cc => $"{cc.Canonical}|{cc.Version}");
+                var actualUrls = results.OutputDependencies.containedCanonicals.Select(cc => $"{cc.Canonical}|{cc.Version}");
+                Assert.AreEqual(string.Empty, string.Join(",\n", expectedUrls.Where(ec => !actualUrls.Contains(ec))), "Missing URLs");
+                Assert.AreEqual(string.Empty, string.Join(",\n", actualUrls.Where(ec => !expectedUrls.Contains(ec))), "Extra URLs");
+            }
+            else
+            {
+                System.IO.File.WriteAllText(testResultPath + "_deps.json", JsonConvert.SerializeObject(results.OutputDependencies, serializerSettings));
+            }
+
+            // Check the output bundle
+            if (File.Exists(testResultPath + "_bundle.json"))
+            {
+                // This times results
+                var fs = new FileStream(testResultPath + "_bundle2.json", FileMode.Create);
+                using (fs)
+                {
+                    await results.Processor.SerializeJson(fs, results.AlternativeOutputBundle);
+                }
+
+                var expectedBundleJson = File.ReadAllText(testResultPath + "_bundle.json");
+                var bundle = results.Processor.ParseJson(expectedBundleJson) as Bundle;
+                Assert.AreEqual(bundle.Total, results.AlternativeOutputBundle.Total);
+                // now do more comparisons
+            }
+            else
+            {
+                var fs = new FileStream(testResultPath + "_bundle.json", FileMode.Create);
+                using (fs)
+                {
+                    await results.Processor.SerializeJson(fs, results.AlternativeOutputBundle);
+                }
+            }
+        }
+
 		[TestMethod]
 		public async Task FMG_Review()
 		{
@@ -79,18 +169,19 @@ namespace UploadFIG.Test
 		[TestMethod]
         public async Task CheckSDC300()
         {
-            // "commandLineArgs": "-t -pid hl7.fhir.uv.sdc"
-            string outputFile = "c:\\temp\\uploadfig-dump-sdc.json";
-            var result = await Program.Main(new[]
+            var settings = new Settings
             {
-                "-t",
-                "-vq",
-                "--includeExamples",
-				"-pid", "hl7.fhir.uv.sdc",
-				"-pv", "3.0.0",
-                "-odf", outputFile,
-            });
-            Assert.AreEqual(0, result);
+                TestPackageOnly = true,
+                ValidateQuestionnaires = true,
+                IncludeExamples = true,
+                SourcePackagePath = _cacheFolder + "/hl7.fhir.uv.sdc_3_0_0.tgz",
+                ResourceTypes = Program.defaultResourceTypes.ToList(),
+            };
+            var result = await Program.UploadPackageInternal(settings);
+
+            Assert.AreEqual(0, result.Value);
+
+            await CheckTestResults("sdc300", result);
 
 			Assert.AreEqual(125, Program.successes);
 			Assert.AreEqual(0, Program.failures);
