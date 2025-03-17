@@ -223,7 +223,7 @@ namespace UploadFIG
 						if (requiresCanonicals.Any(c => c.Canonical == canonical.Value))
 							continue;
 						if (!IsCoreOrExtensionOrToolsCanonical(canonical.Value))
-							CheckRequiresCanonical(pd, resource, "unknown", canonical.Value, requiresCanonicals, (newValue) => canonical.Value = newValue);
+							CheckRequiresCanonical(pd, resource, "unknown", canonical.Value, requiresCanonicals);
 					}
 				}
 			}
@@ -237,7 +237,7 @@ namespace UploadFIG
             {
                 if (child is Extension extension)
                 {
-                    CheckRequiresCanonical(pd, resource, "StructureDefinition", extension.Url, requiresCanonicals, (value) => extension.Url = value);
+                    CheckRequiresCanonical(pd, resource, "StructureDefinition", extension.Url, requiresCanonicals);
                     if (extension.Value != null)
                     {
                         // This will scan for extensions on extension values (not complex extensions)
@@ -428,7 +428,7 @@ namespace UploadFIG
 			"vsacOpModifier",
 		});
 
-        private void CheckRequiresCanonical(PackageDetails pd, Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals, Action<string> patchVersionedCanonical = null)
+        private void CheckRequiresCanonical(PackageDetails pd, Resource resource, string canonicalType, string canonicalUrl, List<CanonicalDetails> requiresCanonicals)
         {
 			if (!string.IsNullOrEmpty(canonicalUrl))
             {
@@ -482,13 +482,13 @@ namespace UploadFIG
 
         private void ScanForCanonicalsR4(PackageDetails pd, List<CanonicalDetails> requiresCanonicals, r4.Hl7.Fhir.Model.ConceptMap resource)
         {
-            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Source as Canonical, requiresCanonicals, (value) => (resource.Source as Canonical).Value = value);
-            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Target as Canonical, requiresCanonicals, (value) => (resource.Target as Canonical).Value = value);
+            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Source as Canonical, requiresCanonicals);
+            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Target as Canonical, requiresCanonicals);
 
             foreach (var group in resource.Group)
             {
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals, (value) => { group.Source = value; });
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals, (value) => { group.Target = value; });
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals);
 
                 foreach (var element in group.Element)
                 {
@@ -496,30 +496,30 @@ namespace UploadFIG
                     {
                         foreach (var dependsOn in target.DependsOn)
                         {
-                            CheckRequiresCanonical(pd, resource, "CodeSystem", dependsOn.System, requiresCanonicals, (value) => { dependsOn.System = value; });
+                            CheckRequiresCanonical(pd, resource, "CodeSystem", dependsOn.System, requiresCanonicals);
                         }
                         foreach (var product in target.Product)
                         {
-                            CheckRequiresCanonical(pd, resource, "CodeSystem", product.System, requiresCanonicals, (value) => { product.System = value; });
+                            CheckRequiresCanonical(pd, resource, "CodeSystem", product.System, requiresCanonicals);
                         }
                     }
                 }
                 if (group.Unmapped?.Url != null)
                 {
-                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.Url, requiresCanonicals, (value) => { group.Unmapped.Url = value; });
+                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.Url, requiresCanonicals);
                 }
             }
         }
 
         private void ScanForCanonicals(PackageDetails pd, List<CanonicalDetails> requiresCanonicals, r4b.Hl7.Fhir.Model.ConceptMap resource)
         {
-            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Source as Canonical, requiresCanonicals, (value) => (resource.Source as Canonical).Value = value);
-            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Target as Canonical, requiresCanonicals, (value) => (resource.Target as Canonical).Value = value);
+            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Source as Canonical, requiresCanonicals);
+            CheckRequiresCanonical(pd, resource, "ValueSet", resource.Target as Canonical, requiresCanonicals);
 
             foreach (var group in resource.Group)
             {
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals, (value) => { group.Source = value; });
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals, (value) => { group.Target = value; });
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals);
 
                 foreach (var element in group.Element)
                 {
@@ -527,17 +527,17 @@ namespace UploadFIG
                     {
                         foreach (var dependsOn in target.DependsOn)
                         {
-                            CheckRequiresCanonical(pd, resource, "CodeSystem", dependsOn.System, requiresCanonicals, (value) => { dependsOn.System = value; });
+                            CheckRequiresCanonical(pd, resource, "CodeSystem", dependsOn.System, requiresCanonicals);
                         }
                         foreach (var product in target.Product)
                         {
-                            CheckRequiresCanonical(pd, resource, "CodeSystem", product.System, requiresCanonicals, (value) => { product.System = value; });
+                            CheckRequiresCanonical(pd, resource, "CodeSystem", product.System, requiresCanonicals);
                         }
                     }
                 }
                 if (group.Unmapped != null)
                 {
-                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.Url, requiresCanonicals, (value) => { group.Unmapped.Url = value; });
+                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.Url, requiresCanonicals);
                 }
             }
         }
@@ -546,37 +546,37 @@ namespace UploadFIG
         {
             foreach (var prop in resource.Property)
             {
-                CheckRequiresCanonical(pd, resource, "CodeSystem", prop.System, requiresCanonicals, (value) => { prop.System = value; });
+                CheckRequiresCanonical(pd, resource, "CodeSystem", prop.System, requiresCanonicals);
             }
             CheckRequiresCanonical(pd, resource, "ValueSet", resource.SourceScope as Canonical ?? (resource.SourceScope as FhirUri)?.Value, requiresCanonicals);
             CheckRequiresCanonical(pd, resource, "ValueSet", resource.TargetScope as Canonical ?? (resource.TargetScope as FhirUri)?.Value, requiresCanonicals);
 
             foreach (var group in resource.Group)
             {
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals, (value) => { group.Source = value; });
-                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals, (value) => { group.Target = value; });
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Source, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "CodeSystem", group.Target, requiresCanonicals);
 
                 foreach (var element in group.Element)
                 {
-                    CheckRequiresCanonical(pd, resource, "ValueSet", element.ValueSet, requiresCanonicals, (value) => { element.ValueSet = value; });
+                    CheckRequiresCanonical(pd, resource, "ValueSet", element.ValueSet, requiresCanonicals);
 
                     foreach (var target in element.Target)
                     {
-                        CheckRequiresCanonical(pd, resource, "ValueSet", target.ValueSet, requiresCanonicals, (value) => { target.ValueSet = value; });
+                        CheckRequiresCanonical(pd, resource, "ValueSet", target.ValueSet, requiresCanonicals);
                         foreach (var dependsOn in target.DependsOn)
                         {
-                            CheckRequiresCanonical(pd, resource, "ValueSet", dependsOn.ValueSet, requiresCanonicals, (value) => { dependsOn.ValueSet = value; });
+                            CheckRequiresCanonical(pd, resource, "ValueSet", dependsOn.ValueSet, requiresCanonicals);
                         }
                         foreach (var product in target.Product)
                         {
-                            CheckRequiresCanonical(pd, resource, "ValueSet", product.ValueSet, requiresCanonicals, (value) => { product.ValueSet = value; });
+                            CheckRequiresCanonical(pd, resource, "ValueSet", product.ValueSet, requiresCanonicals);
                         }
                     }
                 }
                 if (group.Unmapped != null)
                 {
-                    CheckRequiresCanonical(pd, resource, "ValueSet", group.Unmapped.ValueSet, requiresCanonicals, (value) => { group.Unmapped.ValueSet = value; });
-                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.OtherMap, requiresCanonicals, (value) => { group.Unmapped.OtherMap = value; });
+                    CheckRequiresCanonical(pd, resource, "ValueSet", group.Unmapped.ValueSet, requiresCanonicals);
+                    CheckRequiresCanonical(pd, resource, "ConceptMap", group.Unmapped.OtherMap, requiresCanonicals);
                 }
             }
         }
@@ -584,7 +584,7 @@ namespace UploadFIG
 
         private void ScanForCanonicals(PackageDetails pd, List<CanonicalDetails> requiresCanonicals, CodeSystem resource)
         {
-            CheckRequiresCanonical(pd, resource, "CodeSystem", resource.Supplements, requiresCanonicals, (value) => { resource.Supplements = value; });
+            CheckRequiresCanonical(pd, resource, "CodeSystem", resource.Supplements, requiresCanonicals);
             // Removing this check for the "complete valueset" reference as this is quite often not there
             // and if others need it, they would have a reference to it.
             // CheckRequiresCanonical(resource, "ValueSet", resource.ValueSet, requiresCanonicals);
@@ -602,7 +602,7 @@ namespace UploadFIG
             {
                 foreach (var include in resource?.Compose?.Include)
                 {
-                    CheckRequiresCanonical(pd, resource, "CodeSystem", include.System, requiresCanonicals, (value) => { include.System = value; });
+                    CheckRequiresCanonical(pd, resource, "CodeSystem", include.System, requiresCanonicals);
                     foreach (var binding in include.ValueSet)
                     {
                         CheckRequiresCanonical(pd, resource, "ValueSet", binding, requiresCanonicals);
@@ -613,7 +613,7 @@ namespace UploadFIG
             {
                 foreach (var exclude in resource?.Compose?.Exclude)
                 {
-                    CheckRequiresCanonical(pd, resource, "CodeSystem", exclude.System, requiresCanonicals, (value) => { exclude.System = value; });
+                    CheckRequiresCanonical(pd, resource, "CodeSystem", exclude.System, requiresCanonicals);
                     foreach (var binding in exclude.ValueSet)
                     {
                         CheckRequiresCanonical(pd, resource, "ValueSet", binding, requiresCanonicals);
@@ -624,9 +624,9 @@ namespace UploadFIG
 
         private void ScanForCanonicals(PackageDetails pd, List<CanonicalDetails> requiresCanonicals, StructureDefinition resource)
         {
-            CheckRequiresCanonical(pd, resource, "StructureDefinition", resource.BaseDefinition, requiresCanonicals, (value) => { resource.BaseDefinition = value; });
+            CheckRequiresCanonical(pd, resource, "StructureDefinition", resource.BaseDefinition, requiresCanonicals);
             var compliesWithProfile = resource.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/structuredefinition-compliesWithProfile");
-            CheckRequiresCanonical(pd, resource, "StructureDefinition", compliesWithProfile?.Value, requiresCanonicals, (value) => { compliesWithProfile.Value = value; });
+            CheckRequiresCanonical(pd, resource, "StructureDefinition", compliesWithProfile?.Value, requiresCanonicals);
 
             if (resource?.Differential?.Element == null)
             {
@@ -669,7 +669,7 @@ namespace UploadFIG
 					foreach (var binding in additionalBindings)
 					{
 						var valueSet = binding.GetExtensionValue<Canonical>("valueSet");
-						CheckRequiresCanonical(pd, resource, "ValueSet", valueSet, requiresCanonicals, (value) => valueSet.Value = value);
+						CheckRequiresCanonical(pd, resource, "ValueSet", valueSet, requiresCanonicals);
 					}
 				}
 
@@ -711,8 +711,8 @@ namespace UploadFIG
                 return;
             foreach (var item in items)
             {
-                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals, (value) => { item.AnswerValueSet = value; });
-                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals, (value) => { item.Definition = value; });
+                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(pd, requiresCanonicals, resource, item);
                 ScanForCanonicalsR4(pd, requiresCanonicals, resource, item.Item);
@@ -737,8 +737,8 @@ namespace UploadFIG
                 return;
             foreach (var item in items)
             {
-                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals, (value) => { item.AnswerValueSet = value; });
-                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals, (value) => { item.Definition = value; });
+                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(pd, requiresCanonicals, resource, item);
                 ScanForCanonicals(pd, requiresCanonicals, resource, item.Item);
@@ -763,8 +763,8 @@ namespace UploadFIG
                 return;
             foreach (var item in items)
             {
-                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals, (value) => { item.AnswerValueSet = value; });
-                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals, (value) => { item.Definition = value; });
+                CheckRequiresCanonical(pd, resource, "ValueSet", item.AnswerValueSet, requiresCanonicals);
+                CheckRequiresCanonical(pd, resource, "StructureDefinition", item.Definition, requiresCanonicals);
 
                 ScanForSDCItemExtensionCanonicals(pd, requiresCanonicals, resource, item);
                 ScanForCanonicalsR5(pd, requiresCanonicals, resource, item.Item);
@@ -775,9 +775,9 @@ namespace UploadFIG
         {
             // SDC extras
             var tsm = resource.GetExtensionValue<Canonical>("http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-targetStructureMap");
-            CheckRequiresCanonical(pd, resource, "StructureMap", tsm, requiresCanonicals, (value) => { tsm = value; });
+            CheckRequiresCanonical(pd, resource, "StructureMap", tsm, requiresCanonicals);
             var qUrl = resource.GetExtensionValue<Canonical>("http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-subQuestionnaire");
-            CheckRequiresCanonical(pd, resource, "Questionnaire", qUrl, requiresCanonicals, (value) => { qUrl = value; });
+            CheckRequiresCanonical(pd, resource, "Questionnaire", qUrl, requiresCanonicals);
         }
 
         private void ScanForSDCItemExtensionCanonicals(PackageDetails pd, List<CanonicalDetails> requiresCanonicals, Resource resource, Element item)
@@ -786,9 +786,9 @@ namespace UploadFIG
 
             // SDC extras
             var unitValusetUrl = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-unitValueSet");
-            CheckRequiresCanonical(pd, resource, "ValueSet", unitValusetUrl, requiresCanonicals, (value) => { unitValusetUrl = value; });
+            CheckRequiresCanonical(pd, resource, "ValueSet", unitValusetUrl, requiresCanonicals);
             var referenceProfile = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-referenceProfile");
-            CheckRequiresCanonical(pd, resource, "StructureDefinition", unitValusetUrl, requiresCanonicals, (value) => { unitValusetUrl = value; });
+            CheckRequiresCanonical(pd, resource, "StructureDefinition", unitValusetUrl, requiresCanonicals);
         }
 		#endregion
 
