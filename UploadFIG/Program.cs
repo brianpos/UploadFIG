@@ -869,7 +869,7 @@ namespace UploadFIG
 						if (!definedCanonicals.Contains(ivr.Url))
 							definedCanonicals.Add(ivr.Url);
 						definedCanonicals.Add(versionedCanonical);
-						if (futureCanonicals.ContainsKey(ivr.Url))
+						if (ivr.Url != null && futureCanonicals.ContainsKey(ivr.Url))
 							futureCanonicals.Remove(ivr.Url);
 						if (futureCanonicals.ContainsKey(versionedCanonical))
 							futureCanonicals.Remove(versionedCanonical);
@@ -911,7 +911,7 @@ namespace UploadFIG
 								if (!definedCanonicals.Contains(ivr.Url))
 									definedCanonicals.Add(ivr.Url);
 								definedCanonicals.Add(versionedCanonical);
-								if (futureCanonicals.ContainsKey(ivr.Url))
+                                if (ivr.Url != null && futureCanonicals.ContainsKey(ivr.Url))
 									futureCanonicals.Remove(ivr.Url);
 								if (futureCanonicals.ContainsKey(versionedCanonical))
 									futureCanonicals.Remove(versionedCanonical);
