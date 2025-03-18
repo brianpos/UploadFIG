@@ -50,6 +50,7 @@ Options:
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
                                                              Registry)
   -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
+                                                             Note that `*` can be used to permit ALL types to be uploaded
                                                              [default: StructureDefinition|ValueSet|CodeSystem|Questionnaire
                                                              |SearchParameter|ConceptMap|StructureMap|Library]
   -sf, --selectFiles <selectFiles>                           Only process these selected files
