@@ -26,9 +26,6 @@ namespace UploadFIG
     public class Program
     {
         public static HttpClient useClient;
-        public static long successes = 0;
-        public static long failures = 0;
-        public static long validationErrors = 0;
         public static readonly string[] defaultResourceTypes = new[] {
                     "StructureDefinition",
                     "ValueSet",
@@ -44,10 +41,6 @@ namespace UploadFIG
         /// <param name="args">An array of command-line argument strings.</param>
         public static async Task<int> Main(string[] args)
         {
-            successes = 0;
-            failures = 0;
-            validationErrors = 0;
-
             Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
             ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
@@ -153,6 +146,11 @@ namespace UploadFIG
 
         public class Result
         {
+            /// <summary>
+            /// A static failure result
+            /// </summary>
+            public static Result Failure = new Result { Value = -1 };
+
             public int Value;
             public OutputDependenciesFile OutputDependencies;
             public Bundle AlternativeOutputBundle;
@@ -195,8 +193,8 @@ namespace UploadFIG
 
 			// Prepare a temp working folder to hold this downloaded package
 			Stream sourceStream = await GetSourcePackageStream(settings, dumpOutput);
-			if (sourceStream == null)
-				return new Result { Value = -1 };
+            if (sourceStream == null)
+                return Result.Failure;
 
 			using (var md5 = MD5.Create())
 			{
@@ -213,7 +211,7 @@ namespace UploadFIG
 			{
                 // There was no manifest
                 ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
-                return new Result { Value = -1 };
+                return Result.Failure;
             }
 
             if (settings.ResourceTypes.Count == 1 && settings.ResourceTypes[0] == "*")
@@ -277,7 +275,8 @@ namespace UploadFIG
 				}
 			}
 
-			var errs = new List<String>();
+            var result = new Result();
+            var errs = new List<String>();
 			var errFiles = new List<String>();
 
 			// Load all the package details (via indexes only) into memory (including dependencies)
@@ -298,7 +297,7 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, $"Scanning package {manifest.Name} content:");
 			// read the root package content
-			List<Resource> resourcesFromMainPackage = await depChecker.ReadResourcesFromPackage(pd, (name) => SkipFile(settings, name), sourceStream, versionAgnosticProcessor, errs, errFiles, settings.Verbose, settings.ResourceTypes);
+			List<Resource> resourcesFromMainPackage = await depChecker.ReadResourcesFromPackage(pd, (name) => SkipFile(settings, name), sourceStream, versionAgnosticProcessor, errs, errFiles, settings.Verbose, settings.ResourceTypes, result);
 
 			// Scan through the resources and resolve any canonicals
 			Console.WriteLine();
@@ -336,9 +335,9 @@ namespace UploadFIG
 			}
 
 
-			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			// this also loads additional resources that are dependencies of the search parameters
-			Console.WriteLine();
+            // We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
+            // this also loads additional resources that are dependencies of the search parameters
+            Console.WriteLine();
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, "Scanning fhirpath expression dependencies and validating content:");
 			expressionValidator.PreValidation(pd, depChecker, settings.Verbose, errFiles);
@@ -348,12 +347,12 @@ namespace UploadFIG
 				var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
-					expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+					expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
 				}
 				catch (Exception ex)
 				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-					System.Threading.Interlocked.Increment(ref failures);
+					System.Threading.Interlocked.Increment(ref result.failures);
 					// DebugDumpOutputXml(resource);
 					errFiles.Add(exampleName);
 				}
@@ -394,12 +393,12 @@ namespace UploadFIG
 
 					try
 					{
-							expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+							expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
 						}
 						catch (Exception ex)
 						{
 							ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-							System.Threading.Interlocked.Increment(ref failures);
+							System.Threading.Interlocked.Increment(ref result.failures);
 							// DebugDumpOutputXml(resource);
 							errFiles.Add(exampleName);
 						}
@@ -524,21 +523,21 @@ namespace UploadFIG
 
 						if (!settings.TestPackageOnly && settings.IncludeReferencedDependencies && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 						{
-							Resource result = UploadFile(settings, clientFhir, resource);
-							if (result != null || settings.CheckPackageInstallationStateOnly)
-								System.Threading.Interlocked.Increment(ref successes);
+							Resource resultUpload = UploadFile(settings, clientFhir, resource);
+							if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
+								System.Threading.Interlocked.Increment(ref result.successes);
 							else
-								System.Threading.Interlocked.Increment(ref failures);
+								System.Threading.Interlocked.Increment(ref result.failures);
 						}
 						else
 						{
-							System.Threading.Interlocked.Increment(ref successes);
+							System.Threading.Interlocked.Increment(ref result.successes);
 						}
 					}
 					catch (Exception ex)
 					{
 						Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-						System.Threading.Interlocked.Increment(ref failures);
+						System.Threading.Interlocked.Increment(ref result.failures);
 						// DebugDumpOutputXml(resource);
 						errFiles.Add(exampleName);
 					}
@@ -614,21 +613,21 @@ namespace UploadFIG
 
 					if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 					{
-						Resource result = UploadFile(settings, clientFhir, resource);
-						if (result != null || settings.CheckPackageInstallationStateOnly)
-							System.Threading.Interlocked.Increment(ref successes);
+						Resource resultUpload = UploadFile(settings, clientFhir, resource);
+						if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
+							System.Threading.Interlocked.Increment(ref result.successes);
 						else
-							System.Threading.Interlocked.Increment(ref failures);
+							System.Threading.Interlocked.Increment(ref result.failures);
 					}
 					else
 					{
-						System.Threading.Interlocked.Increment(ref successes);
+						System.Threading.Interlocked.Increment(ref result.successes);
 					}
 				}
 				catch (Exception ex)
 				{
 					Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-					System.Threading.Interlocked.Increment(ref failures);
+					System.Threading.Interlocked.Increment(ref result.failures);
 					// DebugDumpOutputXml(resource);
 					errFiles.Add(exampleName);
 				}
@@ -695,8 +694,8 @@ namespace UploadFIG
 
 				// And the summary at the end
 				Console.WriteLine();
-				Console.WriteLine($"Checked: {successes}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
+				Console.WriteLine($"Checked: {result.successes}");
+				Console.WriteLine($"Validation Errors: {result.validationErrors}");
 			}
 			else
 			{
@@ -710,11 +709,11 @@ namespace UploadFIG
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
 				// And the summary at the end
-				Console.WriteLine($"Success: {successes}");
-				Console.WriteLine($"Failures: {failures}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
+				Console.WriteLine($"Success: {result.successes}");
+				Console.WriteLine($"Failures: {result.failures}");
+				Console.WriteLine($"Validation Errors: {result.validationErrors}");
 				Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
-				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
+				Console.WriteLine($"rps: {(result.successes + result.failures) / sw.Elapsed.TotalSeconds}");
 			}
 
             // Prepare the bundle order
@@ -753,17 +752,14 @@ namespace UploadFIG
 				catch (Exception ex)
 				{
 					Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
-				}
+                }
 			}
-			return new Result {
-                Value = 0,
-                AlternativeOutputBundle = alternativeOutputBundle,
-                OutputDependencies = dumpOutput,
-                failures = failures,
-                successes = successes,
-                validationErrors = validationErrors,
-                Processor = versionAgnosticProcessor,
-            };
+
+            result.AlternativeOutputBundle = alternativeOutputBundle;
+            result.OutputDependencies = dumpOutput;
+            result.Processor = versionAgnosticProcessor;
+
+            return result;
 		}
 
 		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)

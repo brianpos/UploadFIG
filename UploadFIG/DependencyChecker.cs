@@ -1040,7 +1040,7 @@ namespace UploadFIG
 				yield return detail;
 		}
 
-		public async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Func<string, bool> SkipFile, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles, bool verbose, List<string> resourceTypeNames)
+		public async Task<List<Resource>> ReadResourcesFromPackage(PackageDetails pd, Func<string, bool> SkipFile, Stream sourceStream, Common_Processor versionAgnosticProcessor, List<string> errs, List<string> errFiles, bool verbose, List<string> resourceTypeNames, Program.Result result)
 		{
 			// skip back to the start (for cases where the package.json isn't the first resource)
 			sourceStream.Seek(0, SeekOrigin.Begin);
@@ -1082,7 +1082,7 @@ namespace UploadFIG
 						catch (Exception ex)
 						{
 							Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-							System.Threading.Interlocked.Increment(ref Program.failures);
+							System.Threading.Interlocked.Increment(ref result.failures);
 							if (!errs.Contains(ex.Message))
 								errs.Add(ex.Message);
 							errFiles.Add(exampleName);

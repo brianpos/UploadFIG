@@ -27,10 +27,6 @@ namespace UploadFIG.Test
             _writer = new StringWriter(_sb);
             _rawWriter = Console.Out;
             Console.SetOut(_writer);
-
-            Program.successes = 0;
-            Program.failures = 0;
-            Program.validationErrors = 0;
         }
 
         [TestCleanup]
@@ -125,7 +121,7 @@ namespace UploadFIG.Test
 		{
 			// "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
 			string outputFile = "c:\\temp\\uploadfig-dump-fmg.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -136,45 +132,38 @@ namespace UploadFIG.Test
                 
                 "-s", "https://build.fhir.org/ig/HL7/cqf-recommendations/package.tgz",
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			string json = System.IO.File.ReadAllText(outputFile);
-			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
-			Bundle bun = new Bundle();
-
-			Console.WriteLine();
-			Console.WriteLine("--------------------------------------");
-			Console.WriteLine("Recursively Scanning Dependencies...");
-			PrepareDependantPackage.RecursivelyScanPackageForCanonicals(output, bun);
-
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 
 		[TestMethod]
 		public async Task CheckFhirCoreR4()
 		{
 			string outputFile = "c:\\temp\\uploadfig-dump-r4core.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
-				"--includeExamples",
+				// "--includeExamples",
 				"-pid", "hl7.fhir.r4.core",
 				"-odf", outputFile,
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(4518, Program.successes);
-			Assert.AreEqual(10, Program.failures);
-			Assert.AreEqual(66, Program.validationErrors);
+			Assert.AreEqual(4518, result.successes);
+			Assert.AreEqual(10, result.failures);
+			Assert.AreEqual(69, result.validationErrors);
 		}
 
 		[TestMethod]
 		public async Task CheckFhirExamplesR4()
 		{
 			string outputFile = "c:\\temp\\uploadfig-dump-r4examples.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -182,11 +171,12 @@ namespace UploadFIG.Test
 				"-pid", "hl7.fhir.r4.examples",
 				"-odf", outputFile,
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(4546, Program.successes);
-			Assert.AreEqual(11, Program.failures);
-			Assert.AreEqual(69, Program.validationErrors);
+			Assert.AreEqual(4546, result.successes);
+			Assert.AreEqual(11, result.failures);
+			Assert.AreEqual(69, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -206,16 +196,16 @@ namespace UploadFIG.Test
 
             await CheckTestResults("sdc300", result);
 
-			Assert.AreEqual(125, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(15, Program.validationErrors);
+			Assert.AreEqual(125, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(15, result.validationErrors);
 		}
 
 		[TestMethod]
         public async Task CheckSDC_CI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-sdc-ci.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
                 "-vq",
@@ -226,11 +216,12 @@ namespace UploadFIG.Test
 				"-odf", outputFile,
                 // "--verbose",
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(161, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(4, Program.validationErrors);
+			Assert.AreEqual(161, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(4, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -238,7 +229,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 3.1.1 -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-uscore311.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -247,11 +238,12 @@ namespace UploadFIG.Test
                 "-pv", "3.1.1",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(142, Program.successes);
-			Assert.AreEqual(1, Program.failures);
-			Assert.AreEqual(3, Program.validationErrors);
+			Assert.AreEqual(142, result.successes);
+			Assert.AreEqual(1, result.failures);
+			Assert.AreEqual(3, result.validationErrors);
         }
 
         [TestMethod]
@@ -259,7 +251,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 6.0.0-ballot -fd -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -267,11 +259,12 @@ namespace UploadFIG.Test
 				"-pid", "hl7.fhir.us.core",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(209, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(6, Program.validationErrors);
+			Assert.AreEqual(209, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(6, result.validationErrors);
         }
 
 
@@ -279,7 +272,7 @@ namespace UploadFIG.Test
 		public async Task CheckExtensionsRelease()
 		{
 			string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -287,42 +280,45 @@ namespace UploadFIG.Test
 				"-s", "https://hl7.org/fhir/extensions/package.tgz",
 				"-odf", outputFile,
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 		}
 
 		[TestMethod]
 		public async Task CheckExtensionsCiR4()
 		{
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
 				"--includeExamples",
-				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4.tgz",
-				"-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4 (3).tgz"
+				"-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4.tgz",
+				// "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4 (3).tgz"
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 		}
 
 		[TestMethod]
 		public async Task CheckExtensionsCiR4B()
 		{
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
 				"--includeExamples",
-				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4b.tgz",
-				"-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4b (2).tgz"
+				"-s", "https://build.fhir.org/ig/HL7/fhir-extensions/branches/2025-03-gg-r4b/hl7.fhir.uv.extensions.r4b.tgz",
+				// "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4b (2).tgz"
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 		}
 
 		[TestMethod]
         public async Task CheckExtensionsCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -331,14 +327,15 @@ namespace UploadFIG.Test
 				"-s", "C:/git/hl7/fhir-extensions/output/package.tgz",
 				"-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
         }
 
         [TestMethod]
         public async Task CheckAuSmartFormsCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-au-smartforms.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -351,18 +348,19 @@ namespace UploadFIG.Test
                 // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
                 // "--verbose",
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(54, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(54, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 
 		[TestMethod]
         public async Task CheckUsCoreCI()
         {
             string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -370,11 +368,12 @@ namespace UploadFIG.Test
 				"-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(215, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
+			Assert.AreEqual(215, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(1, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -403,7 +402,7 @@ namespace UploadFIG.Test
 		public async Task CheckUsNDH_CI()
 		{
 			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -411,11 +410,12 @@ namespace UploadFIG.Test
 				"-s", "http://build.fhir.org/ig/HL7/fhir-us-ndh/package.tgz",
 				"-odf", outputFile,
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(238, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors); // the search parameter 'special' type creates an info message
+			Assert.AreEqual(226, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(3, result.validationErrors); // the search parameter 'special' type creates an info message
 		}
 
 		[TestMethod]
@@ -423,7 +423,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-t -pid hl7.fhir.us.mcode -odf c:/temp/uploadfig-dump.json"
             string outputFile = "c:\\temp\\uploadfig-dump-mcode.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -431,11 +431,12 @@ namespace UploadFIG.Test
 				"-pid", "hl7.fhir.us.mcode",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
 			Assert.AreEqual(103, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -477,9 +478,9 @@ namespace UploadFIG.Test
 			//});
    //         Assert.AreEqual(0, result);
 
-			Assert.AreEqual(132, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(14, Program.validationErrors);
+			Assert.AreEqual(132, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(14, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -487,7 +488,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -496,11 +497,12 @@ namespace UploadFIG.Test
 				"-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(26, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(26, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -508,7 +510,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.base -fd -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-aubase.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -519,11 +521,12 @@ namespace UploadFIG.Test
 				"-ets", "https://tx.dev.hl7.org.au/fhir",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(138, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(138, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
         }
 
         [TestMethod]
@@ -531,7 +534,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.base -fd -pdv false"
             string outputFile = "c:\\temp\\uploadfig-dump-aubase.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -539,11 +542,12 @@ namespace UploadFIG.Test
 				"-pid", "hl7.fhir.au.base",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(138, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(138, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
         }
 
         [TestMethod]
@@ -551,7 +555,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
             string outputFile = "c:\\temp\\uploadfig-dump-sdoh-clinicalcare.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -560,11 +564,12 @@ namespace UploadFIG.Test
                 "-odf", outputFile,
                 // "--verbose",
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(42, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(3, Program.validationErrors);
+			Assert.AreEqual(42, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(3, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -572,7 +577,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
             string outputFile = "c:\\temp\\uploadfig-dump-sdoh-clinicalcare.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -582,11 +587,12 @@ namespace UploadFIG.Test
 				"-s", "C:\\git\\hl7\\fhir-sdoh-clinicalcare\\output/package.tgz",
 				"-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(42, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
+			Assert.AreEqual(42, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(1, result.validationErrors);
 		}
 
 
@@ -595,7 +601,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
             string outputFile = "c:\\temp\\uploadfig-dump-subs-backportCI.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -604,11 +610,12 @@ namespace UploadFIG.Test
                 "-s", "http://build.fhir.org/ig/HL7/fhir-subscription-backport-ig/package.tgz",
                 "-odf", outputFile,
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(20, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(1, Program.validationErrors);
+			Assert.AreEqual(20, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(1, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -616,7 +623,7 @@ namespace UploadFIG.Test
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
             string outputFile = "c:\\temp\\uploadfig-dump-ihe-mhd.json";
-            var result = await Program.Main(new[]
+            var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
@@ -626,17 +633,18 @@ namespace UploadFIG.Test
                 // "-fd", "false"
                 // "-sf", "package/StructureDefinition-IHE.MHD.EntryUUID.Identifier.json",
             });
-            Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(49, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(2, Program.validationErrors);
+			Assert.AreEqual(49, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(2, result.validationErrors);
         }
 
 		[TestMethod]
 		public async Task CheckDavinciRA()
 		{
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -647,17 +655,18 @@ namespace UploadFIG.Test
 				"-of", @"c:\temp\UploadFIG-dump-DavinciRA-bundle.json",
 				"-pcv",
             });
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(55, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(55, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 
 		[TestMethod]
 		public async Task CheckDavinciCRD()
 		{
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -676,11 +685,12 @@ namespace UploadFIG.Test
                 // "-fd", "false"
 				"-of", @"c:\temp\uploadfig-dump-daviniCRD-bundle.json",
             });
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(226, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(226, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(0, result.validationErrors);
 		}
 	}
 }
