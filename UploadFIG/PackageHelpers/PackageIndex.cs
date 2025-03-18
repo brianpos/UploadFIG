@@ -40,6 +40,9 @@ namespace UploadFIG
 		[JsonIgnore]
 		public bool hasDuplicateDefinitions { get; set; } = false;
 
+        [JsonIgnore]
+        public bool? ScannedForDependencies;
+
         /// <summary>
         /// Still need to work out what this is indexing here, but an empty value means it's not used and can be ignored
         /// </summary>

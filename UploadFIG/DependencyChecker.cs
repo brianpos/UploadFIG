@@ -27,11 +27,11 @@ namespace UploadFIG
         Common_Processor _versionAgnosticProcessor;
         List<String> _errFiles;
 
-		/// <summary>
-		/// Cache of loaded resource instances, indexed by packageId|packageVersion|filename
-		/// Used to prevent re-reading the same instance multiple times.
-		/// </summary>
-		Dictionary<string, Resource> _cacheResources = new Dictionary<string, Resource>();
+        /// <summary>
+        /// Cache of loaded resource instances, indexed by packageId|packageVersion|filename
+        /// Used to prevent re-reading the same instance multiple times.
+        /// </summary>
+        Dictionary<string, Resource> _cacheResources = new Dictionary<string, Resource>();
 
 		public DependencyChecker(Settings settings, FHIRVersion fhirVersion, ModelInspector inspector, TempPackageCache packageCache, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
@@ -41,7 +41,7 @@ namespace UploadFIG
 			_packageCache = packageCache;
             _versionAgnosticProcessor = versionAgnosticProcessor;
             _errFiles = errFiles;
-		}
+        }
 
 		public static void VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
         {
@@ -108,17 +108,15 @@ namespace UploadFIG
 		/// </summary>
 		/// <param name="resourcesToProcess"></param>
 		/// <returns></returns>
-		public IEnumerable<CanonicalDetails> ScanForCanonicals(PackageDetails pd, IEnumerable<Resource> resourcesToProcess)
+		public IEnumerable<CanonicalDetails> ScanForCanonicals(PackageDetails pd, IEnumerable<FileDetail> resourcesToProcess)
         {
-            return ScanForCanonicals(pd, new List<CanonicalDetails>(), resourcesToProcess);
+            // Tag them all as having been scanned
+            foreach (var resource in resourcesToProcess)
+            {
+                resource.ScannedForDependencies = true;
+            }
+            return ScanForCanonicals(pd, new List<CanonicalDetails>(), resourcesToProcess.Select(f => f.resource));
         }
-
-		public void ScanForCanonicals(PackageDetails pd)
-		{
-			var requiresDirectCanonicals = ScanForCanonicals(pd, pd.resources).ToList();
-			var externalCanonicals = FilterOutCanonicals(requiresDirectCanonicals, pd.resources).ToList();
-			pd.RequiresCanonicals = externalCanonicals;
-		}
 
 		/// <summary>
 		/// Scan the provided set of resources and return any canonicals referenced by the resources that are not already in the initialCanonicals list.
@@ -252,40 +250,8 @@ namespace UploadFIG
             }
         }
 
-        /// <summary>
-        /// Return all the canonicals that are not in the excludedResource list
-        /// </summary>
-        /// <param name="initialCanonicals"></param>
-        /// <param name="excludeResources"></param>
-        /// <returns></returns>
-        public IEnumerable<CanonicalDetails> FilterOutCanonicals(IEnumerable<CanonicalDetails> initialCanonicals, IEnumerable<Resource> excludeResources)
-        {
-            List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
-
-            // Now check for the ones that we've internally got covered :)
-            foreach (var resource in excludeResources.OfType<IVersionableConformanceResource>())
-            {
-                var nodes = initialCanonicals.Where(rc => rc.Canonical == resource.Url).ToArray(); // not checking the type as that sometimes has "unknown" in it
-                if (nodes.Any())
-                {
-					foreach (var node in nodes)
-					{
-						if (string.IsNullOrEmpty(node.Version) || resource.Version == node.Version)
-						{
-							if (node.ResourceType == "unknown")
-								node.ResourceType = (resource as Resource).TypeName;
-							filteredCanonicals.Remove(node);
-						}
-					}
-                }
-            }
-
-            return filteredCanonicals;
-        }
-
-		public IEnumerable<CanonicalDetails> FilterCanonicals(IEnumerable<CanonicalDetails> canonicals, PackageDetails pd)
+    	public IEnumerable<CanonicalDetails> ExcludeLocalCanonicals(PackageDetails pd, IEnumerable<CanonicalDetails> canonicals)
 		{
-			var localResourcesNotLoaded = pd.Files.Where(f => canonicals.Any(c => f.url == c.Canonical && c.resource == null)).ToArray();
 			var result = canonicals.Where(c => !pd.Files.Any(f => f.url == c.Canonical)).ToArray();
 			return result;
 		}
@@ -310,30 +276,6 @@ namespace UploadFIG
 			return false;
 		}
 		private Regex _crossVersionCanonicalRegex = new Regex(@"^http:\/\/hl7.org\/fhir\/.\..\/StructureDefinition\/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-		/// <summary>
-		/// Return all the canonicals that are not in the core spec or core extensions pack (published with the specific release of fhir)
-		/// </summary>
-		/// <remarks>
-		/// This is different to the general fhir extensions pack that releases itself post the release of fhir.
-		/// </remarks>
-		/// <param name="initialCanonicals"></param>
-		/// <param name="fhirversion"></param>
-		/// <param name="versionAgnosticProcessor"></param>
-		/// <returns></returns>
-		internal IEnumerable<CanonicalDetails> FilterOutCoreSpecAndExtensionCanonicals(IEnumerable<CanonicalDetails> initialCanonicals)
-        {
-            List<CanonicalDetails> filteredCanonicals = new List<CanonicalDetails>(initialCanonicals);
-
-            // Filter the types from the core resource profiles
-            var coreCanonicals = initialCanonicals.Where(v => IsCoreOrExtensionOrToolsCanonical(v.Canonical)).ToList();
-            foreach (var coreCanonical in coreCanonicals)
-            {
-                filteredCanonicals.Remove(coreCanonical);
-            }
-
-			return filteredCanonicals;
-        }
 
 		// Extension canonicals
 		private StringDictionary _extensionCanonicals;
@@ -367,53 +309,6 @@ namespace UploadFIG
 			}
 			return _extensionCanonicals;
 		}
-
-		internal static void ExcludeKnownCanonicals(List<CanonicalDetails> requiresCanonicals, FHIRVersion fhirversion, List<Resource> resourcesToProcess, Common_Processor versionAgnosticProcessor, InMemoryResolver inMemoryResolver)
-        {
-            List<CanonicalDetails> allRequiredCanonicals = new List<CanonicalDetails>(requiresCanonicals);
-
-            // Now check for the ones that we've internally got covered :)
-            foreach (var resource in resourcesToProcess.OfType<IVersionableConformanceResource>())
-            {
-                var node = requiresCanonicals.FirstOrDefault(rc => rc.Canonical == resource.Url);
-                if (node != null)
-                {
-                    requiresCanonicals.Remove(node);
-                }
-            }
-
-            // And the types from the core resource profiles
-            var coreCanonicals = requiresCanonicals.Where(v => Uri.IsWellFormedUriString(v.Canonical, UriKind.Absolute) && versionAgnosticProcessor.ModelInspector.IsCoreModelTypeUri(new Uri(v.Canonical))).ToList();
-            foreach (var coreCanonical in coreCanonicals)
-            {
-                requiresCanonicals.Remove(coreCanonical);
-            }
-
-            // And check for any Core extensions (that are packaged in the standard zip package)
-            CommonZipSource zipSource = null;
-            if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_0.GetLiteral()))
-                zipSource = r4::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4.zip"));
-            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N4_3.GetLiteral()))
-                zipSource = r4b::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r4b.zip"));
-            else if (fhirversion.GetLiteral().StartsWith(FHIRVersion.N5_0.GetLiteral()))
-                zipSource = r5::Hl7.Fhir.Specification.Source.ZipSource.CreateValidationSource(Path.Combine(CommonDirectorySource.SpecificationDirectory, "specification.r5.zip"));
-            else
-            {
-                // version unhandled
-                Console.WriteLine($"Unhandled processing of core extensions for fhir version {fhirversion}");
-                return;
-            }
-            // ensure that the zip file is extracted correctly before using it
-            zipSource.Prepare();
-
-            // Scan for core/core extensions dependencies
-            var coreSource = new CachedResolver(zipSource);
-            var extensionCanonicals = requiresCanonicals.Where(v => coreSource.ResolveByCanonicalUri(v.Canonical) != null).ToList();
-            foreach (var coreCanonical in extensionCanonicals)
-            {
-                requiresCanonicals.Remove(coreCanonical);
-            }
-        }
 
         static List<string> ignoreCanonicals = new (new string[] {
 			// Extensions required by THO (but THO has no dependencies)
@@ -465,6 +360,23 @@ namespace UploadFIG
                     };
                     cd.requiredBy.Add(resource);
                     requiresCanonicals.Add(cd);
+
+                    var matches = ResolveCanonical(pd, cd, _versionAgnosticProcessor, _errFiles);
+                    var useResource = CurrentCanonicalFromPackages.Current(matches);
+                    if (useResource != null)
+                    {
+                        var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
+                        if (distinctVersionSources.Count() > 1 && _settings.Verbose)
+                        {
+                            Console.Write($"    Resolved {cd.Canonical}|{cd.Version} with ");
+                            ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
+                            Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
+                        }
+                        useResource.MarkUsedBy(cd);
+                        cd.resource = useResource.resource as Resource;
+                        if (!useResource.ScannedForDependencies.HasValue)
+                            useResource.ScannedForDependencies = false;
+                    }
                 }
                 else
                 {
@@ -800,43 +712,50 @@ namespace UploadFIG
 		internal void LoadDependentResources(PackageDetails pd, Common_Processor versionAgnosticProcessor, List<String> errFiles)
 		{
 			ConsoleEx.WriteLine(ConsoleColor.Gray, $"  Loading package content for {pd.packageId}|{pd.packageVersion}");
+
 			// Determine all the canonicals that are required for this package for the loaded resources
-			var existingResources = pd.resources.ToList();
-			var allRequiredCanonicals = ScanForCanonicals(pd.resources).ToList();
-			var unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.Canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
+			var scanResources = pd.Files.Where(f => f.resource != null && f.ScannedForDependencies == false).ToList();
 			int safetyCatch = 0;
-			while (unloadedRequiredLocalResources.Any() && safetyCatch < 10) // provide a safety net in the event that not all files load
+            const int catchLimit = 30;
+			while (scanResources.Any() && safetyCatch < catchLimit) // provide a safety net in the event that not all files load
 			{
-				// iteratively check if there are more contained resource that haven't been loaded as more are included in the set.
-				var localCanonicals = allRequiredCanonicals.Where(c => pd.Files.Any(f => f.url == c.Canonical)).ToArray();
-				LoadCanonicalResource(pd, localCanonicals, versionAgnosticProcessor, errFiles);
-				allRequiredCanonicals = allRequiredCanonicals.Union(ScanForCanonicals(pd, allRequiredCanonicals, pd.resources.Except(existingResources))).ToList();
-				unloadedRequiredLocalResources = pd.Files.Where(f => !f.detectedInvalidContent && allRequiredCanonicals.Any(cd => cd.Canonical == f.url && !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id))).ToList();
-				safetyCatch++;
-				existingResources = pd.resources.ToList();
-			};
-			pd.RequiresCanonicals = FilterOutCanonicals(allRequiredCanonicals, pd.resources).ToList();
+                var newRequiredCanonicals = ScanForCanonicals(pd, scanResources).Except(pd.RequiresCanonicals, new CanonicalDetailsComparer()).ToList();
+                var newExternalCanonicals = ExcludeLocalCanonicals(pd, newRequiredCanonicals);
+                var newLocalCanonicals = newRequiredCanonicals.Except(newExternalCanonicals);
 
-			// Resolve all the required canonicals
-			foreach (var canonical in pd.RequiresCanonicals)
-			{
-				var matches = ResolveCanonical(pd, canonical, versionAgnosticProcessor, errFiles);
-				var useResource = CurrentCanonicalFromPackages.Current(matches);
-				if (useResource != null)
-				{
-					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
-					if (distinctVersionSources.Count() > 1 && _settings.Verbose)
-					{
-						Console.Write($"    Resolved {canonical.Canonical}|{canonical.Version} with ");
-						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
-						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
-					}
-                    useResource.MarkUsedBy(canonical);
-                    canonical.resource = useResource.resource as Resource;
-				}
-			}
 
-			if (pd.dependencies != null)
+                LoadCanonicalResource(pd, newLocalCanonicals, versionAgnosticProcessor, errFiles);
+                pd.RequiresCanonicals.AddRange(newExternalCanonicals);
+
+			    // Resolve all the required canonicals
+			    foreach (var canonical in newExternalCanonicals.Where(r => r.resource == null))
+			    {
+				    var matches = ResolveCanonical(pd, canonical, versionAgnosticProcessor, errFiles);
+				    var useResource = CurrentCanonicalFromPackages.Current(matches);
+				    if (useResource != null)
+				    {
+					    var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
+					    if (distinctVersionSources.Count() > 1 && _settings.Verbose)
+					    {
+						    Console.Write($"    Resolved {canonical.Canonical}|{canonical.Version} with ");
+						    ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
+						    Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
+					    }
+                        useResource.MarkUsedBy(canonical);
+                        canonical.resource = useResource.resource as Resource;
+				    }
+			    }
+
+                safetyCatch++;
+
+                scanResources = pd.Files.Where(f => f.resource != null && f.ScannedForDependencies == false).ToList();
+            }
+            if (safetyCatch == catchLimit)
+            {
+                ConsoleEx.WriteLine(ConsoleColor.Yellow, "Dependency scanning encountered a potential circular dependency");
+            }
+
+            if (pd.dependencies != null)
 			{
 				// Now scan through the child package to ensure that it includes all of it's internally
 				// referenced resources and child packages loaded
@@ -923,6 +842,8 @@ namespace UploadFIG
 								// (What about fml/map files?)
 								continue;
 							}
+                            if (!f.ScannedForDependencies.HasValue)
+                                f.ScannedForDependencies = false;
 							resource.SetAnnotation(new ResourcePackageSource()
 							{
 								Filename = f.filename,
@@ -1082,6 +1003,8 @@ namespace UploadFIG
 							_cacheResources.Add(resourceKey, resource);
 						}
 						detail.resource = resource;
+                        if (!detail.ScannedForDependencies.HasValue)
+                            detail.ScannedForDependencies = false;
 						if (resource == null)
 						{
 							// Not a file that we can process
@@ -1204,6 +1127,8 @@ namespace UploadFIG
 						}
                         indexDetails.UsedBy.Add("(root package)");
 						indexDetails.resource = resource;
+                        if (!indexDetails.ScannedForDependencies.HasValue)
+                            indexDetails.ScannedForDependencies = false;
 					}
 				}
 			}
