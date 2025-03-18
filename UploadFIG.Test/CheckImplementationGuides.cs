@@ -1,5 +1,8 @@
 extern alias r4b;
 
+using System.CommandLine.NamingConventionBinder;
+using System.CommandLine;
+using System.CommandLine.Parsing;
 using System.Text;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Utility;
@@ -24,6 +27,10 @@ namespace UploadFIG.Test
             _writer = new StringWriter(_sb);
             _rawWriter = Console.Out;
             Console.SetOut(_writer);
+
+            Program.successes = 0;
+            Program.failures = 0;
+            Program.validationErrors = 0;
         }
 
         [TestCleanup]
@@ -97,6 +104,22 @@ namespace UploadFIG.Test
             }
         }
 
+        public static Settings ParseArguments(string[] args)
+        {
+            Settings settings = null;
+            RootCommand rootCommand = Program.GetRootCommand(args);
+            rootCommand.Handler = CommandHandler.Create((Settings context) =>
+            {
+                settings = context;
+                return 0;
+            });
+            rootCommand.Invoke(args);
+            System.Diagnostics.Trace.WriteLine("```");
+            System.Diagnostics.Trace.WriteLine($"> UploadFIG {string.Join(" ", args)}");
+            System.Diagnostics.Trace.WriteLine("```");
+            return settings;
+        }
+
 		[TestMethod]
 		public async Task FMG_Review()
 		{
@@ -163,7 +186,7 @@ namespace UploadFIG.Test
 
 			Assert.AreEqual(4546, Program.successes);
 			Assert.AreEqual(11, Program.failures);
-			Assert.AreEqual(66, Program.validationErrors);
+			Assert.AreEqual(69, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -358,7 +381,7 @@ namespace UploadFIG.Test
 		public async Task CheckUsCore610()
 		{
 			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-			var result = await Program.Main(new[]
+			var settings = ParseArguments(new[]
 			{
 				"-t",
 				"-vq",
@@ -367,11 +390,13 @@ namespace UploadFIG.Test
 				"-pv", "6.1.0",
 				"-odf", outputFile,
 			});
-			Assert.AreEqual(0, result);
+            var result = await Program.UploadPackageInternal(settings);
 
-			Assert.AreEqual(209, Program.successes);
-			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(6, Program.validationErrors);
+            Assert.AreEqual(0, result.Value);
+
+			Assert.AreEqual(268, result.successes);
+			Assert.AreEqual(0, result.failures);
+			Assert.AreEqual(6, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -416,25 +441,45 @@ namespace UploadFIG.Test
 		[TestMethod]
         public async Task CheckAuCore()
         {
-            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
-            string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
-            var result = await Program.Main(new[] {
-                "-t",
-				"-vq",
-				"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
-				"--includeReferencedDependencies",
-				"--includeExamples",
-				"-pid", "hl7.fhir.au.core",
-				// "-pcv",
-				"-sn",
-                "-odf", outputFile,
-				"-ocb", "c:\\temp\\uploadfig-dump-aucore-bundle-raw.json",
-            });
-            Assert.AreEqual(0, result);
+            var settings = new Settings
+            {
+                TestPackageOnly = true,
+                ValidateQuestionnaires = true,
+                IncludeExamples = true,
+                IncludeReferencedDependencies = true,
+                ValidateReferencedDependencies = true,
+                SourcePackagePath = _cacheFolder + "/hl7.fhir.au.core_1_0_0-preview.tgz",
+                StripNarratives = true,
+                // PatchCanonicalVersions = true,
+                ResourceTypes = Program.defaultResourceTypes.ToList(),
+                // SelectFiles = ["package/StructureDefinition-au-core-patient.json"],
+            };
+            var result = await Program.UploadPackageInternal(settings);
 
-			Assert.AreEqual(234, Program.successes);
+            Assert.AreEqual(0, result.Value);
+
+            await CheckTestResults("aucore100", result);
+
+   //         // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
+   //         string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
+   //         var result = await Program.Main(new[] {
+   //             "-t",
+			//	"-vq",
+			//	"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+			//	"--includeReferencedDependencies",
+			//	"--includeExamples",
+			//	"-pid", "hl7.fhir.au.core",
+			//	"-pv", "1.0.0",
+			//	// "-pcv",
+			//	"-sn",
+   //             "-odf", outputFile,
+			//	"-of", "c:\\temp\\uploadfig-dump-aucore-bundle-raw.json",
+			//});
+   //         Assert.AreEqual(0, result);
+
+			Assert.AreEqual(132, Program.successes);
 			Assert.AreEqual(0, Program.failures);
-			Assert.AreEqual(0, Program.validationErrors);
+			Assert.AreEqual(14, Program.validationErrors);
 		}
 
 		[TestMethod]
@@ -599,7 +644,7 @@ namespace UploadFIG.Test
 				"--includeReferencedDependencies",
 				"-s", "https://build.fhir.org/ig/HL7/davinci-ra/branches/master/package.tgz",
                 // "-fd", "false"
-				"-ocb", @"c:\temp\UploadFIG-dump-DavinciRA-bundle.json",
+				"-of", @"c:\temp\UploadFIG-dump-DavinciRA-bundle.json",
 				"-pcv",
             });
 			Assert.AreEqual(0, result);
@@ -618,11 +663,18 @@ namespace UploadFIG.Test
 				"-vq",
 				"--includeExamples",
 				"--includeReferencedDependencies",
+				"--validateReferencedDependencies",
+                // "-ip", "hl7.fhir.us.core|7.0.0",
+                // "-ip", "hl7.fhir.us.core|3.1.1",
+                // "-ip", "hl7.terminology.r4|5.0.0", // hl7.terminology.r4|6.2.0 is already included, so let all the terminologies use that instead
+                // "-ip", "us.nlm.vsac|0.11.0", // us.nlm.vsac|0.19.0 is the preferred one for this IG, so skip the older one.
+                // "-ip", "hl7.fhir.uv.extensions.r4|1.0.0", // hl7.fhir.uv.extensions.r4|5.2.0 is the preferred one for this IG, so skip the older one.
+                // "-ip", "hl7.fhir.uv.extensions.r4|5.1.0", // hl7.fhir.uv.extensions.r4|5.2.0 is the preferred one for this IG, so skip the older one.
 				"-sn",
 				"-pcv",
 				"-s", "https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz",
                 // "-fd", "false"
-				"-ocb", @"c:\temp\uploadfig-dump-daviniCRD-bundle.json",
+				"-of", @"c:\temp\uploadfig-dump-daviniCRD-bundle.json",
             });
 			Assert.AreEqual(0, result);
 

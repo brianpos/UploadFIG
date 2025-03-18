@@ -48,6 +48,28 @@ namespace UploadFIG
             failures = 0;
             validationErrors = 0;
 
+            Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
+            ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
+
+            RootCommand rootCommand = GetRootCommand(args);
+
+            rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
+            {
+                try
+                {
+                    return await UploadPackage(context);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    return -1;
+                }
+            });
+            return await rootCommand.InvokeAsync(args);
+        }
+
+        public static RootCommand GetRootCommand(string[] args)
+        {
             // setup our configuration (command line > environment > appsettings.json)
             IConfiguration configuration = new ConfigurationBuilder()
                     .AddJsonFile("appsettings.json", optional: true)
@@ -59,9 +81,6 @@ namespace UploadFIG
             if (settings.ResourceTypes?.Any() != true)
                 settings.ResourceTypes = defaultResourceTypes.ToList();
 
-
-            Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
-            ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
             // source parameters
             var sourceOption = new Option<string>(new string[] { "-s", "--sourcePackagePath" }, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
@@ -94,13 +113,13 @@ namespace UploadFIG
                 new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
                 new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
                 new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
-				new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
-				new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+                new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
+                new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
                 new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
-				new Option<bool>(new string[]{ "-rms", "--removeSnapshots"}, () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
-				new Option<bool>(new string[]{ "-pcv", "--patchCanonicalVersions"}, () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific where they resolve within the package"),
-				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
+                new Option<bool>(new string[]{ "-rms", "--removeSnapshots"}, () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
+                new Option<bool>(new string[]{ "-pcv", "--patchCanonicalVersions"}, () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific where they resolve within the package"),
+                new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
                 new Option<string>(new string[] { "-of", "--outputBundle" }, () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
@@ -129,20 +148,7 @@ namespace UploadFIG
                 if (!args.Any(a => conditionalRequiredParams2.Contains(a)))
                     result.ErrorMessage = "The destinationServerAddress and testPackageOnly are both missing, please provide one or the other to indicate if just testing, or uploading to a server";
             });
-
-            rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
-            {
-                try
-                {
-                    return await UploadPackage(context);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-                    return -1;
-                }
-            });
-            return await rootCommand.InvokeAsync(args);
+            return rootCommand;
         }
 
         public class Result
@@ -862,7 +868,7 @@ namespace UploadFIG
 
 				if (!unresolvedDeps.Any())
 				{
-					System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical}");
+					// System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical}");
 					reOrderedList.Add(entry);
 					if (ivr != null)
 					{
@@ -891,7 +897,7 @@ namespace UploadFIG
 					var missingDeps = unresolvedDeps.Where(d => !futureCanonicals.ContainsKey(d.CanonicalUrl)).ToList();
 					if (missingDeps.Any())
 					{
-						System.Diagnostics.Trace.WriteLine($"    unknown deps {versionedCanonical}: missing {string.Join(", ", missingDeps.Select(d => d.CanonicalUrl))}");
+						// System.Diagnostics.Trace.WriteLine($"    unknown deps {versionedCanonical}: missing {string.Join(", ", missingDeps.Select(d => d.CanonicalUrl))}");
 						// This could be due to errors during processing, so lets assume they are "just missing"
 						definedCanonicals.AddRange(missingDeps.Select(d => d.CanonicalUrl).ToArray());
 					}
@@ -904,7 +910,7 @@ namespace UploadFIG
 						if (!nonCircularDeps.Any())
 						{
 							// This is all circular dependencies, so lets add it anyway
-							System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical} (ignoring circular deps: {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))})");
+							// System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical} (ignoring circular deps: {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))})");
 							reOrderedList.Add(entry);
 							if (ivr != null)
 							{
@@ -919,12 +925,12 @@ namespace UploadFIG
 							continue;
 						}
 						// wasn't found, so defer it again
-						System.Diagnostics.Trace.WriteLine($"* Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+						// System.Diagnostics.Trace.WriteLine($"* Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
 					}
 				}
 				else
 				{
-					System.Diagnostics.Trace.WriteLine($"Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+					// System.Diagnostics.Trace.WriteLine($"Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
 				}
 
 				// else, add it back to the end of the queue
@@ -1594,6 +1600,8 @@ namespace UploadFIG
             if (filename.EndsWith("validation-summary.json"))
                 return true;
             if (filename.EndsWith("validation-oo.json"))
+                return true;
+            if (filename.EndsWith("publication-request.json"))
                 return true;
 
             return false;
