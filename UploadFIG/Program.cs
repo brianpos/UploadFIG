@@ -313,7 +313,7 @@ namespace UploadFIG
 			// however may have a dependency introduced elsewhere in the dependency tree
 			// these ones probably shouldn't be marked with versioned canonicals
 			// This will use the "most recent" version if there are multiple that will resolve.
-			var allUnresolvedCanonicals = depChecker.UnresolvedCanonicals(pd).ToList();
+			var allUnresolvedCanonicals = MergeDistinctCanonicalDetails(depChecker.UnresolvedCanonicals(pd)).ToList();
 			foreach (var canonicalUrl in allUnresolvedCanonicals.ToArray())
 			{
 				// is this canonical in the list of resources....
@@ -761,6 +761,25 @@ namespace UploadFIG
 
             return result;
 		}
+
+        private static List<CanonicalDetails> MergeDistinctCanonicalDetails(IEnumerable<CanonicalDetails> cds)
+        {
+            var result = new List<CanonicalDetails>();
+            var comparer = new CanonicalDetailsComparer();
+            foreach (var item in cds)
+            {
+                var existing = result.FirstOrDefault((t) => comparer.Equals(t,item));
+                if (existing != null)
+                {
+                    existing.requiredBy.AddRange(item.requiredBy.Where(v => !existing.requiredBy.Contains(v)));
+                }
+                else
+                {
+                    result.Add(item);
+                }
+            }
+            return result;
+        }
 
 		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
 		{
