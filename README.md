@@ -466,6 +466,12 @@ using the `-pcv` Patch Canonical Versions flag
 
 ## Change history
 
+### 19 March 2025
+* Issue [#21](https://github.com/brianpos/UploadFIG/issues/21) Resource Types `*` to not filter out any types (default is a subset of canonicals)
+* Better handling of tree shaking dependent resources that aren't scoped in (as newer versions are already in scope)
+* Don't test the types in a logical model as they aren't FHIR types.
+* Fixed issue [#24](https://github.com/brianpos/UploadFIG/issues/24) Obscure error when package doesn't define the FHIR version
+
 ### 6 March 2025
 * Add the `-ap` or `--AdditionalPackages` flag to include additional packages in the processing<br/>
   *These will be processed as though they are dependencies of the root package.*
