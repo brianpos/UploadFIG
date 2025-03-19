@@ -16,6 +16,7 @@ using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
 using System.Diagnostics;
 using System.Formats.Tar;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using UploadFIG.Helpers;
@@ -91,6 +92,7 @@ namespace UploadFIG
 
                 // Optional parameters
                 new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
+                new Option<fhirVersion?>(new string[]{ "-fv", "--fhirVersion"}, () => settings.FhirVersion, "Force the engine to a specific FHIR Version.\r\nIf the IG itself is a different version, then the tool will abort\r\nRequired if using a wildcard pattern to deploy a collection of raw resource files"),
                 new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
                 new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
                 new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
@@ -1351,6 +1353,77 @@ namespace UploadFIG
             if (!string.IsNullOrEmpty(settings.SourcePackagePath) && !settings.SourcePackagePath.StartsWith("http"))
             {
                 // This is a local path so we should just use that!
+
+                // Is the path a directory or a filename
+                var fileInfo = new FileInfo(settings.SourcePackagePath);
+                if (!string.IsNullOrEmpty(fileInfo?.DirectoryName) && Directory.Exists(fileInfo.DirectoryName))
+                {
+                    var filenames = Directory.EnumerateFiles(fileInfo.DirectoryName, fileInfo.Name);
+                    if (filenames.Any())
+                    {
+                        // Convert this set of files into an internal package
+                        var ms = new MemoryStream();
+                        Stream gzipStream = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Compress, true);
+                        using (gzipStream)
+                        {
+                            var writer = new TarWriter(gzipStream);
+                            using (writer)
+                            {
+                                // Write the manifest
+                                var manifest = new PackageManifest("temp", "local");
+                                manifest.Description = $"Temp package loaded from {settings.SourcePackagePath}";
+                                if (settings.FhirVersion.HasValue)
+                                {
+                                    switch (settings.FhirVersion)
+                                    {
+                                        case fhirVersion.R4:
+                                            manifest.FhirVersions = [FHIRVersion.N4_0.GetLiteral() ];
+                                            break;
+                                        case fhirVersion.R4B:
+                                            manifest.FhirVersions = [FHIRVersion.N4_3.GetLiteral()];
+                                            break;
+                                        case fhirVersion.R5:
+                                            manifest.FhirVersions = [FHIRVersion.N5_0.GetLiteral()];
+                                            break;
+                                        default:
+                                            manifest.FhirVersions = [FHIRVersion.N4_0.GetLiteral()];
+                                            break;
+                                    }
+                                }
+                                WriteContentToTgz(
+                                    writer,
+                                    "package/package.json",
+                                    PackageParser.SerializeManifest(manifest));
+
+                                // write the index
+                                var index = new PackageIndex();
+                                foreach (var filename in filenames)
+                                {
+                                    var fi = new FileInfo(filename);
+                                    index.Files.Add(
+                                        new FileDetail()
+                                        {
+                                            filename = "package/" + fi.Name,
+                                        });
+                                }
+                                WriteContentToTgz(
+                                    writer,
+                                    "package/.index.json",
+                                    System.Text.Json.JsonSerializer.Serialize(index));
+
+                                // Write all the files
+                                foreach (var filename in filenames)
+                                {
+                                    var fi = new FileInfo(filename);
+                                    WriteContentToTgz(writer, "package/" + fi.Name, File.ReadAllText(filename));
+                                }
+                            }
+                        }
+                        ms.Position = 0;
+                        return ms;
+                    }
+                }
+
                 // No need to check any of the package ID/Version stuff
                 Console.WriteLine($"Using local package: {settings.SourcePackagePath}");
                 byte[] packageRawContent = File.ReadAllBytes(settings.SourcePackagePath);
