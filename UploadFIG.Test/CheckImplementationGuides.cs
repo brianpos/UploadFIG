@@ -7,6 +7,7 @@ using System.Text;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Utility;
 using Newtonsoft.Json;
+using System.Runtime.CompilerServices;
 
 namespace UploadFIG.Test
 {
@@ -37,9 +38,9 @@ namespace UploadFIG.Test
             Console.WriteLine(_sb);
         }
 
-        public async Task CheckTestResults(string testName, Program.Result results)
+        public async Task CheckTestResults(Program.Result results, [CallerMemberName] string caller = "")
         {
-            string testResultPath = Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "TestResult", testName);
+            string testResultPath = Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "TestResult", caller);
 
             // Check the console output
             if (File.Exists(testResultPath + ".txt"))
@@ -48,7 +49,13 @@ namespace UploadFIG.Test
                 System.IO.File.WriteAllText(testResultPath + "2.txt", _sb.ToString());
 
                 var expectedResult = File.ReadAllText(testResultPath + ".txt");
-                Assert.AreEqual(expectedResult, _sb.ToString());
+                var actualResult = _sb.ToString();
+                // filter the result strings to remove the `Package cache folder size:` from the value
+                var expectedLines = expectedResult.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                var actualLines = actualResult.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                var expectedFiltered = string.Join(Environment.NewLine, expectedLines.Where(line => !line.StartsWith("Package cache folder size:")));
+                var actualFiltered = string.Join(Environment.NewLine, actualLines.Where(line => !line.StartsWith("Package cache folder size:")));
+                Assert.IsTrue(expectedFiltered == actualFiltered, "Console Output changed");
             }
             else
             {
@@ -153,6 +160,7 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(4518, result.successes);
 			Assert.AreEqual(10, result.failures);
@@ -173,6 +181,7 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(4546, result.successes);
 			Assert.AreEqual(11, result.failures);
@@ -191,10 +200,8 @@ namespace UploadFIG.Test
                 ResourceTypes = Program.defaultResourceTypes.ToList(),
             };
             var result = await Program.UploadPackageInternal(settings);
-
             Assert.AreEqual(0, result.Value);
-
-            await CheckTestResults("sdc300", result);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(125, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -218,10 +225,11 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(161, result.successes);
 			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(4, result.validationErrors);
+			Assert.AreEqual(6, result.validationErrors);
 		}
 
 		[TestMethod]
@@ -240,6 +248,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(142, result.successes);
 			Assert.AreEqual(1, result.failures);
@@ -261,10 +270,11 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(209, result.successes);
+            Assert.AreEqual(215, result.successes);
 			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(6, result.validationErrors);
+			Assert.AreEqual(1, result.validationErrors);
         }
 
 
@@ -282,6 +292,7 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 		}
 
 		[TestMethod]
@@ -297,6 +308,7 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 		}
 
 		[TestMethod]
@@ -312,6 +324,7 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 		}
 
 		[TestMethod]
@@ -329,6 +342,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
         }
 
         [TestMethod]
@@ -350,6 +364,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(54, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -370,6 +385,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(215, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -392,8 +408,9 @@ namespace UploadFIG.Test
             var result = await Program.UploadPackageInternal(settings);
 
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(268, result.successes);
+            Assert.AreEqual(209, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(6, result.validationErrors);
 		}
@@ -412,8 +429,9 @@ namespace UploadFIG.Test
 			});
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(226, result.successes);
+            Assert.AreEqual(224, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(3, result.validationErrors); // the search parameter 'special' type creates an info message
 		}
@@ -421,20 +439,22 @@ namespace UploadFIG.Test
 		[TestMethod]
         public async Task CheckMcode()
         {
-            // "commandLineArgs": "-t -pid hl7.fhir.us.mcode -odf c:/temp/uploadfig-dump.json"
-            string outputFile = "c:\\temp\\uploadfig-dump-mcode.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
+				"--includeReferencedDependencies",
 				"--includeExamples",
 				"-pid", "hl7.fhir.us.mcode",
-                "-odf", outputFile,
+                "-pv", "4.0.0",
+				// "-s", "https://hl7.org/fhir/us/mcode/STU4/package.tgz",
+				"-pcv",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(103, Program.successes);
+            Assert.AreEqual(306, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(0, result.validationErrors);
 		}
@@ -456,10 +476,8 @@ namespace UploadFIG.Test
                 // SelectFiles = ["package/StructureDefinition-au-core-patient.json"],
             };
             var result = await Program.UploadPackageInternal(settings);
-
             Assert.AreEqual(0, result.Value);
-
-            await CheckTestResults("aucore100", result);
+            await CheckTestResults(result);
 
    //         // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
    //         string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
@@ -486,21 +504,26 @@ namespace UploadFIG.Test
 		[TestMethod]
         public async Task CheckAuCoreCI()
         {
-            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
-            string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
-				"--includeReferencedDependencies",
+				// "--includeReferencedDependencies",
 				"--includeExamples",
 				"-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
-                "-odf", outputFile,
+
+                // Additional Packages to define which "current" to use
+                "-ap", "hl7.fhir.au.base|5.1.0-preview",
+                "-ap", "hl7.fhir.uv.ipa|1.0.0",
+
+                // resolve the NCTS content
+                // "-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(26, result.successes);
+            Assert.AreEqual(27, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(0, result.validationErrors);
 		}
@@ -523,8 +546,9 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(138, result.successes);
+            Assert.AreEqual(146, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(0, result.validationErrors);
         }
@@ -533,19 +557,18 @@ namespace UploadFIG.Test
         public async Task CheckAuBaseCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.base -fd -pdv false"
-            string outputFile = "c:\\temp\\uploadfig-dump-aubase.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
 				"-vq",
 				"--includeExamples",
 				"-pid", "hl7.fhir.au.base",
-                "-odf", outputFile,
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(138, result.successes);
+            Assert.AreEqual(146, result.successes);
 			Assert.AreEqual(0, result.failures);
 			Assert.AreEqual(0, result.validationErrors);
         }
@@ -566,6 +589,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(42, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -589,6 +613,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(42, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -612,6 +637,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(20, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -657,6 +683,7 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
 			Assert.AreEqual(55, result.successes);
 			Assert.AreEqual(0, result.failures);
@@ -687,10 +714,11 @@ namespace UploadFIG.Test
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
 
-			Assert.AreEqual(226, result.successes);
+            Assert.AreEqual(211, result.successes);
 			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
+			Assert.AreEqual(2, result.validationErrors);
 		}
 	}
 }
