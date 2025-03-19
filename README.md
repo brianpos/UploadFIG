@@ -472,6 +472,7 @@ using the `-pcv` Patch Canonical Versions flag
 * Better handling of tree shaking dependent resources that aren't scoped in (as newer versions are already in scope)
 * Don't test the types in a logical model as they aren't FHIR types.
 * Fixed issue [#24](https://github.com/brianpos/UploadFIG/issues/24) Obscure error when package doesn't define the FHIR version
+* Report an error if the package dependency can't be loaded (e.g. requesting `current` version)
 
 ### 6 March 2025
 * Add the `-ap` or `--AdditionalPackages` flag to include additional packages in the processing<br/>

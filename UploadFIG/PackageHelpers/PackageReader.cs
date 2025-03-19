@@ -154,6 +154,11 @@ namespace UploadFIG
 								packageStream.Dispose();
 						}
 					}
+                    else
+                    {
+                        // Unable to resolve the package dependency!
+                        ConsoleEx.WriteLine(ConsoleColor.Red, $"{logTabPrefix}    {versionedPackageId} - unable to load package");
+                    }
                 }
             }
 			GC.Collect();
