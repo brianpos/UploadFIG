@@ -9,6 +9,13 @@ namespace UploadFIG
         json
     }
 
+    public enum fhirVersion
+    {
+        R4,
+        R4B,
+        R5
+    }
+
     public class Settings
     {
         /// <summary>
@@ -25,6 +32,12 @@ namespace UploadFIG
 		/// (particularly when using raw packages from the web and not registry - often used for testing CI builds)
 		/// </remarks>
         public bool ForceDownload { get; set; } = true;
+
+        /// <summary>
+        /// Force the engine to a specific FHIR Version.
+        /// If the IG itself is a different version, then the tool will abort
+        /// </summary>
+        public fhirVersion? FhirVersion { get; set; }
 
         /// <summary>
         /// The Package ID of the package to upload (from the HL7 FHIR Package Registry)

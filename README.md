@@ -47,6 +47,9 @@ Options:
   -fd, --forceDownload                                       Force the download of the package from the source package path
                                                              (If not specified, will use the last downloaded package)
                                                              [default: True]
+  -fv, --fhirVersion <R4|R4B|R5>                             Force the engine to a specific FHIR Version.
+                                                             If the IG itself is a different version, then the tool will abort
+                                                             *Required if using a wildcard pattern to deploy a collection of raw resource files*
   -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
                                                              Registry)
   -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
@@ -466,6 +469,11 @@ using the `-pcv` Patch Canonical Versions flag
 ---
 
 ## Change history
+
+### 20 March 2025
+* Added support for deploying/testing content directly from a folder via a pattern.
+  e.g. `UploadFIG -t -s C:\git\hl7\sdc\input\resources\*.json -fv R4`
+  *Internally this creates a temporary package and then processes it as though it was a package.*
 
 ### 19 March 2025
 * Issue [#21](https://github.com/brianpos/UploadFIG/issues/21) Resource Types `*` to not filter out any types (default is a subset of canonicals)
