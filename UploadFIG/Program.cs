@@ -26,18 +26,43 @@ namespace UploadFIG
     public class Program
     {
         public static HttpClient useClient;
-        public static long successes = 0;
-        public static long failures = 0;
-        public static long validationErrors = 0;
+        public static readonly string[] defaultResourceTypes = new[] {
+                    "StructureDefinition",
+                    "ValueSet",
+                    "CodeSystem",
+                    "Questionnaire",
+                    "SearchParameter",
+                    "ConceptMap",
+                    "StructureMap",
+                    "Library",
+                };
 
         /// <summary>Main entry-point for this application.</summary>
         /// <param name="args">An array of command-line argument strings.</param>
         public static async Task<int> Main(string[] args)
         {
-            successes = 0;
-            failures = 0;
-            validationErrors = 0;
+            Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
+            ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
+            RootCommand rootCommand = GetRootCommand(args);
+
+            rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
+            {
+                try
+                {
+                    return await UploadPackage(context);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    return -1;
+                }
+            });
+            return await rootCommand.InvokeAsync(args);
+        }
+
+        public static RootCommand GetRootCommand(string[] args)
+        {
             // setup our configuration (command line > environment > appsettings.json)
             IConfiguration configuration = new ConfigurationBuilder()
                     .AddJsonFile("appsettings.json", optional: true)
@@ -47,20 +72,8 @@ namespace UploadFIG
 
             // Provide defaults if not provided
             if (settings.ResourceTypes?.Any() != true)
-                settings.ResourceTypes = new[] {
-                    "StructureDefinition",
-                    "ValueSet",
-                    "CodeSystem",
-                    "Questionnaire",
-                    "SearchParameter",
-                    "ConceptMap",
-                    "StructureMap",
-                    "Library",
-                }.ToList();
+                settings.ResourceTypes = defaultResourceTypes.ToList();
 
-
-            Console.WriteLine("HL7 FHIR Implementation Guide Uploader");
-            ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
             // source parameters
             var sourceOption = new Option<string>(new string[] { "-s", "--sourcePackagePath" }, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
@@ -93,13 +106,13 @@ namespace UploadFIG
                 new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
                 new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
                 new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
-				new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
-				new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+                new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
+                new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
                 new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
                 new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
-				new Option<bool>(new string[]{ "-rms", "--removeSnapshots"}, () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
-				new Option<bool>(new string[]{ "-pcv", "--patchCanonicalVersions"}, () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific where they resolve within the package"),
-				new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
+                new Option<bool>(new string[]{ "-rms", "--removeSnapshots"}, () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
+                new Option<bool>(new string[]{ "-pcv", "--patchCanonicalVersions"}, () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific where they resolve within the package"),
+                new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
                 new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
                 new Option<string>(new string[] { "-of", "--outputBundle" }, () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
@@ -128,25 +141,36 @@ namespace UploadFIG
                 if (!args.Any(a => conditionalRequiredParams2.Contains(a)))
                     result.ErrorMessage = "The destinationServerAddress and testPackageOnly are both missing, please provide one or the other to indicate if just testing, or uploading to a server";
             });
+            return rootCommand;
+        }
 
-            rootCommand.Handler = CommandHandler.Create(async (Settings context) =>
-            {
-                try
-                {
-                    return await UploadPackage(context);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-                    return -1;
-                }
-            });
-            return await rootCommand.InvokeAsync(args);
+        public class Result
+        {
+            /// <summary>
+            /// A static failure result
+            /// </summary>
+            public static Result Failure = new Result { Value = -1 };
+
+            public int Value;
+            public OutputDependenciesFile OutputDependencies;
+            public Bundle AlternativeOutputBundle;
+
+            public Common_Processor Processor;
+
+            public long successes = 0;
+            public long failures = 0;
+            public long validationErrors = 0;
         }
 
         public static async Task<int> UploadPackage(Settings settings)
-		{
-			OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
+        {
+            var result = await UploadPackageInternal(settings);
+            return result.Value;
+        }
+
+        public static async Task<Result> UploadPackageInternal(Settings settings)
+        {
+            OutputDependenciesFile dumpOutput = new OutputDependenciesFile();
 			dumpOutput.name = settings.PackageId;
 			dumpOutput.date = DateTime.Now.ToString("yyyyMMddHHmmss");
 			Bundle alternativeOutputBundle = new Bundle() { Type = Bundle.BundleType.Batch };
@@ -162,15 +186,15 @@ namespace UploadFIG
 						var kv = header.Split(new char[] { ':' }, 2);
 						Console.WriteLine($"\t{kv[0].Trim()}: {kv[1].Trim()}");
 						if (kv[0].Trim().ToLower() == "authentication" && kv[1].Trim().ToLower().StartsWith("bearer"))
-							Console.WriteLine($"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
+                            ConsoleEx.WriteLine(ConsoleColor.Yellow, $"\t\tWARNING: '{kv[0].Trim()}' header was provided, should that be 'Authorization'?");
 					}
 				}
 			}
 
 			// Prepare a temp working folder to hold this downloaded package
 			Stream sourceStream = await GetSourcePackageStream(settings, dumpOutput);
-			if (sourceStream == null)
-				return -1;
+            if (sourceStream == null)
+                return Result.Failure;
 
 			using (var md5 = MD5.Create())
 			{
@@ -185,19 +209,32 @@ namespace UploadFIG
 
 			if (manifest == null)
 			{
-				// There was no manifest
-				Console.WriteLine($"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
-				return -1;
-			}
+                // There was no manifest
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package without a valid manifest  (package.json)");
+                return Result.Failure;
+            }
 
-			Console.WriteLine();
+            if (settings.ResourceTypes.Count == 1 && settings.ResourceTypes[0] == "*")
+            {
+                settings.ResourceTypes.Clear();
+            }
+            Console.WriteLine();
 
 			// Select the version of the processor to use
 			Common_Processor versionAgnosticProcessor = null;
 			ExpressionValidator expressionValidator = null;
 			FHIRVersion? fhirVersion = null;
 			var versionInPackage = manifest.GetFhirVersion();
-			if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
+            if (versionInPackage == null)
+            {
+                // There was no manifest
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package where the manifest does not define a fhir version (package.json)");
+                ConsoleEx.WriteLine(ConsoleColor.Red, $"e.g. \"fhirVersions\" : [\"4.0.1\"]");
+                return new Result { Value = -1 };
+
+                // Note: Could try and "deduce" the fhir version from which fhir core packages are included, however those aren't mandatory either
+            }
+            else if (versionInPackage.StartsWith(FHIRVersion.N4_0.GetLiteral()))
 			{
 				fhirVersion = EnumUtility.ParseLiteral<FHIRVersion>(r4.Hl7.Fhir.Model.ModelInfo.Version);
 				versionAgnosticProcessor = new R4_Processor();
@@ -217,10 +254,10 @@ namespace UploadFIG
 			}
 			else
 			{
-				Console.Error.WriteLine($"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
-				return -1;
-			}
-			if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
+				ConsoleEx.WriteLine(ConsoleColor.Red, $"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
+                return new Result { Value = -1 };
+            }
+            if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
 				Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
 			else
 				Console.WriteLine($"Detected FHIR Version {versionInPackage} - using {fhirVersion.GetLiteral()}");
@@ -238,19 +275,20 @@ namespace UploadFIG
 				}
 			}
 
+            var result = new Result();
+            var errs = new List<String>();
+			var errFiles = new List<String>();
+
 			// Load all the package details (via indexes only) into memory (including dependencies)
 			ConsoleEx.WriteLine(ConsoleColor.White, "Package dependencies:");
 			var packageCache = new TempPackageCache();
 			packageCache.RegisterPackage(manifest.Name, manifest.Version, sourceStream);
 			var pd = PackageReader.ReadPackageIndexDetails(sourceStream, packageCache, settings.IgnorePackages);
             PackageReader.ReadAdditionalPackageIndexDetails(pd, settings.AdditionalPackages, packageCache, settings.IgnorePackages);
-            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache);
+            var depChecker = new DependencyChecker(settings, fhirVersion.Value, versionAgnosticProcessor.ModelInspector, packageCache, versionAgnosticProcessor, errFiles);
 
 			// Validate the settings files to skip (ensuring that there are no files that are not in the package)
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
-
-			var errs = new List<String>();
-			var errFiles = new List<String>();
 
 			// Server to upload the resources to
 			BaseFhirClient clientFhir = PrepareTargetFhirClient(settings, versionAgnosticProcessor);
@@ -259,7 +297,7 @@ namespace UploadFIG
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, $"Scanning package {manifest.Name} content:");
 			// read the root package content
-			List<Resource> resourcesFromMainPackage = await depChecker.ReadResourcesFromPackage(pd, (name) => SkipFile(settings, name), sourceStream, versionAgnosticProcessor, errs, errFiles, settings.Verbose, settings.ResourceTypes);
+			List<Resource> resourcesFromMainPackage = await depChecker.ReadResourcesFromPackage(pd, (name) => SkipFile(settings, name), sourceStream, versionAgnosticProcessor, errs, errFiles, settings.Verbose, settings.ResourceTypes, result);
 
 			// Scan through the resources and resolve any canonicals
 			Console.WriteLine();
@@ -275,7 +313,7 @@ namespace UploadFIG
 			// however may have a dependency introduced elsewhere in the dependency tree
 			// these ones probably shouldn't be marked with versioned canonicals
 			// This will use the "most recent" version if there are multiple that will resolve.
-			var allUnresolvedCanonicals = depChecker.UnresolvedCanonicals(pd).ToList();
+			var allUnresolvedCanonicals = MergeDistinctCanonicalDetails(depChecker.UnresolvedCanonicals(pd)).ToList();
 			foreach (var canonicalUrl in allUnresolvedCanonicals.ToArray())
 			{
 				// is this canonical in the list of resources....
@@ -283,22 +321,23 @@ namespace UploadFIG
 				var useResource = CurrentCanonicalFromPackages.Current(matches);
 				if (useResource != null)
 				{
-					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m)).Distinct();
+					var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m.resource as IVersionableConformanceResource)).Distinct();
 					if (distinctVersionSources.Count() > 1 && settings.Verbose)
 					{
 						Console.Write($"    Resolved {canonicalUrl.Canonical}|{canonicalUrl.Version} with ");
 						ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
 						Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
 					}
-					canonicalUrl.resource = useResource as Resource;
-					allUnresolvedCanonicals.Remove(canonicalUrl);
+					canonicalUrl.resource = useResource.resource as Resource;
+                    useResource.MarkUsedBy(canonicalUrl);
+                    allUnresolvedCanonicals.Remove(canonicalUrl);
 				}
 			}
 
 
-			// We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
-			// this also loads additional resources that are dependencies of the search parameters
-			Console.WriteLine();
+            // We grab a list of ALL the search parameters we come across to process them at the end - as composites need cross validation
+            // this also loads additional resources that are dependencies of the search parameters
+            Console.WriteLine();
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 			ConsoleEx.WriteLine(ConsoleColor.White, "Scanning fhirpath expression dependencies and validating content:");
 			expressionValidator.PreValidation(pd, depChecker, settings.Verbose, errFiles);
@@ -308,12 +347,12 @@ namespace UploadFIG
 				var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
 				try
 				{
-					expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+					expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
 				}
 				catch (Exception ex)
 				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-					System.Threading.Interlocked.Increment(ref failures);
+					System.Threading.Interlocked.Increment(ref result.failures);
 					// DebugDumpOutputXml(resource);
 					errFiles.Add(exampleName);
 				}
@@ -354,12 +393,12 @@ namespace UploadFIG
 
 					try
 					{
-							expressionValidator.Validate(exampleName, resource, ref failures, ref validationErrors, errFiles);
+							expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
 						}
 						catch (Exception ex)
 						{
 							ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-							System.Threading.Interlocked.Increment(ref failures);
+							System.Threading.Interlocked.Increment(ref result.failures);
 							// DebugDumpOutputXml(resource);
 							errFiles.Add(exampleName);
 						}
@@ -378,7 +417,7 @@ namespace UploadFIG
 			var registryCanonicals = new List<CanonicalDetails>();
 
 			// Check for missing canonicals on the registry
-			List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
+			List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(pd, settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
 			dependencyResourcesToLoad.InsertRange(0, additionalResourcesFromRegistry);
 
 			Console.WriteLine();
@@ -484,21 +523,21 @@ namespace UploadFIG
 
 						if (!settings.TestPackageOnly && settings.IncludeReferencedDependencies && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 						{
-							Resource result = UploadFile(settings, clientFhir, resource);
-							if (result != null || settings.CheckPackageInstallationStateOnly)
-								System.Threading.Interlocked.Increment(ref successes);
+							Resource resultUpload = UploadFile(settings, clientFhir, resource);
+							if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
+								System.Threading.Interlocked.Increment(ref result.successes);
 							else
-								System.Threading.Interlocked.Increment(ref failures);
+								System.Threading.Interlocked.Increment(ref result.failures);
 						}
 						else
 						{
-							System.Threading.Interlocked.Increment(ref successes);
+							System.Threading.Interlocked.Increment(ref result.successes);
 						}
 					}
 					catch (Exception ex)
 					{
 						Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-						System.Threading.Interlocked.Increment(ref failures);
+						System.Threading.Interlocked.Increment(ref result.failures);
 						// DebugDumpOutputXml(resource);
 						errFiles.Add(exampleName);
 					}
@@ -574,21 +613,21 @@ namespace UploadFIG
 
 					if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 					{
-						Resource result = UploadFile(settings, clientFhir, resource);
-						if (result != null || settings.CheckPackageInstallationStateOnly)
-							System.Threading.Interlocked.Increment(ref successes);
+						Resource resultUpload = UploadFile(settings, clientFhir, resource);
+						if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
+							System.Threading.Interlocked.Increment(ref result.successes);
 						else
-							System.Threading.Interlocked.Increment(ref failures);
+							System.Threading.Interlocked.Increment(ref result.failures);
 					}
 					else
 					{
-						System.Threading.Interlocked.Increment(ref successes);
+						System.Threading.Interlocked.Increment(ref result.successes);
 					}
 				}
 				catch (Exception ex)
 				{
 					Console.Error.WriteLine($"ERROR: ({exampleName}) {ex.Message}");
-					System.Threading.Interlocked.Increment(ref failures);
+					System.Threading.Interlocked.Increment(ref result.failures);
 					// DebugDumpOutputXml(resource);
 					errFiles.Add(exampleName);
 				}
@@ -655,8 +694,8 @@ namespace UploadFIG
 
 				// And the summary at the end
 				Console.WriteLine();
-				Console.WriteLine($"Checked: {successes}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
+				Console.WriteLine($"Checked: {result.successes}");
+				Console.WriteLine($"Validation Errors: {result.validationErrors}");
 			}
 			else
 			{
@@ -670,37 +709,40 @@ namespace UploadFIG
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
 				// And the summary at the end
-				Console.WriteLine($"Success: {successes}");
-				Console.WriteLine($"Failures: {failures}");
-				Console.WriteLine($"Validation Errors: {validationErrors}");
+				Console.WriteLine($"Success: {result.successes}");
+				Console.WriteLine($"Failures: {result.failures}");
+				Console.WriteLine($"Validation Errors: {result.validationErrors}");
 				Console.WriteLine($"Duration: {sw.Elapsed.ToString()}");
-				Console.WriteLine($"rps: {(successes + failures) / sw.Elapsed.TotalSeconds}");
+				Console.WriteLine($"rps: {(result.successes + result.failures) / sw.Elapsed.TotalSeconds}");
 			}
 
-			await WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
+            // Prepare the bundle order
+            alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
+            ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
+            await WriteOutputBundleFile(settings, alternativeOutputBundle, manifest, versionAgnosticProcessor, allUnresolvedCanonicals);
 
+		    foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+		    {
+			    dumpOutput.containedCanonicals.Add(new CanonicalDetails()
+			    {
+				    ResourceType = (resource as Resource).TypeName,
+				    Canonical = resource.Url,
+				    Version = resource.Version,
+				    Status = resource.Status.GetLiteral(),
+				    Name = resource.Name,
+			    });
+			    // Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
+		    }
+		    dumpOutput.externalCanonicalsRequired.AddRange(
+			    externalCanonicals.Select(rc => new DependentResource()
+			    {
+				    resourceType = rc.ResourceType,
+				    canonical = rc.Canonical,
+				    version = rc.Version,
+			    })
+			);
 			if (!string.IsNullOrEmpty(settings.OutputDependenciesFile))
 			{
-				foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
-				{
-					dumpOutput.containedCanonicals.Add(new CanonicalDetails()
-					{
-						ResourceType = (resource as Resource).TypeName,
-						Canonical = resource.Url,
-						Version = resource.Version,
-						Status = resource.Status.GetLiteral(),
-						Name = resource.Name,
-					});
-					// Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
-				}
-				dumpOutput.externalCanonicalsRequired.AddRange(
-					externalCanonicals.Select(rc => new DependentResource()
-					{
-						resourceType = rc.ResourceType,
-						canonical = rc.Canonical,
-						version = rc.Version,
-					})
-					);
 				try
 				{
 					// Write dumpOutput to a JSON string
@@ -710,10 +752,34 @@ namespace UploadFIG
 				catch (Exception ex)
 				{
 					Console.WriteLine($"Error writing dependencies summary to {settings.OutputDependenciesFile}: {ex.Message}");
-				}
+                }
 			}
-			return 0;
+
+            result.AlternativeOutputBundle = alternativeOutputBundle;
+            result.OutputDependencies = dumpOutput;
+            result.Processor = versionAgnosticProcessor;
+
+            return result;
 		}
+
+        private static List<CanonicalDetails> MergeDistinctCanonicalDetails(IEnumerable<CanonicalDetails> cds)
+        {
+            var result = new List<CanonicalDetails>();
+            var comparer = new CanonicalDetailsComparer();
+            foreach (var item in cds)
+            {
+                var existing = result.FirstOrDefault((t) => comparer.Equals(t,item));
+                if (existing != null)
+                {
+                    existing.requiredBy.AddRange(item.requiredBy.Where(v => !existing.requiredBy.Contains(v)));
+                }
+                else
+                {
+                    result.Add(item);
+                }
+            }
+            return result;
+        }
 
 		private static async Task WriteOutputBundleFile(Settings settings, Bundle alternativeOutputBundle, PackageManifest manifest, Common_Processor versionAgnosticProcessor, List<CanonicalDetails> allUnresolvedCanonicals)
 		{
@@ -784,8 +850,6 @@ namespace UploadFIG
 				else
 				{
 					// Write the output bundle to a file
-					alternativeOutputBundle.Total = alternativeOutputBundle.Entry.Count;
-					ReOrderBundleEntries(alternativeOutputBundle, allUnresolvedCanonicals);
 					var fs = new FileStream(filename, FileMode.Create);
 					using (fs)
 					{
@@ -819,14 +883,14 @@ namespace UploadFIG
 
 				if (!unresolvedDeps.Any())
 				{
-					System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical}");
+					// System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical}");
 					reOrderedList.Add(entry);
 					if (ivr != null)
 					{
 						if (!definedCanonicals.Contains(ivr.Url))
 							definedCanonicals.Add(ivr.Url);
 						definedCanonicals.Add(versionedCanonical);
-						if (futureCanonicals.ContainsKey(ivr.Url))
+						if (ivr.Url != null && futureCanonicals.ContainsKey(ivr.Url))
 							futureCanonicals.Remove(ivr.Url);
 						if (futureCanonicals.ContainsKey(versionedCanonical))
 							futureCanonicals.Remove(versionedCanonical);
@@ -848,7 +912,7 @@ namespace UploadFIG
 					var missingDeps = unresolvedDeps.Where(d => !futureCanonicals.ContainsKey(d.CanonicalUrl)).ToList();
 					if (missingDeps.Any())
 					{
-						System.Diagnostics.Trace.WriteLine($"    unknown deps {versionedCanonical}: missing {string.Join(", ", missingDeps.Select(d => d.CanonicalUrl))}");
+						// System.Diagnostics.Trace.WriteLine($"    unknown deps {versionedCanonical}: missing {string.Join(", ", missingDeps.Select(d => d.CanonicalUrl))}");
 						// This could be due to errors during processing, so lets assume they are "just missing"
 						definedCanonicals.AddRange(missingDeps.Select(d => d.CanonicalUrl).ToArray());
 					}
@@ -861,14 +925,14 @@ namespace UploadFIG
 						if (!nonCircularDeps.Any())
 						{
 							// This is all circular dependencies, so lets add it anyway
-							System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical} (ignoring circular deps: {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))})");
+							// System.Diagnostics.Trace.WriteLine($"Included {versionedCanonical} (ignoring circular deps: {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))})");
 							reOrderedList.Add(entry);
 							if (ivr != null)
 							{
 								if (!definedCanonicals.Contains(ivr.Url))
 									definedCanonicals.Add(ivr.Url);
 								definedCanonicals.Add(versionedCanonical);
-								if (futureCanonicals.ContainsKey(ivr.Url))
+                                if (ivr.Url != null && futureCanonicals.ContainsKey(ivr.Url))
 									futureCanonicals.Remove(ivr.Url);
 								if (futureCanonicals.ContainsKey(versionedCanonical))
 									futureCanonicals.Remove(versionedCanonical);
@@ -876,12 +940,12 @@ namespace UploadFIG
 							continue;
 						}
 						// wasn't found, so defer it again
-						System.Diagnostics.Trace.WriteLine($"* Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+						// System.Diagnostics.Trace.WriteLine($"* Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
 					}
 				}
 				else
 				{
-					System.Diagnostics.Trace.WriteLine($"Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
+					// System.Diagnostics.Trace.WriteLine($"Deferring {versionedCanonical}: needs {string.Join(", ", unresolvedDeps.Select(d => d.CanonicalUrl))}");
 				}
 
 				// else, add it back to the end of the queue
@@ -1080,7 +1144,7 @@ namespace UploadFIG
 			}
 		}
 
-		private static async Task<List<Resource>> ScanExternalRegistry(Settings settings, Common_Processor versionAgnosticProcessor, DependencyChecker depChecker, List<CanonicalDetails> externalCanonicals, List<CanonicalDetails> unresolvableCanonicals, List<CanonicalDetails> indirectCanonicals)
+		private static async Task<List<Resource>> ScanExternalRegistry(PackageDetails pd, Settings settings, Common_Processor versionAgnosticProcessor, DependencyChecker depChecker, List<CanonicalDetails> externalCanonicals, List<CanonicalDetails> unresolvableCanonicals, List<CanonicalDetails> indirectCanonicals)
 		{
 			List<Resource> additionalResources = new List<Resource>();
 			if (!string.IsNullOrEmpty(settings.ExternalRegistry))
@@ -1163,7 +1227,7 @@ namespace UploadFIG
 					Canonical = (ec as IVersionableConformanceResource).Url,
 					Version = (ec as IVersionableConformanceResource).Version
 				}).ToList();
-				var dependentCanonicals = depChecker.ScanForCanonicals(initialCanonicals.Union(externalCanonicals), additionalResources);
+				var dependentCanonicals = depChecker.ScanForCanonicals(pd, initialCanonicals.Union(externalCanonicals), additionalResources);
 				foreach (var dc in dependentCanonicals)
 				{
 					try
@@ -1551,6 +1615,8 @@ namespace UploadFIG
             if (filename.EndsWith("validation-summary.json"))
                 return true;
             if (filename.EndsWith("validation-oo.json"))
+                return true;
+            if (filename.EndsWith("publication-request.json"))
                 return true;
 
             return false;

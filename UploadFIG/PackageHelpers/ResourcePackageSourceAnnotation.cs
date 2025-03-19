@@ -25,5 +25,21 @@ namespace UploadFIG
 			}
 			return null;
 		}
-	}
+        public static string PackageSourceVersion(FileDetail detail)
+        {
+            var att = detail.resource.Annotation<ResourcePackageSource>();
+            if (att != null)
+            {
+                if (detail.resource is IVersionableConformanceResource ivr)
+                {
+                    var result = $"{ivr.Version} ({att.PackageId}|{att.PackageVersion}";
+                    if (ivr.Status == PublicationStatus.Retired)
+                        result += " <retired>";
+                    result += ")";
+                    return result;
+                }
+            }
+            return null;
+        }
+    }
 }
