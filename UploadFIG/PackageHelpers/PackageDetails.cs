@@ -10,6 +10,8 @@ namespace UploadFIG.PackageHelpers
 
 		public string packageVersion { get; set; }
 
+        public string PackageCanonicalUrl { get; set; }
+
 		public IEnumerable<Hl7.Fhir.Model.Resource> resources { get
 			{
 				return Files.Where(f => f.resource != null && f.UsedBy.Any()).Select(f => f.resource);
