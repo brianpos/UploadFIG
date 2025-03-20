@@ -97,6 +97,7 @@ namespace UploadFIG
             PackageDetails result = new PackageDetails() {
                 packageId = manifest.Name,
                 packageVersion = manifest.Version,
+                PackageCanonicalUrl = manifest.Canonical,
                 Files = index?.Files ?? new List<FileDetail>(), // stub version packages don't have, just dependencies
             };
 

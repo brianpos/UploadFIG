@@ -232,7 +232,7 @@ namespace UploadFIG
                 // There was no manifest
                 ConsoleEx.WriteLine(ConsoleColor.Red, $"Cannot load/test a FHIR Implementation Guide Package where the manifest does not define a fhir version (package.json)");
                 ConsoleEx.WriteLine(ConsoleColor.Red, $"e.g. \"fhirVersions\" : [\"4.0.1\"]");
-                return new Result { Value = -1 };
+                return Result.Failure;
 
                 // Note: Could try and "deduce" the fhir version from which fhir core packages are included, however those aren't mandatory either
             }
@@ -257,7 +257,7 @@ namespace UploadFIG
 			else
 			{
 				ConsoleEx.WriteLine(ConsoleColor.Red, $"Unsupported FHIR version: {manifest.GetFhirVersion()} from {string.Join(',', manifest.FhirVersions)}");
-                return new Result { Value = -1 };
+                return Result.Failure;
             }
             if (manifest.FhirVersions?.Count > 1 || manifest.FhirVersionList?.Count > 1)
 				Console.WriteLine($"Detected FHIR Version {versionInPackage} from {string.Join(',', manifest.FhirVersions)} - using {fhirVersion.GetLiteral()}");
@@ -1356,7 +1356,7 @@ namespace UploadFIG
 
                 // Is the path a directory or a filename
                 var fileInfo = new FileInfo(settings.SourcePackagePath);
-                if (!string.IsNullOrEmpty(fileInfo?.DirectoryName) && Directory.Exists(fileInfo.DirectoryName))
+                if (!string.IsNullOrEmpty(fileInfo?.DirectoryName) && Directory.Exists(fileInfo.DirectoryName) && !File.Exists(settings.SourcePackagePath))
                 {
                     var filenames = Directory.EnumerateFiles(fileInfo.DirectoryName, fileInfo.Name);
                     if (filenames.Any())
