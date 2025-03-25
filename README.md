@@ -37,7 +37,7 @@ The utility is a dotnet tool and can be run from the command line using the `Upl
       -of output-bundle.json
 ```
 See the [examples](examples.md) page for additional examples.<br/>
-See the [parameters](parameters.md) page for the complete list of command line parameters.
+See the [parameters](Parameters.md) page for the complete list of command line parameters.
 
 ## Installation
 As a dotnet tool installation is done through the commandline which will download the latest version from nuget.org
