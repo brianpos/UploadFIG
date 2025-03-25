@@ -63,17 +63,17 @@ namespace UploadFIG
         /// </summary>
         public List<string> SelectFiles { get; set; }
 
-		/// <summary>
+        /// <summary>
         /// Set of additional packages to include in the processing
         /// These will be processes as though they are dependencies of the root package
         /// </summary>
         public List<string> AdditionalPackages { get; set; }
 
         /// <summary>
-		/// Any specific files that should be ignored/skipped when processing the package
-		/// (Is used as a filter on the root package only)
-		/// </summary>
-		public List<string> IgnoreFiles { get; set; }
+        /// Any specific files that should be ignored/skipped when processing the package
+        /// (Is used as a filter on the root package only)
+        /// </summary>
+        public List<string> IgnoreFiles { get; set; }
 
 		/// <summary>
 		/// Any specific Canonical URls that should be ignored/skipped when processing dependencies of resources
@@ -179,10 +179,10 @@ namespace UploadFIG
         /// </summary>
         public bool IncludeReferencedDependencies { get; set; }
 
-		/// <summary>
-		/// validate resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
-		/// </summary>
-		public bool ValidateReferencedDependencies { get; set; }
+        /// <summary>
+        /// validate resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
+        /// </summary>
+        public bool ValidateReferencedDependencies { get; set; } // = true;
 
 		/// <summary>
 		/// The filename to write a json batch bundle to write all of the resources to (could be used in place of directly deploying the IG)

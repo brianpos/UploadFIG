@@ -77,12 +77,12 @@ namespace UploadFIG
 
 
             // source parameters
-            var sourceOption = new Option<string>(new string[] { "-s", "--sourcePackagePath" }, () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
-            var packageIdOption = new Option<string>(new string[] { "-pid", "--packageId" }, () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)");
+            var sourceOption = new Option<string>([ "-s", "--sourcePackagePath" ], () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
+            var packageIdOption = new Option<string>([ "-pid", "--packageId" ], () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)");
 
             // target/test mode parameters
-            var destinationServerOption = new Option<string>(new string[] { "-d", "--destinationServerAddress" }, () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
-            var testPackageOnlyOption = new Option<bool>(new string[] { "-t", "--testPackageOnly" }, () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
+            var destinationServerOption = new Option<string>([ "-d", "--destinationServerAddress" ], () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
+            var testPackageOnlyOption = new Option<bool>([ "-t", "--testPackageOnly" ], () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
 
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
@@ -91,40 +91,40 @@ namespace UploadFIG
                 packageIdOption,
 
                 // Optional parameters
-                new Option<bool>(new string[]{ "-fd", "--forceDownload"}, () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(If not specified, will use the last downloaded package)"),
-                new Option<fhirVersion?>(new string[]{ "-fv", "--fhirVersion"}, () => settings.FhirVersion, "Force the engine to a specific FHIR Version.\r\nIf the IG itself is a different version, then the tool will abort\r\nRequired if using a wildcard pattern to deploy a collection of raw resource files"),
-                new Option<string>(new string[]{ "-pv", "--packageVersion"}, () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
-                new Option<List<string>>(new string[]{ "-r", "--resourceTypes"}, () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
-                new Option<List<string>>(new string[]{ "-sf", "--selectFiles"}, () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
-                new Option<List<string>>(new string[]{ "-ap", "--additionalPackages"}, () => settings.AdditionalPackages, "Set of additional packages to include in the processing\r\nThese will be processes as though they are dependencies of the root package"),
-                new Option<List<string>>(new string[]{ "-if", "--ignoreFiles" }, () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
-                new Option<List<string>>(new string[]{ "-ic", "--ignoreCanonicals" }, () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
-                new Option<List<string>>(new string[]{ "-ip", "--ignorePackages" }, () => settings.IgnorePackages, "While loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0" ),
+                new Option<string>([ "-pv", "--packageVersion" ], () => settings.PackageVersion, "The version of the Package to upload (from the HL7 FHIR Package Registry)"),
+                new Option<bool>([ "-fd", "--forceDownload" ], () => settings.ForceDownload, "Force the download of the package from the source package path\r\n(Useful if immediately running multiple times with `false` to use the last downloaded package)"),
+                new Option<fhirVersion?>([ "-fv", "--fhirVersion" ], () => settings.FhirVersion, "Force the engine to a specific FHIR Version.\r\nIf the IG itself is a different version, then the tool will abort\r\nRequired if using a wildcard pattern to deploy a collection of raw resource files"),
+                new Option<List<string>>([ "-r", "--resourceTypes" ], () => settings.ResourceTypes, "Which resource types should be processed by the uploader"),
+                new Option<List<string>>([ "-sf", "--selectFiles" ], () => settings.SelectFiles, "Only process these selected files\r\n(e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)"),
+                new Option<List<string>>([ "-ap", "--additionalPackages" ], () => settings.AdditionalPackages, "Set of additional packages to include in the processing\r\nThese will be processes as though they are dependencies of the root package"),
+                new Option<List<string>>([ "-if", "--ignoreFiles" ], () => settings.IgnoreFiles, "Any specific files that should be ignored/skipped when processing the package"),
+                new Option<List<string>>([ "-ic", "--ignoreCanonicals" ], () => settings.IgnoreCanonicals, "Any specific Canonical URls that should be ignored/skipped when processing the package and resource dependencies"),
+                new Option<List<string>>([ "-ip", "--ignorePackages" ], () => settings.IgnorePackages, "While loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0" ),
                 destinationServerOption,
-                new Option<List<string>>(new string[]{ "-dh", "--destinationServerHeaders"}, () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
-                new Option<upload_format>(new string[]{ "-df", "--destinationFormat"}, () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
+                new Option<List<string>>([ "-dh", "--destinationServerHeaders" ], () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
+                new Option<upload_format>([ "-df", "--destinationFormat" ], () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
                 testPackageOnlyOption,
-                new Option<bool>(new string[] { "-vq", "--validateQuestionnaires" }, () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
-                new Option<bool>(new string[] { "-vrd", "--validateReferencedDependencies" }, () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
-                new Option<bool>(new string[]{ "-pdv", "--preventDuplicateCanonicalVersions"}, () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
-                new Option<bool>(new string[]{ "-cn", "--checkAndCleanNarratives"}, () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
-                new Option<bool>(new string[]{ "-sn", "--stripNarratives"}, () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
-                new Option<bool>(new string[]{ "-c", "--checkPackageInstallationStateOnly"}, () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
-                new Option<bool>(new string[]{ "-gs", "--generateSnapshots"}, () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
-                new Option<bool>(new string[]{ "-rs", "--regenerateSnapshots"}, () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
-                new Option<bool>(new string[]{ "-rms", "--removeSnapshots"}, () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
-                new Option<bool>(new string[]{ "-pcv", "--patchCanonicalVersions"}, () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific where they resolve within the package"),
-                new Option<bool>(new string[] { "--includeReferencedDependencies" }, () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
-                new Option<bool>(new string[]{ "--includeExamples"}, () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
-                new Option<bool>(new string[]{ "--verbose"}, () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
-                new Option<string>(new string[] { "-of", "--outputBundle" }, () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
-                new Option<string>(new string[] { "-odf", "--outputDependenciesFile" }, () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
-                new Option<string>(new string[] { "-reg", "--externalRegistry" }, () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
-                new Option<List<string>>(new string[] { "-regh", "--externalRegistryHeaders" }, () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
-                new Option<string>(new string[] { "-rego", "--externalRegistryExportFile" }, () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
-                new Option<string>(new string[] { "-ets", "--externalTerminologyServer" }, () => settings.ExternalTerminologyServer, "The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)"),
-                new Option<List<string>>(new string[] { "-etsh", "--externalTerminologyServerHeaders" }, () => settings.ExternalTerminologyServerHeaders, "Additional headers to supply when connecting to the external FHIR terminology server"),
-                new Option<long?>(new string [] { "-mes", "--maxExpansionSize" }, () => settings.MaxExpansionSize, "The maximum number of codes to include in a ValueSet expansion"),
+                new Option<bool>([ "-vq", "--validateQuestionnaires" ], () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
+                new Option<bool>([ "-vrd", "--validateReferencedDependencies" ], () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
+                new Option<bool>([ "-pdv", "--preventDuplicateCanonicalVersions" ], () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
+                new Option<bool>([ "-cn", "--checkAndCleanNarratives" ], () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
+                new Option<bool>([ "-sn", "--stripNarratives" ], () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
+                new Option<bool>([ "-c", "--checkPackageInstallationStateOnly" ], () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
+                new Option<bool>([ "-gs", "--generateSnapshots" ], () => settings.GenerateSnapshots, "Generate the snapshots for any missing snapshots in StructureDefinitions"),
+                new Option<bool>([ "-rs", "--regenerateSnapshots" ], () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
+                new Option<bool>([ "-rms", "--removeSnapshots" ], () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
+                new Option<bool>([ "-pcv", "--patchCanonicalVersions" ], () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific if they resolve within the package"),
+                new Option<bool>([ "--includeReferencedDependencies" ], () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
+                new Option<bool>([ "--includeExamples" ], () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
+                new Option<bool>([ "--verbose" ], () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
+                new Option<string>([ "-of", "--outputBundle" ], () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
+                new Option<string>([ "-odf", "--outputDependenciesFile" ], () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
+                new Option<string>([ "-reg", "--externalRegistry" ], () => settings.ExternalRegistry, "The URL of an external FHIR server to use for resolving resources not already on the destination server"),
+                new Option<List<string>>([ "-regh", "--externalRegistryHeaders" ], () => settings.ExternalRegistryHeaders, "Additional headers to supply when connecting to the external FHIR server"),
+                new Option<string>([ "-rego", "--externalRegistryExportFile" ], () => settings.ExternalRegistryExportFile, "The filename of a file to write the json bundle of downloaded registry resources to"),
+                new Option<string>([ "-ets", "--externalTerminologyServer" ], () => settings.ExternalTerminologyServer, "The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)"),
+                new Option<List<string>>([ "-etsh", "--externalTerminologyServerHeaders" ], () => settings.ExternalTerminologyServerHeaders, "Additional headers to supply when connecting to the external FHIR terminology server"),
+                new Option<long?>([ "-mes", "--maxExpansionSize" ], () => settings.MaxExpansionSize, "The maximum number of codes to include in a ValueSet expansion"),
             };
 
             // Include the conditional validation rules to check that there is a source for the package to load from
