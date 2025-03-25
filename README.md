@@ -34,6 +34,7 @@ The utility is a dotnet tool and can be run from the command line using the `Upl
       --includeReferencedDependencies
       -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
       -ets https://tx.dev.hl7.org.au/fhir
+      -of output-bundle.json
 ```
 See the [examples](examples.md) page for additional examples.<br/>
 See the [parameters](parameters.md) page for the complete list of command line parameters.
