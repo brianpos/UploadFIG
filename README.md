@@ -249,6 +249,9 @@ The final column indicates the canonical version numbers that are currently on t
 
 ## Change history
 
+### 26 March 2025
+* Minor bug fixes from testing
+
 ### 20 March 2025
 * Added support for deploying/testing content directly from a folder via a pattern.
   e.g. `UploadFIG -t -s C:\git\hl7\sdc\input\resources\*.json -fv R4`
