@@ -12,7 +12,9 @@ namespace UploadFIG.PackageHelpers
 
         public string PackageCanonicalUrl { get; set; }
 
-        public IEnumerable<Hl7.Fhir.Model.Resource> resources { get
+        public IEnumerable<Hl7.Fhir.Model.Resource> resources
+        {
+            get
             {
                 return Files.Where(f => f.resource != null && f.UsedBy.Any()).Select(f => f.resource);
             }
@@ -24,9 +26,9 @@ namespace UploadFIG.PackageHelpers
 
         public Dictionary<string, FileDetail> CanonicalFiles { get; set; } = new Dictionary<string, FileDetail>();
 
-        public List<CanonicalDetails> RequiresCanonicals { get; private set; } = new List<CanonicalDetails>();	
+        public List<CanonicalDetails> RequiresCanonicals { get; private set; } = new List<CanonicalDetails>();
 
-        public IEnumerable<CanonicalDetails> UnresolvedCanonicals {  get { return RequiresCanonicals.Where(c => c.resource == null).ToArray(); } }
+        public IEnumerable<CanonicalDetails> UnresolvedCanonicals { get { return RequiresCanonicals.Where(c => c.resource == null).ToArray(); } }
 
         public void DebugToConsole(string tabPrefix = "", bool includeContent = true, bool debugRequiredByProps = false)
         {

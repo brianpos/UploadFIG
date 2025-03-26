@@ -30,7 +30,7 @@ namespace UploadFIG
                 // TODO: Check if there is any "old" content in here and delete that
                 DirectoryInfo di = new DirectoryInfo(_cacheFolder);
                 var directorySize = di.GetFiles().Sum(fsi => fsi.Length);
-                Console.WriteLine($"Package cache folder size: {directorySize/1024/1024} MB");
+                Console.WriteLine($"Package cache folder size: {directorySize / 1024 / 1024} MB");
             }
         }
 
@@ -114,7 +114,7 @@ namespace UploadFIG
                 }
 
                 // Package is already here, just return a stream on it
-                result =  File.OpenRead(packageFile);
+                result = File.OpenRead(packageFile);
                 return true;
             }
             catch (Exception ex)

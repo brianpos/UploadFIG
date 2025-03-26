@@ -94,7 +94,8 @@ namespace UploadFIG
 
             Console.WriteLine($"{logTabPrefix}{manifest.Name}|{manifest.Version}");
 
-            PackageDetails result = new PackageDetails() {
+            PackageDetails result = new PackageDetails()
+            {
                 packageId = manifest.Name,
                 packageVersion = manifest.Version,
                 PackageCanonicalUrl = manifest.Canonical,
