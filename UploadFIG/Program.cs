@@ -1341,7 +1341,34 @@ namespace UploadFIG
 					clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
 				if (settings.DestinationFormat == upload_format.xml)
 					clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
-				clientFhir.Settings.VerifyFhirVersion = true;
+				clientFhir.Settings.VerifyFhirVersion = false;
+
+                try
+                {
+                    // Check what content formats the server supports from the metadata endpoint
+                    var md = await clientFhir.GetAsync(new Uri(settings.DestinationServerAddress + "/metadata")) as CapabilityStatement;
+                    if (md?.Format != null)
+                    {
+                        // Check if XML/JSON are supported
+                        bool supportsXml = md.Format.Any(format => format.Contains("xml", StringComparison.InvariantCultureIgnoreCase));
+                        bool supportsJson = md.Format.Any(format => format.Contains("json", StringComparison.InvariantCultureIgnoreCase));
+
+                        if (!supportsXml && settings.DestinationFormat == upload_format.xml)
+                        {
+                            settings.DestinationFormat = upload_format.json;
+                            clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
+                        }
+                        if (!supportsJson && settings.DestinationFormat == upload_format.json)
+                        {
+                            settings.DestinationFormat = upload_format.xml;
+                            clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore this error, as we are just checking the server is up
+                }
 			}
 
 			return clientFhir;
