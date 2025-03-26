@@ -231,12 +231,13 @@ namespace UploadFIG
 			_errFiles = errFiles;
 			_verbose = verbose;
 		}
-		PackageDetails _pd;
-		DependencyChecker _depChecker;
-		Resource _resource;
-		Common_Processor _processor;
+		
+        private readonly PackageDetails _pd;
+		private readonly DependencyChecker _depChecker;
+		private Resource _resource;
+		private readonly Common_Processor _processor;
 		List<String> _errFiles;
-		bool _verbose;
+        readonly bool _verbose;
 
 		public void ProcessingResource(Resource resource)
 		{

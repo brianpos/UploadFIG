@@ -101,27 +101,27 @@ namespace UploadFIG
                 Files = index?.Files ?? new List<FileDetail>(), // stub version packages don't have, just dependencies
             };
 
-			// Tap off the canonical resources into the canonical resources dictionary
-			foreach (var item in result.Files)
-			{
-				if (!string.IsNullOrEmpty(item.url))
-				{
-					var versionedCanonical = $"{item.url}|{item.version}";
-					if (!result.CanonicalFiles.ContainsKey(versionedCanonical))
-						result.CanonicalFiles.Add(versionedCanonical, item);
-					if (!result.CanonicalFiles.ContainsKey(item.url))
-						result.CanonicalFiles.Add(item.url, item);
-					else
-					{
-						// Multiple versions of the same canonical in the same package
-						Trace.WriteLine($"Multiple versions of {item.url} ({item.resourceType}) in {result.packageId}|{result.packageVersion} ({item.filename})");
-						item.hasDuplicateDefinitions = true;
-						result.CanonicalFiles[item.url].hasDuplicateDefinitions = true;
-					}
-				}
-			}
+            // Tap off the canonical resources into the canonical resources dictionary
+            foreach (var item in result.Files)
+            {
+                if (!string.IsNullOrEmpty(item.url))
+                {
+                    var versionedCanonical = $"{item.url}|{item.version}";
+                    if (!result.CanonicalFiles.ContainsKey(versionedCanonical))
+                        result.CanonicalFiles.Add(versionedCanonical, item);
+                    if (!result.CanonicalFiles.ContainsKey(item.url))
+                        result.CanonicalFiles.Add(item.url, item);
+                    else
+                    {
+                        // Multiple versions of the same canonical in the same package
+                        Trace.WriteLine($"Multiple versions of {item.url} ({item.resourceType}) in {result.packageId}|{result.packageVersion} ({item.filename})");
+                        item.hasDuplicateDefinitions = true;
+                        result.CanonicalFiles[item.url].hasDuplicateDefinitions = true;
+                    }
+                }
+            }
 
-			if (manifest.Dependencies != null)
+            if (manifest.Dependencies != null)
             {
                 foreach (var dependent in manifest.Dependencies)
                 {
@@ -149,12 +149,12 @@ namespace UploadFIG
                             var dependentDetails = ReadPackageIndexDetails(packageStream, cache, ignorePackages, logTabPrefix + "    ");
                             result.dependencies.Add(dependentDetails);
                         }
-						finally
-						{
-							if (!leaveOpen)
-								packageStream.Dispose();
-						}
-					}
+                        finally
+                        {
+                            if (!leaveOpen)
+                                packageStream.Dispose();
+                        }
+                    }
                     else
                     {
                         // Unable to resolve the package dependency!
@@ -162,7 +162,7 @@ namespace UploadFIG
                     }
                 }
             }
-			GC.Collect();
+            GC.Collect();
             return result;
         }
 
@@ -211,7 +211,7 @@ namespace UploadFIG
                     var reader = new TarReader(gzipStream);
                     using (reader)
                     {
-                        TarEntry? entry;
+                        TarEntry entry;
                         while ((entry = reader.GetNextEntry()) != null)
                         {
                             if (entry.EntryType == TarEntryType.Directory)
@@ -224,7 +224,7 @@ namespace UploadFIG
                                 {
                                     using (stream)
                                     {
-										return parse(filename, stream);
+                                        return parse(filename, stream);
                                     }
                                 }
                             }
@@ -234,7 +234,7 @@ namespace UploadFIG
             }
             catch (System.IO.InvalidDataException ex)
             {
-                Console.Write($"Error trying to read {filename} from package");
+                Console.Write($"Error trying to read {filename} from package: {ex.Message}");
             }
             return null;
         }
