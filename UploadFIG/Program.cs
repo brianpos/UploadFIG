@@ -293,7 +293,7 @@ namespace UploadFIG
 			ValidateFileInclusionAndExclusionSettings(settings, pd);
 
 			// Server to upload the resources to
-			BaseFhirClient clientFhir = PrepareTargetFhirClient(settings, versionAgnosticProcessor);
+			BaseFhirClient clientFhir = await PrepareTargetFhirClient(settings, versionAgnosticProcessor);
 
 			Console.WriteLine();
 			ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
@@ -525,7 +525,7 @@ namespace UploadFIG
 
 						if (!settings.TestPackageOnly && settings.IncludeReferencedDependencies && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 						{
-							Resource resultUpload = UploadFile(settings, clientFhir, resource);
+							Resource resultUpload = await UploadFile(settings, clientFhir, resource);
 							if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
 								System.Threading.Interlocked.Increment(ref result.successes);
 							else
@@ -615,7 +615,7 @@ namespace UploadFIG
 
 					if (!settings.TestPackageOnly && !string.IsNullOrEmpty(settings.DestinationServerAddress))
 					{
-						Resource resultUpload = UploadFile(settings, clientFhir, resource);
+						Resource resultUpload = await UploadFile(settings, clientFhir, resource);
 						if (resultUpload != null || settings.CheckPackageInstallationStateOnly)
 							System.Threading.Interlocked.Increment(ref result.successes);
 						else
@@ -638,7 +638,7 @@ namespace UploadFIG
 
 			// Ensure that all direct and indirect canonical resources (excluding core spec/extensions) are installed in the server
 			if (!settings.TestPackageOnly)
-				DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, externalCanonicals);
+				await DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, externalCanonicals);
 
 			sw.Stop();
 			Console.WriteLine("Done!");
@@ -1236,7 +1236,7 @@ namespace UploadFIG
 					{
 						if (settings.Verbose)
 							Console.WriteLine($"Searching registry for {dc.ResourceType} {dc.Canonical}");
-						var r = clientRegistry.Search(dc.ResourceType, new[] { $"url={dc.Canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+						var r = await clientRegistry.SearchAsync(dc.ResourceType, new[] { $"url={dc.Canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
 						if (r.Entry.Count > 1)
 						{
 							// Check if these are just more versions of the same thing, then to the canonical versioning thingy
@@ -1316,7 +1316,7 @@ namespace UploadFIG
 			}
 		}
 
-		private static BaseFhirClient PrepareTargetFhirClient(Settings settings, Common_Processor versionAgnosticProcessor)
+		private static async Task<BaseFhirClient> PrepareTargetFhirClient(Settings settings, Common_Processor versionAgnosticProcessor)
 		{
 			BaseFhirClient clientFhir = null;
 			if (!string.IsNullOrEmpty(settings.DestinationServerAddress))
@@ -1695,7 +1695,7 @@ namespace UploadFIG
             return false;
         }
 
-		static Resource? UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
+		static async Task<Resource> UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
 		{
 			// Check to see if the resource is the same on the server already
 			// (except for text/version/modified)
@@ -1706,9 +1706,9 @@ namespace UploadFIG
 				resource.Meta.LastUpdated = null;
 				resource.Meta.VersionId = null;
 
-				Resource? current = null;
+				Resource current = null;
 				if (!string.IsNullOrEmpty(resource.Id))
-					current = clientFhir.Get($"{resource.TypeName}/{resource.Id}");
+					current = await clientFhir.GetAsync($"{resource.TypeName}/{resource.Id}");
 				if (current != null)
 				{
 					Resource original = (Resource)current.DeepCopy();
@@ -1744,7 +1744,7 @@ namespace UploadFIG
 				try
 				{
 					// Search to locate any existing versions of this canonical resource
-					var others = clientFhir.Search(resource.TypeName, new[] { $"url={vcs.Url}" });
+					var others = await clientFhir.SearchAsync(resource.TypeName, new[] { $"url={vcs.Url}" });
 					var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
 					if (existingResources.Count(e => (e as IVersionableConformanceResource).Version == vcs.Version) > 1)
 					{
@@ -1809,9 +1809,9 @@ namespace UploadFIG
 			Resource result;
 			string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
 			if (!string.IsNullOrEmpty(resource.Id))
-				result = clientFhir.Update(resource);
+				result = await clientFhir.UpdateAsync(resource);
 			else
-				result = clientFhir.Create(resource);
+				result = await clientFhir.CreateAsync(resource);
 
 			if (result is IVersionableConformanceResource r)
 				ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");

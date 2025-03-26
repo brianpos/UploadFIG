@@ -43,7 +43,7 @@ namespace UploadFIG
             _errFiles = errFiles;
         }
 
-		public static void VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
+		public static async Task VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
         {
             Console.WriteLine("");
             Console.WriteLine("Destination server canonical resource dependency verification:");
@@ -55,13 +55,13 @@ namespace UploadFIG
                 switch (rawCanonical.ResourceType)
                 {
                     case "StructureDefinition":
-                        existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ValueSet":
-                        existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "CodeSystem":
-                        existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         // also check that this system is not just a fragment/empty shell
                         if (existing != null && existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
                         {
@@ -74,13 +74,13 @@ namespace UploadFIG
                         }
                         break;
                     case "Questionnaire":
-                        existing = clientFhir.Search("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "StructureMap":
-                        existing = clientFhir.Search("StructureMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("StructureMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ConceptMap":
-                        existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                 }
 				if (rawCanonical.ResourceType == "unknown")
