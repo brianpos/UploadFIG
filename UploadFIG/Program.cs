@@ -216,7 +216,7 @@ namespace UploadFIG
                 return Result.Failure;
             }
 
-            if (settings.ResourceTypes.Count == 1 && settings.ResourceTypes[0] == "*")
+            if (settings.ResourceTypes?.Count == 1 && settings.ResourceTypes[0] == "*")
             {
                 settings.ResourceTypes.Clear();
             }
@@ -691,7 +691,7 @@ namespace UploadFIG
 				{
 					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
 				}
-				Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count()}");
+				Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count}");
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
 				// And the summary at the end
@@ -707,7 +707,7 @@ namespace UploadFIG
 				{
 					Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
 				}
-				Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count()}");
+				Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count}");
 				ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
 				// And the summary at the end
@@ -877,7 +877,7 @@ namespace UploadFIG
 
 				var ivr = entry.Resource as IVersionableConformanceResource;
 				var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
-				var unresolvedDeps = entry.Resource.Annotations<DependsOnCanonical>().Where(d => !definedCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+				var unresolvedDeps = entry.Resource.Annotations<DependsOnCanonical>().Where(d => !definedCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr?.Url && d.CanonicalUrl != versionedCanonical);
 
 				// Reset end of queue indicator, which means all canonicals have been found.
 				if (entry == lastEntry)
@@ -965,7 +965,7 @@ namespace UploadFIG
 
 			var ivr = resource as IVersionableConformanceResource;
 			var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
-			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr?.Url && d.CanonicalUrl != versionedCanonical);
 
 			foreach (var dep in unresolvedDeps)
 			{
@@ -991,11 +991,11 @@ namespace UploadFIG
 
 			var ivr = resource as IVersionableConformanceResource;
 			var versionedCanonical = $"{ivr?.Url}|{ivr?.Version}";
-			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr.Url && d.CanonicalUrl != versionedCanonical);
+			var unresolvedDeps = resource.Annotations<DependsOnCanonical>().Where(d => !skipCanonicals.Contains(d.CanonicalUrl) && d.CanonicalUrl != ivr?.Url && d.CanonicalUrl != versionedCanonical);
 
 			foreach (var dep in unresolvedDeps)
 			{
-				if (dep.CanonicalUrl == ivrRoot.Url || dep.CanonicalUrl == $"{ivrRoot.Url}|{ivrRoot.Version}")
+				if (dep.CanonicalUrl == ivrRoot?.Url || dep.CanonicalUrl == $"{ivrRoot?.Url}|{ivrRoot?.Version}")
 					return true;
 				if (futureCanonicals.TryGetValue(dep.CanonicalUrl, out Resource depResource))
 				{
@@ -1082,15 +1082,15 @@ namespace UploadFIG
 									failures.Add(vs.Url);
 									continue;
 								}
-								if (expandedValueSet.Expansion.Contains.Count() > (settings.MaxExpansionSize ?? 1000))
+								if (expandedValueSet.Expansion.Contains.Count > (settings.MaxExpansionSize ?? 1000))
 								{
-									ConsoleEx.WriteLine(ConsoleColor.Yellow, $"    ValueSet {vs.Url} expansion is too large to include ({expandedValueSet.Expansion.Contains.Count()} concepts)");
+									ConsoleEx.WriteLine(ConsoleColor.Yellow, $"    ValueSet {vs.Url} expansion is too large to include ({expandedValueSet.Expansion.Contains.Count} concepts)");
 									failures.Add(vs.Url);
 									continue;
 								}
-								if (expandedValueSet.Expansion.Total.HasValue && expandedValueSet.Expansion.Contains.Count() != expandedValueSet.Expansion.Total.Value)
+								if (expandedValueSet.Expansion.Total.HasValue && expandedValueSet.Expansion.Contains.Count != expandedValueSet.Expansion.Total.Value)
 								{
-									ConsoleEx.WriteLine(ConsoleColor.Yellow, $"   ValueSet {vs.Url} expansion is incomplete ({expandedValueSet.Expansion.Contains.Count()} of {expandedValueSet.Expansion.Total} concepts)");
+									ConsoleEx.WriteLine(ConsoleColor.Yellow, $"   ValueSet {vs.Url} expansion is incomplete ({expandedValueSet.Expansion.Contains.Count} of {expandedValueSet.Expansion.Total} concepts)");
 									failures.Add(vs.Url);
 									continue;
 								}
@@ -1109,7 +1109,7 @@ namespace UploadFIG
 									continue;
 								}
 								// Yay! we have an expansion we can use, so set it
-								Console.WriteLine($"    ValueSet {vs.Url} expansion included ({expandedValueSet.Expansion.Contains.Count()} concepts)");
+								Console.WriteLine($"    ValueSet {vs.Url} expansion included ({expandedValueSet.Expansion.Contains.Count} concepts)");
 								vs.Expansion = expandedValueSet.Expansion;
 							}
 							catch (Hl7.Fhir.Rest.FhirOperationException exExpand)
@@ -1193,7 +1193,7 @@ namespace UploadFIG
 							// remove all the others that aren't current.
 							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
 						}
-						if (r.Entry.Count() == 1)
+						if (r.Entry.Count == 1)
 						{
 							var resolvedResource = r.Entry.First().Resource;
 							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
@@ -1245,7 +1245,7 @@ namespace UploadFIG
 							// remove all the others that aren't current.
 							r.Entry.RemoveAll(e => e.Resource != cv as Resource);
 						}
-						if (r.Entry.Count() == 1)
+						if (r.Entry.Count == 1)
 						{
 							var resolvedResource = r.Entry.First().Resource;
 							// strip the SUBSETTED tag if it is there as we intentionally asked for data only (no narrative)
@@ -1644,7 +1644,7 @@ namespace UploadFIG
 					mergedCDs[key] = newCd;
 				}
 			}
-            Console.WriteLine($"Unable to resolve these canonical resources: {mergedCDs.Values.Count()}");
+            Console.WriteLine($"Unable to resolve these canonical resources: {mergedCDs.Values.Count}");
 			ReportCanonicalDetailsToConsole(settings, mergedCDs.Values);
         }
 

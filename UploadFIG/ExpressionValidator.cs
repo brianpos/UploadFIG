@@ -93,8 +93,8 @@ namespace UploadFIG
 			bool result = true;
 			if (sd != null && sd.Kind == StructureDefinition.StructureDefinitionKind.Resource && sd.Abstract == false)
 			{
-				var elements = sd.Differential.Element.Where(e => e.Constraint.Any()).ToList();
-				if (elements.Any())
+				var elements = sd.Differential.Element.Where(e => e.Constraint.Count > 0).ToList();
+				if (elements.Count > 0)
 				{
 					foreach (var ed in elements)
 					{
@@ -147,7 +147,7 @@ namespace UploadFIG
 				Console.WriteLine();
 				return false;
 			}
-			else if (visitor.Outcome.Issue.Count(i => i.Severity == OperationOutcome.IssueSeverity.Information) > 0)
+			else if (visitor.Outcome.Issue.Any(i => i.Severity == OperationOutcome.IssueSeverity.Information))
 			{
 				ConsoleEx.WriteLine(ConsoleColor.Gray, $"    #---> Information validating invariant {canonicalUrl}: {key}");
 				// Console.WriteLine(visitor.ToString());
