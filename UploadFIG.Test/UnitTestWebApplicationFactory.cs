@@ -51,7 +51,7 @@ namespace UnitTestWebApi
         }
         private IWebHostEnvironment _env;
 
-        public IConfiguration Configuration { get; set; }
+        public required IConfiguration Configuration { get; set; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
@@ -70,8 +70,8 @@ namespace UnitTestWebApi
                 });
             });
 
-            string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
-            string unitTestPath = Path.Combine(tempFIGpath, "unit-test-data");
+            string tempFIGPath = Path.Combine(Path.GetTempPath(), "UploadFIG");
+            string unitTestPath = Path.Combine(tempFIGPath, "unit-test-data");
             if (!System.IO.Directory.Exists(unitTestPath))
                 System.IO.Directory.CreateDirectory(unitTestPath);
             else

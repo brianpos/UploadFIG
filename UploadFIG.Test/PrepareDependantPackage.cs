@@ -1,6 +1,5 @@
 extern alias r4b;
 
-using Firely.Fhir.Packages;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
 using Hl7.Fhir.Utility;
@@ -19,31 +18,15 @@ namespace UploadFIG.Test
 		}
 
 		[TestMethod]
-		public void CheckCapabilityStatement()
+		public async Task CheckCapabilityStatement()
 		{
 			var nctsServer = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
-			var r = nctsServer.CapabilityStatement();
+			var r = await nctsServer.CapabilityStatementAsync();
 			Assert.IsNotNull(r);
 		}
 
 		[TestMethod]
-		public void DownloadPackage()
-		{
-		}
-
-		[TestMethod]
-		public void EnumerateDependantPackages()
-		{
-
-		}
-
-		[TestMethod]
-		public void CalculateDependantResources()
-		{
-		}
-
-		[TestMethod]
-		public void ScanPackageForCanonicals()
+		public async Task ScanPackageForCanonicals()
 		{
 			string json = System.IO.File.ReadAllText(@"C:\temp\uploadfig-dump-uscore.json");
 			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -55,7 +38,7 @@ namespace UploadFIG.Test
 			var nctsServer = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
 			foreach (var dc in output.externalCanonicalsRequired)
 			{
-				var r = nctsServer.Search(dc.resourceType, new[] { $"url={dc.canonical}" });
+				var r = await nctsServer.SearchAsync(dc.resourceType, new[] { $"url={dc.canonical}" });
 				if (r.Entry.Count > 1)
 				{
 					// Check if these are just more versions of the same thing, then to the canonical versioning thingy
@@ -189,7 +172,7 @@ namespace UploadFIG.Test
 		//}
 
 		[TestMethod]
-		public void PrepareDependantBundleFromRegistry()
+		public async Task PrepareDependantBundleFromRegistry()
 		{
 			string json = System.IO.File.ReadAllText(@"c:\temp\au-base-odf.json");
 			var output = System.Text.Json.JsonSerializer.Deserialize<OutputDependenciesFile>(json);
@@ -199,7 +182,7 @@ namespace UploadFIG.Test
 			var clientRegistry = new FhirClient("https://api.healthterminologies.gov.au/integration/R4/fhir");
 			foreach (var dc in output.externalCanonicalsRequired)
 			{
-				var r = clientRegistry.Search(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
+				var r = await clientRegistry.SearchAsync(dc.resourceType, new[] { $"url={dc.canonical}" }, null, null, Hl7.Fhir.Rest.SummaryType.Data);
 				if (r.Entry.Count > 1)
 				{
 					// Check if these are just more versions of the same thing, then to the canonical versioning thingy
