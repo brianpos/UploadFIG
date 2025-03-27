@@ -1833,27 +1833,37 @@ namespace UploadFIG
             if (settings.CheckPackageInstallationStateOnly)
                 return null;
 
-            Resource result;
+            Resource result = null;
             string operation = string.IsNullOrEmpty(resource.Id) ? "created" : "updated";
-            if (!string.IsNullOrEmpty(resource.Id))
-                result = await clientFhir.UpdateAsync(resource);
-            else
-                result = await clientFhir.CreateAsync(resource);
+            try
+            {
+                if (!string.IsNullOrEmpty(resource.Id))
+                    result = await clientFhir.UpdateAsync(resource);
+                else
+                    result = await clientFhir.CreateAsync(resource);
 
-            if (result is IVersionableConformanceResource r)
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
-            else
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
-            if (resource.HasAnnotation<ResourcePackageSource>() == true)
-            {
-                var sourceDetails = resource.Annotation<ResourcePackageSource>();
-                ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                if (result is IVersionableConformanceResource r)
+                    ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}\t{r.Url}|{r.Version}");
+                else
+                    ConsoleEx.Write(ConsoleColor.DarkGreen, $"    {operation}\t{result.TypeName}/{result.Id} {result.VersionId}");
+                if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                {
+                    var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                    ConsoleEx.Write(ConsoleColor.DarkGreen, $"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                }
+                if (!string.IsNullOrEmpty(warningMessage))
+                {
+                    ConsoleEx.Write(ConsoleColor.Yellow, $"\t{warningMessage}");
+                }
+                Console.WriteLine();
             }
-            if (!string.IsNullOrEmpty(warningMessage))
+            catch (FhirOperationException fex)
             {
-                ConsoleEx.Write(ConsoleColor.Yellow, $"\t{warningMessage}");
+                // capture the specific exception in the resource annotations
+                // (specifically used in unit testing)
+                resource.SetAnnotation(fex);
+                throw;
             }
-            Console.WriteLine();
             return result;
         }
     }
