@@ -704,5 +704,24 @@ namespace UploadFIG.Test
             Assert.AreEqual(0, result.failures);
             Assert.AreEqual(2, result.validationErrors);
         }
+
+        [TestMethod]
+        public async Task CheckUvToolsLatest()
+        {
+            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 6.0.0-ballot -fd -pdv false"
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "-pid", "hl7.fhir.uv.tools",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+
+            Assert.AreEqual(92, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
     }
 }
