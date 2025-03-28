@@ -3,13 +3,16 @@ extern alias r4b;
 extern alias r5;
 namespace UploadFIG
 {
-	public record DependsOnCanonical
-	{
-		public DependsOnCanonical(string value)
-		{
-			CanonicalUrl = value;
-		}
+    /// <summary>
+    /// The resource containing this annotation has a dependency with the canonical in this Value
+    /// </summary>
+    public record DependsOnCanonical
+    {
+        public DependsOnCanonical(string value)
+        {
+            CanonicalUrl = value;
+        }
 
-		public string CanonicalUrl { get; init; }
-	}
+        public string CanonicalUrl { get; init; }
+    }
 }

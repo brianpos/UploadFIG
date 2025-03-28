@@ -1,7 +1,7 @@
 ﻿namespace UploadFIG
 {
 
-	public class OutputDependenciesFile
+    public class OutputDependenciesFile
     {
         /// <summary>
         /// Package ID that was processed
@@ -40,7 +40,7 @@
 
         public List<DependentResource> externalCanonicalsRequired { get; set; } = new List<DependentResource>();
 
-        public List<CanonicalDetails> containedCanonicals{ get; set; } = new();
+        public List<CanonicalDetails> containedCanonicals { get; set; } = new();
     }
 
     public class DependentResource

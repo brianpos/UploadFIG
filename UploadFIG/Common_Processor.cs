@@ -13,8 +13,8 @@ namespace UploadFIG
 
         public abstract Resource ParseXml(XmlReader xr);
         public abstract Resource ParseJson(JsonReader jr);
-		public abstract Resource ParseXml(string xml);
-		public abstract Resource ParseJson(string json);
-		public abstract Task SerializeJson(Stream stream, Resource resource);
-	}
+        public abstract Resource ParseXml(string xml);
+        public abstract Resource ParseJson(string json);
+        public abstract Task SerializeJson(Stream stream, Resource resource);
+    }
 }

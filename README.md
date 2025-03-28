@@ -1,133 +1,43 @@
 # UploadFIG - FHIR Implementation Guide (FIG) Uploader R4/R4B/R5
 ![UploadFIG logo](logo_small.png "UploadFIG logo")
 
-This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.
+This tool provides a way to deploy a FHIR Implementation Guide to a FHIR Server.<br/>
 The content can be loaded from:
 * (-pid) the fhir registry via packageID
-* (-s) an explicit web location (complete source URL including filename where applicable)
-* (-s) a file on the local filesystem
+* (-s) an explicit web location `https://build.fhir.org/ig/HL7/sdc/package.tgz`
+* (-s) a package file on the local filesystem `c:\temp\package.tgz`
+* (-s) a file wildcard pattern on the local filesystem `c:\temp\samples\*.json` *(needs `-fv R4`)*
 
 During the upload step the utility will:
 * GET the resource ID directly
     * compare if the resource has changed (excluding meta.versionId, meta.lastUpdated and text)
     * skip if the resource is the same
 * search for the resource by canonical URL (if it is a canonical resource)
-    * verify that there is not another resource on the server already using that canonical URL (hence uploading may cause issues resolving)<br/>
-    *(can be disabled via -pdv false)*
+    * verify that there is not another resource on the server already using that canonical URL<br/>
+      (hence uploading may cause issues resolving - *can be disabled via `-pdv false`*
     * verify that the version hasn't been messed with
 
 During the processing this utility will:
 * Validate any fhirpath invariants in profiles
 * Validate any search parameters included
 (Note: These validation results should be verified as correct and investigate if they would impact the operation of the guide in your environment/toolchain)
-
-## Resource IDs
-While uploading the package content the utility will attempt to find the resource on the server using the following methods:
-* Example resources: simple read by Resource ID <br/>*(e.g. GET [base]/[ResourceType]/[ResourceID])*
-    - always uses PUT to update the resource
-    - This will overwrite any existing resource with the same ID
-* Canonical resources: search via canonical URL and canonical version <br/>*(e.g. GET [base]/[ResourceType]?url=[CanonicalUrl]&version=[CanonicalVersion])*
-    - PUT if the canonical resource matches a record by canonical URL/Version
-    - "refreshes" or brings the resource back to a known good state
-    - POST for any new resources
-    - Multiple resources with different canonical version numbers found with the same canonical are reported in the output
-    - Multiple resources with the same canonical version number are rejected and must be resolved manually before the resource can be processed
+* Validate Questionnaires
+* Several other IG related validations/consistency checks
 
 
 ## Running the utility
-``` txt
-Usage:
-  UploadFIG [options]
 
-Options:
-  -s, --sourcePackagePath <sourcePackagePath>                The explicit path of a package to process (over-rides
-                                                             PackageId/Version)
-  -pid, --packageId <packageId>                              The Package ID of the package to upload (from the HL7 FHIR Package
-                                                             Registry)
-  -fd, --forceDownload                                       Force the download of the package from the source package path
-                                                             (If not specified, will use the last downloaded package)
-                                                             [default: True]
-  -fv, --fhirVersion <R4|R4B|R5>                             Force the engine to a specific FHIR Version.
-                                                             If the IG itself is a different version, then the tool will abort
-                                                             *Required if using a wildcard pattern to deploy a collection of raw resource files*
-  -pv, --packageVersion <packageVersion>                     The version of the Package to upload (from the HL7 FHIR Package
-                                                             Registry)
-  -r, --resourceTypes <resourceTypes>                        Which resource types should be processed by the uploader 
-                                                             Note that `*` can be used to permit ALL types to be uploaded
-                                                             [default: StructureDefinition|ValueSet|CodeSystem|Questionnaire
-                                                             |SearchParameter|ConceptMap|StructureMap|Library]
-  -sf, --selectFiles <selectFiles>                           Only process these selected files
-                                                             (e.g. package/SearchParameter-valueset-extensions-ValueSet-end.json)
-  -ap, --AdditionalPackages <packageId|ver>                  Set of additional packages to include in the processing
-                                                             These will be processes as though they are dependencies of the root package
-  -if, --ignoreFiles <ignoreFiles>                           Any specific files that should be ignored/skipped when processing the
-                                                             package
-  -ic, --ignoreCanonicals <ignoreCanonicals>                 Any specific Canonical URls that should be ignored/skipped when
-                                                             processing the package and resource dependencies
-  -ip, --ignorePackages <packageId|ver>                      While loading in dependencies, ignore these versioned packages. 
-                                                             e.g. us.nlm.vsac|0.18.0
-  -d, --destinationServerAddress <destinationServerAddress>  The URL of the FHIR Server to upload the package contents to
-  -dh, --destinationServerHeaders <destinationServerHeaders> Headers to add to the request to the destination FHIR Server
-                                                             e.g. `Authentication: Bearer xxxxxxxxxxx`
-  -df, --destinationFormat <json|xml>                        The format to upload to the destination server
-                                                             [default: xml]
-  -t, --testPackageOnly                                      Only perform download and static analysis checks on the Package.
-                                                             Does not require a DestinationServerAddress, will not try to connect
-                                                             to one if provided
-                                                             [default: False]
-  -vq, --validateQuestionnaires                              Include more extensive testing on Questionnaires (experimental)
-                                                             [default: False]
-  -vrd, --validateReferencedDependencies                     Validate any referenced resources from dependencies being installed 
-                                                             [default: False]
-  -pdv, --preventDuplicateCanonicalVersions                  Permit the tool to upload canonical resources even if
-                                                             they would result in the server having multiple canonical
-                                                             versions of the same resource after it runs
-                                                             The requires the server to be able to handle resolving
-                                                             canonical URLs to the correct version of the resource
-                                                             desired by a particular call. Either via the versioned
-                                                             canonical reference, or using the logic defined in the
-                                                             $current-canonical operation
-                                                             [default: True]
-  -cn, --checkAndCleanNarratives                             Check and clean any narratives in the package and remove suspect ones
-                                                             (based on the MS FHIR Server's rules)
-                                                             [default: False]
-  -sn, --stripNarratives                                     Strip all narratives from the resources in the package
-                                                             [default: False]
-  -c, --checkPackageInstallationStateOnly                    Download and check the package and compare with the contents of the FHIR Server,
-                                                             but do not update any of the contents of the FHIR Server
-                                                             [default: False]
-  -gs, --generateSnapshots                                   Generate the snapshots for any missing snapshots in StructureDefinitions
-                                                             [default: False]
-  -rs, --regenerateSnapshots                                 Re-Generate all snapshots in StructureDefinitions
-                                                             [default: False]
-  -rms, --removeSnapshots                                    Remove all snapshots in StructureDefinitions
-                                                             [default: False]
-  -pcv, --patchCanonicalVersions                             Patch canonical URL references to be version specific where they resolve within the package [default: False]
-  --includeReferencedDependencies                            Upload any referenced resources from resource dependencies being included
-                                                             [default: False]
-  --includeExamples                                          Also include files in the examples sub-directory
-                                                             (Still needs resource type specified)
-                                                             [default: False]
-  --verbose                                                  Provide verbose diagnostic output while processing
-                                                             (e.g. Filenames processed)
-                                                             [default: False]
-  -of, --outputBundle <filename>                             The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)
-  -odf, --outputDependenciesFile <filename>                  Write the list of dependencies discovered in the IG into a json file for post-processing
-  -reg, --externalRegistry <externalRegistry>                The URL of an external FHIR server to use for resolving resources not already on the destination server
-  -regh, --externalRegistryHeaders <headers>                 Additional headers to supply when connecting to the external FHIR server
-  -rego, --externalRegistryExportFile <filename>             The filename of a file to write the json bundle of downloaded registry resources
-  -ets, --externalTerminologyServer <URL>                    The URL of an external FHIR terminology server to use for creating expansions (where not on an external registry)
-  -etsh, --externalTerminologyServerHeaders <headers>        Additional headers to supply when connecting to the external FHIR terminology server
-  -mes, --maxExpansionSize <number>                          The maximum number of codes to include in a ValueSet expansion
-                                                             [default: 1000]
-  --version                                                  Show version information
-  -?, -h, --help                                             Show help and usage information
+The utility is a dotnet tool and can be run from the command line using the `UploadFIG` command.
+``` ps
+> UploadFIG -pid hl7.fhir.au.base -pv 4.0.0 -d https://localhost:44348
+      -cn -df json -dh "Authorization:Bearer ******"
+      --includeReferencedDependencies
+      -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
+      -ets https://tx.dev.hl7.org.au/fhir
+      -of output-bundle.json
 ```
-
-> **Note:** The `-of` flag has some limitations, and is not a full replacement for the direct deployment of the IG to the server.
-> It is not able to cleanly handle the conditional updates that are required for canonical resources, and may not be able to update the server with the correct resource ID.
-> The actual update process to a server compares the content with what is already deployed, and only updates the content if it has changed.
-> Along with safely managing the resources IDs and canonical Versions. Without knowing what is already on the server, this is not possible to correctly manage.
+See the [examples](examples.md) page for additional examples.<br/>
+See the [parameters](Parameters.md) page for the complete list of command line parameters.
 
 ## Installation
 As a dotnet tool installation is done through the commandline which will download the latest version from nuget.org
@@ -152,6 +62,19 @@ PS C:\Users\brian> dotnet tool uninstall uploadfig --global
 Tool 'uploadfig' (version '2023.8.3.15') was successfully uninstalled.
 ```
 
+## Resource IDs
+While uploading the package content the utility will attempt to find the resource on the server using the following methods:
+* Example resources: simple read by Resource ID <br/>*(e.g. GET [base]/[ResourceType]/[ResourceID])*
+    - always uses PUT to update the resource
+    - This will overwrite any existing resource with the same ID
+* Canonical resources: search via canonical URL and canonical version <br/>*(e.g. GET [base]/[ResourceType]?url=[CanonicalUrl]&version=[CanonicalVersion])*
+    - PUT if the canonical resource matches a record by canonical URL/Version
+    - "refreshes" or brings the resource back to a known good state
+    - POST for any new resources
+    - Multiple resources with different canonical version numbers found with the same canonical are reported in the output
+    - Multiple resources with the same canonical version number are rejected and must be resolved manually before the resource can be processed
+
+
 ## Handling Package Dependencies
 FHIR Packages can have dependencies on other FHIR Packages. These dependencies can be direct or indirect.
 The utility uses the FHIR package registry to locate dependent packages, and will download them automatically.
@@ -167,7 +90,7 @@ available as FHIR packages, and thus not included.
 In general there are 3 options that can be considered with deploying the dependencies of a package
 1. Do not load any dependencies (just list them out - which is what the previous version of the utility did)
 2. Load in the resources in dependencies that are required (directly or indirectly) from resources in the package we are uploading
-3. Load in all the resources in all the dependencies
+3. Load in all the resources in all the dependencies *(not supported)*
 
 This utility will still perform option 1 by default, and can now perform option 2 if the `--includeReferencedDependencies` option is specified.
 If your environment requires ALL resources from the IGs listed in the dependencies to be loaded, 
@@ -322,153 +245,15 @@ or the word 'current' if the reference is requesting the latest version of the r
 The final column indicates the canonical version numbers that are currently on the destination server.
 
 
-## Examples
-### Review the SDOH Clinical Care IG Package
-Test the package content and not try and upload any data to a server, and will grab the latest
-version from the HL7 FHIR Package Registry
-(and also validate any resource dependencies from package dependencies - US-Core/SDC...)
-``` ps
-> UploadFIG -pid hl7.fhir.us.sdoh-clinicalcare -t -vrd
-```
-
-### Verify an installation of the US Core v6.1.0
-Check to see if the US Core IG Package v6.1.0 is loaded onto a local server, and if any content has changed
-``` ps
-> UploadFIG -pid hl7.fhir.us.core -pv 6.1.0 -c -d https://localhost:44348 --verbose
-```
-
-### Skip processing of a specific file
-``` ps
-> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 --verbose -if package/StructureDefinition-medication-brand-name.json
-```
-
-### Direct download a specific package
-(Note that you should include the forceDownload flag here to ensure that it doesn't use a locally saved file)
-``` ps
-> UploadFIG -d https://localhost:44348 -s https://example.org/demo-package.tgz --verbose --forceDownload
-```
-
-### Test a locally built package
-``` ps
-> UploadFIG -s "E:\git\HL7\fhir-sdoh-clinicalcare-publish\output\package.r4b.tgz" -t --verbose
-```
-
-### Upload AU Base to a Microsoft FHIR Server
-(Note the inclusion of the -cn flag to cleanse any narratives that would be otherwise rejected by the Microsoft FHIR Server)
-``` ps
-> UploadFIG -d https://localhost:44348 -pid hl7.fhir.au.base -pv 4.0.0 -cn -df json -dh "Authorization:Bearer ******"
-      --includeReferencedDependencies 
-      -reg https://api.healthterminologies.gov.au/integration/R4/fhir -rego au-registry-content.json
-      -ets https://tx.dev.hl7.org.au/fhir
-```
-And also the inclusion of the `-df json` to select the json format as the hosted Microsoft FHIR Server doesn't support XML
-and the `--includeReferencedDependencies` flag to indicate that dependencies should be scanned (including registry if provided)
-and the `-reg` flag to specify the NCTS as the external registry to use for resolving the other resources that are not in the package.
-and the `-rego` flag to write a local copy of the resources downloaded from the NCTS registry.
-and the `-ets` flag to request the external terminology server to create expansions for ValueSets that are too complex for the Firely SDK terminology service.
-
-The hosted Microsoft server may require an Authorization bearer to connect too, note that you will likely need 
-to quote the content if it has spaces - which is normally there (and may be different on a different OS)
-*(also note that this is not the Authentication header which is a common mistake)*
-
-### Upload the latest version of the SDC IG to a FHIR Server in JSON format
-Some fhir servers may only be able to support a single format, so you can specify xml or json explicitly to use while uploading.
-This is independent of the format of the content that is native inside the IG package.
-``` ps
-> UploadFIG -pid hl7.fhir.au.base -d https://localhost:44348 -df json
-```
-
-### Deploy the latest version of the Davinci CRD IG and dependent resource to a FHIR Server
-Many IGs have other packages that they depend on, and using `includeReferencedDependencies` downloads those packages
-and then uploads resources used by the primary IG from those dependencies
-``` ps
-> UploadFIG -pid hl7.fhir.us.davinci-crd -d https://localhost:44348 --includeReferencedDependencies
-```
-Extract of output from deployment:
-``` txt
-    Package dependencies:
-    hl7.fhir.r4.core|4.0.1
-    hl7.terminology.r4|5.3.0
-    hl7.fhir.uv.extensions.r4|1.0.0
-    hl7.fhir.us.core|3.1.1
-    hl7.fhir.uv.sdc|3.0.0
-    hl7.fhir.us.davinci-hrex|1.0.0
-    us.nlm.vsac|0.11.0
-
---------------------------------------
-Scanning package content:
-
---------------------------------------
-Scanning dependencies:
-
-Scanning indirect dependencies:
-
-Unable to resolve these canonical resources: 2
-    Resource Type	Canonical Url	Version	Package Source
-    CodeSystem	http://hl7.org/fhir/fhir-types	
-                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/configTypes|2.0.1	package/ValueSet-configTypes.json
-    CodeSystem	urn:oid:2.16.840.1.113883.6.285	
-                    ^- http://hl7.org/fhir/us/davinci-crd/ValueSet/serviceRequestCodes|2.0.1	package/ValueSet-serviceRequestCodes.json
-
---------------------------------------
-Validate/upload dependencies:
-    created	CodeSystem	https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets|1.0.1	(hl7.terminology.r4|5.3.0)
-    created	ValueSet	http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes|3.1.1	(hl7.fhir.us.core|3.1.1)
-    created	CodeSystem	http://loinc.org|3.1.0	(hl7.terminology.r4|5.3.0)
-    created	CodeSystem	http://hl7.org/fhir/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
-    created	ValueSet	http://hl7.org/fhir/ValueSet/codesystem-properties-mode|1.0.0	(hl7.fhir.uv.extensions.r4|1.0.0)
-    created	CodeSystem	http://www.nlm.nih.gov/research/umls/rxnorm|3.0.1	(hl7.terminology.r4|5.3.0)
-
---------------------------------------
-Validate/upload package content:
-    created	CodeSystem	http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|2.0.1
-    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/AdditionalDocumentation|2.0.1
-    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/CMSMappableLocationCodes|2.0.1
-...
-    created	ValueSet	http://hl7.org/fhir/us/davinci-crd/ValueSet/taskReason|2.0.1
-
-Destination server canonical resource dependency verification:
-    http://hl7.org/fhir/fhir-types	(current)	(missing)
-    http://hl7.org/fhir/us/core/ValueSet/us-core-medication-codes	(current)	3.1.1
-    http://loinc.org	(current)	3.1.0
-    http://www.ama-assn.org/go/cpt	(current)	(missing)
-    https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets	(current)	1.0.1
-    urn:oid:2.16.840.1.113883.6.285	(current)	(missing)
-Done!
-```
-
-### Deploy an IG using a batch bundle and curl
-If you want to deploy the IG using a transaction bundle, you can use the `-of` flag to write the bundle to a file
-and then use curl to upload the bundle to the server.
-``` cmd
-# download the HL7 Australia au-base IG package, extract all the resources into a 
-# transaction bundle and write it to the file `transaction-bundle.json`
-> UploadFIG -t -pid hl7.fhir.au.base -of transaction-bundle.json
-```
-Then use curl to upload the bundle to the server (and report the results to the file `result.json`)
-``` cmd
-> curl -X POST -H "Content-Type: application/fhir+json" --data @transaction-bundle.json https://localhost:44391/ -o result.json
-```
-> **Note:** that this transaction bundle uses conditional updates to select the ID of the resource to update for canonical resources.
-> Other resources will just POST the resource to create a new instance.
-> And updates all records, not just ones that are changed.
-
-### Deploy the CRD IG with only US-Core 6.1.0 (not 7.0.0 or 3.1.1) into a bundle
-And version pin all the canonical references (including the dependencies) to the specific version of the US-Core IG,
-using the `-pcv` Patch Canonical Versions flag
-
-``` cmd
-# download the CI build CRD IG package, extract all the resources into a batch bundle and write it to the file `bundle.json`
-> UploadFIG -t -s https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz
-            --includeReferencedDependencies
-            -ip hl7.fhir.us.core|7.0.0 -ip hl7.fhir.us.core|3.1.1
-            -pcv
-            -of bundle.json
-```
-
 ---
 
 ## Change history
+
+### 28 March 2025
+* Minor bug fixes from testing
+* Issue [#9](https://github.com/brianpos/UploadFIG/issues/9) Validate and set the json/xml format supported by the server automatically.
+* Reformat the summary output collapsing sections together and focusing on the total output, rather than just the root package.
+* Fix some minor discrepancies in the reporting of un-resolved canonicals related to registry sourced content
 
 ### 20 March 2025
 * Added support for deploying/testing content directly from a folder via a pattern.
@@ -495,7 +280,7 @@ This has been a big release with lots of changes, mostly around processing depen
 * Added `Library` to the default resource types to process
 * Added `-sn` or `--stripNarratives` flag to remove all narratives from the resources processed
 * Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions
-* Added `-pcv` or `--patchCanonicalVersions` flag to patch canonical URL references to be version specific where they resolve within the package or its dependencies
+* Added `-pcv` or `--patchCanonicalVersions` flag to patch canonical URL references to be version specific if they resolve within the package or its dependencies
 * Added `-mes` or `--maxExpansionSize` flag to set the maximum number of codes to include in a ValueSet expansion
 * Added `-of` or `--outputBundle` filename to write a json batch bundle containing all of the processed resources
 * Added `-rms` or `--removeSnapshots` flag to remove all snapshots from StructureDefinitions, this is different to `-rs` which regenerates them.

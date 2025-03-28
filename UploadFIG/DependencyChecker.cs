@@ -43,7 +43,7 @@ namespace UploadFIG
             _errFiles = errFiles;
         }
 
-		public static void VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
+		public static async Task VerifyDependenciesOnServer(Settings settings, BaseFhirClient clientFhir, List<CanonicalDetails> requiresCanonicals)
         {
             Console.WriteLine("");
             Console.WriteLine("Destination server canonical resource dependency verification:");
@@ -55,15 +55,15 @@ namespace UploadFIG
                 switch (rawCanonical.ResourceType)
                 {
                     case "StructureDefinition":
-                        existing = clientFhir.Search<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<StructureDefinition>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ValueSet":
-                        existing = clientFhir.Search<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<ValueSet>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "CodeSystem":
-                        existing = clientFhir.Search<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync<CodeSystem>(new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         // also check that this system is not just a fragment/empty shell
-                        if (existing != null && existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
+                        if (existing != null && existing.Entry.Any(e => !(e.Resource is OperationOutcome)))
                         {
                             var codeSystem = existing.Entry.First(e => e.Resource is CodeSystem).Resource as CodeSystem;
                             if (codeSystem.Concept == null || codeSystem.Concept.Count == 0 || codeSystem.Content != CodeSystemContentMode.Complete)
@@ -74,20 +74,20 @@ namespace UploadFIG
                         }
                         break;
                     case "Questionnaire":
-                        existing = clientFhir.Search("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("Questionnaire", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "StructureMap":
-                        existing = clientFhir.Search("StructureMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("StructureMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                     case "ConceptMap":
-                        existing = clientFhir.Search("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
+                        existing = await clientFhir.SearchAsync("ConceptMap", new[] { $"url={canonical.Uri}" }, null, null, SummaryType.True);
                         break;
                 }
 				if (rawCanonical.ResourceType == "unknown")
 				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"\t{canonical.Uri}\t{canonical.Version ?? "(current)"}\t(unknown resource type to search for)");
 				}
-				else if (existing == null || existing.Entry.Count(e => !(e.Resource is OperationOutcome)) > 0)
+				else if (existing == null || existing.Entry.Any(e => !(e.Resource is OperationOutcome)))
                 {
                     var versionList = existing.Entry.Select(e => (e.Resource as IVersionableConformanceResource)?.Version).ToList();
 					var color = Console.ForegroundColor;
@@ -697,10 +697,10 @@ namespace UploadFIG
             // Maybe think some more about if we can dynamically also scan the extensions from the definitions and "discover" more...
 
             // SDC extras
-            var unitValusetUrl = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-unitValueSet");
-            CheckRequiresCanonical(pd, resource, "ValueSet", unitValusetUrl, requiresCanonicals);
+            var unitValueSetUrl = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-unitValueSet");
+            CheckRequiresCanonical(pd, resource, "ValueSet", unitValueSetUrl, requiresCanonicals);
             var referenceProfile = item.GetExtensionValue<Canonical>("http://hl7.org/fhir/StructureDefinition/questionnaire-referenceProfile");
-            CheckRequiresCanonical(pd, resource, "StructureDefinition", unitValusetUrl, requiresCanonicals);
+            CheckRequiresCanonical(pd, resource, "StructureDefinition", unitValueSetUrl, requiresCanonicals);
         }
 		#endregion
 
@@ -717,7 +717,7 @@ namespace UploadFIG
 			var scanResources = pd.Files.Where(f => f.resource != null && f.ScannedForDependencies == false).ToList();
 			int safetyCatch = 0;
             const int catchLimit = 30;
-			while (scanResources.Any() && safetyCatch < catchLimit) // provide a safety net in the event that not all files load
+			while (scanResources.Count > 0 && safetyCatch < catchLimit) // provide a safety net in the event that not all files load
 			{
                 var newRequiredCanonicals = ScanForCanonicals(pd, scanResources).Except(pd.RequiresCanonicals, new CanonicalDetailsComparer()).ToList();
                 var newExternalCanonicals = ExcludeLocalCanonicals(pd, newRequiredCanonicals);
@@ -803,7 +803,7 @@ namespace UploadFIG
 																&& (f.version == cd.Version || string.IsNullOrEmpty(cd.Version))
 																&& !pd.resources.Any(r => r.TypeName == f.resourceType && r.Id == f.id)
 															)).ToList();
-			if (files.Any())
+			if (files.Count > 0)
 			{
 				var stream = _packageCache.GetPackageStream(pd.packageId, pd.packageVersion, out var leaveOpen);
 				if (stream == null)
@@ -827,9 +827,8 @@ namespace UploadFIG
 							Console.WriteLine($"    Detected multiple versions of {f.url}|{f.version} in {pd.packageId}|{pd.packageVersion} ({String.Join(", ", files.Where(f2 => f2.url == f.url ).Select(f2 => f2.filename))})");
 						try
 						{
-							Resource resource = null;
 							var resourceKey = $"{pd.packageId}|{pd.packageVersion}|{f.filename}";
-							if (!_cacheResources.TryGetValue(resourceKey, out resource))
+							if (!_cacheResources.TryGetValue(resourceKey, out Resource resource))
 							{
 								resource = PackageReader.ReadResourceContent(stream, f.filename,
 									(stream, filename) => parsePackageContentStream(versionAgnosticProcessor, filename, stream));
@@ -1091,7 +1090,7 @@ namespace UploadFIG
 
 						// Skip resource types we're not intentionally importing
 						// (usually examples)
-						if (resourceTypeNames.Any() && !resourceTypeNames.Contains(resource.TypeName))
+						if (resourceTypeNames.Count > 0 && !resourceTypeNames.Contains(resource.TypeName))
 						{
 							if (verbose)
 								Console.WriteLine($"    ----> Ignoring {exampleName} because {resource.TypeName} is not a requested type");

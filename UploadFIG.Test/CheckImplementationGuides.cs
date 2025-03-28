@@ -41,20 +41,39 @@ namespace UploadFIG.Test
         public async Task CheckTestResults(Program.Result results, [CallerMemberName] string caller = "")
         {
             string testResultPath = Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "TestResult", caller);
+            string actualResult = _sb.ToString();
+
+            // output the current test runs results
+            if (File.Exists(testResultPath + ".txt"))
+            {
+                System.IO.File.WriteAllText(testResultPath + "2.txt", actualResult);
+            }
+
+            JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            if (File.Exists(testResultPath + "_deps.json"))
+            {
+                System.IO.File.WriteAllText(testResultPath + "_deps2.json", JsonConvert.SerializeObject(results.OutputDependencies, serializerSettings));
+            }
+
+            // Check the output bundle
+            if (File.Exists(testResultPath + "_bundle.json"))
+            {
+                var fs = new FileStream(testResultPath + "_bundle2.json", FileMode.Create);
+                using (fs)
+                {
+                    await results.Processor.SerializeJson(fs, results.AlternativeOutputBundle);
+                }
+            }
 
             // Check the console output
             if (File.Exists(testResultPath + ".txt"))
             {
-                // this times results
-                System.IO.File.WriteAllText(testResultPath + "2.txt", _sb.ToString());
-
                 var expectedResult = File.ReadAllText(testResultPath + ".txt");
-                var actualResult = _sb.ToString();
                 // filter the result strings to remove the `Package cache folder size:` from the value
                 var expectedLines = expectedResult.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
                 var actualLines = actualResult.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-                var expectedFiltered = string.Join(Environment.NewLine, expectedLines.Where(line => !line.StartsWith("Package cache folder size:")));
-                var actualFiltered = string.Join(Environment.NewLine, actualLines.Where(line => !line.StartsWith("Package cache folder size:")));
+                var expectedFiltered = string.Join(Environment.NewLine, expectedLines.Where(line => !line.StartsWith("Package cache folder size:") && !line.StartsWith("MD5 Checksum: ")));
+                var actualFiltered = string.Join(Environment.NewLine, actualLines.Where(line => !line.StartsWith("Package cache folder size:") && !line.StartsWith("MD5 Checksum: ")));
                 Assert.IsTrue(expectedFiltered == actualFiltered, "Console Output changed");
             }
             else
@@ -63,12 +82,8 @@ namespace UploadFIG.Test
             }
 
             // Check the dependencies file
-            JsonSerializerSettings serializerSettings = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
             if (File.Exists(testResultPath + "_deps.json"))
             {
-                // this times results
-                System.IO.File.WriteAllText(testResultPath + "_deps2.json", JsonConvert.SerializeObject(results.OutputDependencies, serializerSettings));
-
                 var expectedDeps = File.ReadAllText(testResultPath + "_deps.json");
                 OutputDependenciesFile expectedItems = JsonConvert.DeserializeObject<OutputDependenciesFile>(expectedDeps, serializerSettings);
                 // Assert.AreEqual(expectedDeps, _sb.ToString());
@@ -85,16 +100,9 @@ namespace UploadFIG.Test
             // Check the output bundle
             if (File.Exists(testResultPath + "_bundle.json"))
             {
-                // This times results
-                var fs = new FileStream(testResultPath + "_bundle2.json", FileMode.Create);
-                using (fs)
-                {
-                    await results.Processor.SerializeJson(fs, results.AlternativeOutputBundle);
-                }
-
                 var expectedBundleJson = File.ReadAllText(testResultPath + "_bundle.json");
                 var bundle = results.Processor.ParseJson(expectedBundleJson) as Bundle;
-                Assert.AreEqual(bundle.Total, results.AlternativeOutputBundle.Total);
+                Assert.AreEqual(bundle?.Total, results.AlternativeOutputBundle.Total);
                 // now do more comparisons
             }
             else
@@ -123,116 +131,133 @@ namespace UploadFIG.Test
             return settings;
         }
 
-		[TestMethod]
-		public async Task FMG_Review()
-		{
-			// "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
-			string outputFile = "c:\\temp\\uploadfig-dump-fmg.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-odf", outputFile,
-                // "--verbose",
-				// "-s", "https://build.fhir.org/ig/HL7/cqf-measures/package.tgz",
-                
-                "-s", "https://build.fhir.org/ig/HL7/cqf-recommendations/package.tgz",
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
-		}
-
-		[TestMethod]
-		public async Task CheckFhirCoreR4()
-		{
-			string outputFile = "c:\\temp\\uploadfig-dump-r4core.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				// "--includeExamples",
-				"-pid", "hl7.fhir.r4.core",
-				"-odf", outputFile,
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-            await CheckTestResults(result);
-
-			Assert.AreEqual(4518, result.successes);
-			Assert.AreEqual(10, result.failures);
-			Assert.AreEqual(69, result.validationErrors);
-		}
-
-		[TestMethod]
-		public async Task CheckFhirExamplesR4()
-		{
-			string outputFile = "c:\\temp\\uploadfig-dump-r4examples.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.r4.examples",
-				"-odf", outputFile,
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-            await CheckTestResults(result);
-
-			Assert.AreEqual(4546, result.successes);
-			Assert.AreEqual(11, result.failures);
-			Assert.AreEqual(69, result.validationErrors);
-		}
-
-		[TestMethod]
-        public async Task CheckSDC300()
+        [TestMethod]
+        public async Task FMG_Review()
         {
-            var settings = new Settings
+            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
+            string outputFile = "c:\\temp\\uploadfig-dump-fmg.json";
+            var settings = ParseArguments(new[]
             {
-                TestPackageOnly = true,
-                ValidateQuestionnaires = true,
-                IncludeExamples = true,
-                SourcePackagePath = _cacheFolder + "/hl7.fhir.uv.sdc_3_0_0.tgz",
-                ResourceTypes = Program.defaultResourceTypes.ToList(),
-            };
+                "-t",
+                "-vq",
+                "-pdv", "false",	// allow duplicate versions
+                "-pcv",				// patch canonical versions
+                "--includeExamples",
+                "--includeReferencedDependencies",
+                // "--validateReferencedDependencies",
+                // "-vrd",
+                "-odf", outputFile,
+                // "-fd", "false",
+                // "--verbose",
+                "-sn", // strip narratives
+
+                "-r", "Questionnaire",
+                "-r", "StructureDefinition",
+                "-r", "ValueSet",
+                "-r", "CodeSystem",
+                "-r", "Measure",
+                "-r", "MeasureReport",
+                "-r", "SearchParameter",
+
+                "-s", "https://build.fhir.org/ig/HL7/davinci-epdx/package.tgz",
+                // "-s", "https://hl7.org/fhir/uv/phr/2025Jan/package.tgz",
+                // "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4.2.tgz",
+                
+                // "-s", "https://build.fhir.org/ig/AuDigitalHealth/ci-fhir-r4/branches/master/package.tgz",
+                // "-pid", "acme.base.r4",
+                //"-pv", "1.0.0",
+                // "-s", "https://packages2.fhir.org/packages/hl7.fhir.cl.CoreCH/1.0.0",
+                // "-pid", "signal.core.r4",
+                // "-pv", "0.2.8",
+                "-of", @"c:\temp\uploadfig-dump-fmg-review-bundle.json",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
+
+        [TestMethod]
+        public async Task CheckFhirCoreR4()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                // "--includeExamples",
+                "-pid", "hl7.fhir.r4.core",
+            });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(125, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(15, result.validationErrors);
-		}
+            Assert.AreEqual(4518, result.successes);
+            Assert.AreEqual(10, result.failures);
+            Assert.AreEqual(69, result.validationErrors);
+        }
 
-		[TestMethod]
-        public async Task CheckSDC_CI()
+        [TestMethod]
+        public async Task CheckFhirExamplesR4()
         {
-            string outputFile = "c:\\temp\\uploadfig-dump-sdc-ci.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
                 "-vq",
                 "--includeExamples",
-				"--includeReferencedDependencies",
-				"-s", "https://build.fhir.org/ig/HL7/sdc/package.tgz",
-				// "-s", @"c:\git\hl7\sdc\output\package.tgz",
-				"-odf", outputFile,
+                "-pid", "hl7.fhir.r4.examples",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+
+            Assert.AreEqual(4546, result.successes);
+            Assert.AreEqual(11, result.failures);
+            Assert.AreEqual(69, result.validationErrors);
+        }
+
+        [TestMethod]
+        public async Task CheckSDC300()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "-s", _cacheFolder + "/hl7.fhir.uv.sdc_3_0_0.tgz",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+
+            Assert.AreEqual(125, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(15, result.validationErrors);
+        }
+
+        [TestMethod]
+        public async Task CheckSDC_CI()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "--includeReferencedDependencies",
+                "-s", "https://build.fhir.org/ig/HL7/sdc/package.tgz",
+                // "-s", @"c:\git\hl7\sdc\output\package.tgz",
                 // "--verbose",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(161, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(6, result.validationErrors);
-		}
+            Assert.AreEqual(161, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(6, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckUsCore311()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 3.1.1 -pdv false"
@@ -240,9 +265,9 @@ namespace UploadFIG.Test
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.us.core",
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.us.core",
                 "-pv", "3.1.1",
                 "-odf", outputFile,
             });
@@ -250,95 +275,89 @@ namespace UploadFIG.Test
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(142, result.successes);
-			Assert.AreEqual(1, result.failures);
-			Assert.AreEqual(3, result.validationErrors);
+            Assert.AreEqual(142, result.successes);
+            Assert.AreEqual(1, result.failures);
+            Assert.AreEqual(3, result.validationErrors);
         }
 
         [TestMethod]
         public async Task CheckUsCoreLatest()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 6.0.0-ballot -fd -pdv false"
-            string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.us.core",
-                "-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.us.core",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(215, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(1, result.validationErrors);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(1, result.validationErrors);
         }
 
 
         [TestMethod]
-		public async Task CheckExtensionsRelease()
-		{
-			string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "https://hl7.org/fhir/extensions/package.tgz",
-				"-odf", outputFile,
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-            await CheckTestResults(result);
-		}
-
-		[TestMethod]
-		public async Task CheckExtensionsCiR4()
-		{
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4.tgz",
-				// "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4 (3).tgz"
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-            await CheckTestResults(result);
-		}
-
-		[TestMethod]
-		public async Task CheckExtensionsCiR4B()
-		{
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "https://build.fhir.org/ig/HL7/fhir-extensions/branches/2025-03-gg-r4b/hl7.fhir.uv.extensions.r4b.tgz",
-				// "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4b (2).tgz"
-			});
-            var result = await Program.UploadPackageInternal(settings);
-            Assert.AreEqual(0, result.Value);
-            await CheckTestResults(result);
-		}
-
-		[TestMethod]
-        public async Task CheckExtensionsCI()
+        public async Task CheckExtensionsRelease()
         {
-            string outputFile = "c:\\temp\\uploadfig-dump-extensions.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				// "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/package.tgz",
-				"-s", "C:/git/hl7/fhir-extensions/output/package.tgz",
-				"-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-s", "https://hl7.org/fhir/extensions/package.tgz",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+        }
+
+        [TestMethod]
+        public async Task CheckExtensionsCiR4()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/hl7.fhir.uv.extensions.r4.tgz",
+                // "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4 (3).tgz"
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+        }
+
+        [TestMethod]
+        public async Task CheckExtensionsCiR4B()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/branches/2025-03-gg-r4b/hl7.fhir.uv.extensions.r4b.tgz",
+                // "-s", @"C:\Users\brianpo\Downloads\hl7.fhir.uv.extensions.r4b (2).tgz"
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+        }
+
+        [TestMethod]
+        public async Task CheckExtensionsCI()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                // "-s", "https://build.fhir.org/ig/HL7/fhir-extensions/package.tgz",
+                "-s", "C:/git/hl7/fhir-extensions/output/package.tgz",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
@@ -348,17 +367,15 @@ namespace UploadFIG.Test
         [TestMethod]
         public async Task CheckAuSmartFormsCI()
         {
-            string outputFile = "c:\\temp\\uploadfig-dump-au-smartforms.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-r", "Questionnaire",
+                "-vq",
+                "--includeExamples",
+                "-r", "Questionnaire",
                 "-r", "ValueSet",
                 "-r", "CodeSystem",
                 "-s", "https://build.fhir.org/ig/aehrc/smart-forms-ig/branches/master/package.tgz",
-                "-odf", outputFile,
                 // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
                 // "--verbose",
             });
@@ -366,151 +383,133 @@ namespace UploadFIG.Test
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(54, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
-		}
+            Assert.AreEqual(54, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckUsCoreCI()
         {
-            string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
-                "-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-s", "https://build.fhir.org/ig/HL7/US-Core/package.tgz",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(215, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(1, result.validationErrors);
-		}
+            Assert.AreEqual(215, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(1, result.validationErrors);
+        }
 
-		[TestMethod]
-		public async Task CheckUsCore610()
-		{
-			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.us.core",
-				"-pv", "6.1.0",
-				"-odf", outputFile,
-			});
+        [TestMethod]
+        public async Task CheckUsCore610()
+        {
+            string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.us.core",
+                "-pv", "6.1.0",
+                "-odf", outputFile,
+            });
             var result = await Program.UploadPackageInternal(settings);
 
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(209, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(6, result.validationErrors);
-		}
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(6, result.validationErrors);
+        }
 
-		[TestMethod]
-		public async Task CheckUsNDH_CI()
-		{
-			string outputFile = "c:\\temp\\uploadfig-dump-uscore.json";
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "http://build.fhir.org/ig/HL7/fhir-us-ndh/package.tgz",
-				"-odf", outputFile,
-			});
+        [TestMethod]
+        public async Task CheckUsNDH_CI()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "-s", "http://build.fhir.org/ig/HL7/fhir-us-ndh/package.tgz",
+            });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-            Assert.AreEqual(224, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(3, result.validationErrors); // the search parameter 'special' type creates an info message
-		}
+            Assert.AreEqual(223, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(3, result.validationErrors); // the search parameter 'special' type creates an info message
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckMcode()
         {
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeReferencedDependencies",
-				"--includeExamples",
-				"-pid", "hl7.fhir.us.mcode",
+                "-vq",
+                "--includeReferencedDependencies",
+                "--includeExamples",
+                "-pid", "hl7.fhir.us.mcode",
                 "-pv", "4.0.0",
-				// "-s", "https://hl7.org/fhir/us/mcode/STU4/package.tgz",
-				"-pcv",
+                // "-s", "https://hl7.org/fhir/us/mcode/STU4/package.tgz",
+                "-pcv",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(306, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
-		}
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckAuCore()
         {
-            var settings = new Settings
+            var settings = ParseArguments(new[]
             {
-                TestPackageOnly = true,
-                ValidateQuestionnaires = true,
-                IncludeExamples = true,
-                IncludeReferencedDependencies = true,
-                ValidateReferencedDependencies = true,
-                SourcePackagePath = _cacheFolder + "/hl7.fhir.au.core_1_0_0-preview.tgz",
-                StripNarratives = true,
-                // PatchCanonicalVersions = true,
-                ResourceTypes = Program.defaultResourceTypes.ToList(),
-                // SelectFiles = ["package/StructureDefinition-au-core-patient.json"],
-            };
+                "-t",
+                "-vq",
+                // "-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+                "--includeReferencedDependencies",
+                "--validateReferencedDependencies",
+                "--includeExamples",
+                "-s", _cacheFolder + "/hl7.fhir.au.core_1_0_0-preview.tgz",
+                // "-pcv",
+                // "-sf", "package/StructureDefinition-au-core-patient.json",
+                "-sn",
+
+                // resolve the NCTS content
+                // "-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+            });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-   //         // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.core -fd -pdv false"
-   //         string outputFile = "c:\\temp\\uploadfig-dump-aucore.json";
-   //         var result = await Program.Main(new[] {
-   //             "-t",
-			//	"-vq",
-			//	"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
-			//	"--includeReferencedDependencies",
-			//	"--includeExamples",
-			//	"-pid", "hl7.fhir.au.core",
-			//	"-pv", "1.0.0",
-			//	// "-pcv",
-			//	"-sn",
-   //             "-odf", outputFile,
-			//	"-of", "c:\\temp\\uploadfig-dump-aucore-bundle-raw.json",
-			//});
-   //         Assert.AreEqual(0, result);
+            Assert.AreEqual(132, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(14, result.validationErrors);
+        }
 
-			Assert.AreEqual(132, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(14, result.validationErrors);
-		}
-
-		[TestMethod]
+        [TestMethod]
         public async Task CheckAuCoreCI()
         {
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				// "--includeReferencedDependencies",
-				"--includeExamples",
-				"-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
+                "-vq",
+                // "--includeReferencedDependencies",
+                "--includeExamples",
+                "-s", "https://build.fhir.org/ig/hl7au/au-fhir-core/package.tgz",
 
                 // Additional Packages to define which "current" to use
                 "-ap", "hl7.fhir.au.base|5.1.0-preview",
@@ -524,33 +523,31 @@ namespace UploadFIG.Test
             await CheckTestResults(result);
 
             Assert.AreEqual(27, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
-		}
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckAuBase()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.au.base -fd -pdv false"
-            string outputFile = "c:\\temp\\uploadfig-dump-aubase.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.au.base",
-				"-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
-				"-rego", "c:\\temp\\au-registry-content.json",
-				"-ets", "https://tx.dev.hl7.org.au/fhir",
-                "-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.au.base",
+                "-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
+                "-rego", "c:\\temp\\au-registry-content.json",
+                "-ets", "https://tx.dev.hl7.org.au/fhir",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(146, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
         }
 
         [TestMethod]
@@ -560,165 +557,174 @@ namespace UploadFIG.Test
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.au.base",
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.au.base",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(146, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
         }
 
         [TestMethod]
         public async Task CheckSDOC_ClinicalCare()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
-            string outputFile = "c:\\temp\\uploadfig-dump-sdoh-clinicalcare.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-pid", "hl7.fhir.us.sdoh-clinicalcare",
-                "-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-pid", "hl7.fhir.us.sdoh-clinicalcare",
                 // "--verbose",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(42, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(3, result.validationErrors);
-		}
+            Assert.AreEqual(42, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(3, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckSDOC_ClinicalCareCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
-            string outputFile = "c:\\temp\\uploadfig-dump-sdoh-clinicalcare.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
+                "-vq",
+                "--includeExamples",
                 // "--verbose",
                 // "-s", "https://build.fhir.org/ig/HL7/fhir-sdoh-clinicalcare/package.tgz",
-				"-s", "C:\\git\\hl7\\fhir-sdoh-clinicalcare\\output/package.tgz",
-				"-odf", outputFile,
+                "-s", "C:\\git\\hl7\\fhir-sdoh-clinicalcare\\output/package.tgz",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(42, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(1, result.validationErrors);
-		}
+            Assert.AreEqual(42, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(1, result.validationErrors);
+        }
 
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckSubsBackportCI()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
-            string outputFile = "c:\\temp\\uploadfig-dump-subs-backportCI.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
+                "-vq",
+                "--includeExamples",
                 // "--verbose",
                 "-s", "http://build.fhir.org/ig/HL7/fhir-subscription-backport-ig/package.tgz",
-                "-odf", outputFile,
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(20, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(1, result.validationErrors);
-		}
+            Assert.AreEqual(20, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(1, result.validationErrors);
+        }
 
-		[TestMethod]
+        [TestMethod]
         public async Task CheckIHE_MHD()
         {
             // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.sdoh-clinicalcare -fd -pdv false --verbose"
-            string outputFile = "c:\\temp\\uploadfig-dump-ihe-mhd.json";
             var settings = ParseArguments(new[]
             {
                 "-t",
-				"-vq",
-				"--includeExamples",
-				"-s", "https://profiles.ihe.net/ITI/MHD/4.2.1/package.tgz",
-                "-odf", outputFile,
+                "-vq",
+                "--includeExamples",
+                "-s", "https://profiles.ihe.net/ITI/MHD/4.2.1/package.tgz",
                 // "-fd", "false"
                 // "-sf", "package/StructureDefinition-IHE.MHD.EntryUUID.Identifier.json",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
 
-			Assert.AreEqual(49, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(2, result.validationErrors);
+            Assert.AreEqual(49, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(2, result.validationErrors);
         }
 
-		[TestMethod]
-		public async Task CheckDavinciRA()
-		{
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"--includeReferencedDependencies",
-				"-s", "https://build.fhir.org/ig/HL7/davinci-ra/branches/master/package.tgz",
+        [TestMethod]
+        public async Task CheckDavinciRA()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "--includeReferencedDependencies",
+                "-s", "https://build.fhir.org/ig/HL7/davinci-ra/branches/master/package.tgz",
                 // "-fd", "false"
-				"-of", @"c:\temp\UploadFIG-dump-DavinciRA-bundle.json",
-				"-pcv",
+                "-pcv",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-			Assert.AreEqual(55, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(0, result.validationErrors);
-		}
+            Assert.AreEqual(55, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
 
-		[TestMethod]
-		public async Task CheckDavinciCRD()
-		{
-			var settings = ParseArguments(new[]
-			{
-				"-t",
-				"-vq",
-				"--includeExamples",
-				"--includeReferencedDependencies",
-				"--validateReferencedDependencies",
+        [TestMethod]
+        public async Task CheckDavinciCRD()
+        {
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "--includeExamples",
+                "--includeReferencedDependencies",
+                "--validateReferencedDependencies",
                 // "-ip", "hl7.fhir.us.core|7.0.0",
                 // "-ip", "hl7.fhir.us.core|3.1.1",
                 // "-ip", "hl7.terminology.r4|5.0.0", // hl7.terminology.r4|6.2.0 is already included, so let all the terminologies use that instead
                 // "-ip", "us.nlm.vsac|0.11.0", // us.nlm.vsac|0.19.0 is the preferred one for this IG, so skip the older one.
                 // "-ip", "hl7.fhir.uv.extensions.r4|1.0.0", // hl7.fhir.uv.extensions.r4|5.2.0 is the preferred one for this IG, so skip the older one.
                 // "-ip", "hl7.fhir.uv.extensions.r4|5.1.0", // hl7.fhir.uv.extensions.r4|5.2.0 is the preferred one for this IG, so skip the older one.
-				"-sn",
-				"-pcv",
-				"-s", "https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz",
+                "-sn",
+                "-pcv",
+                "-s", "https://build.fhir.org/ig/HL7/davinci-crd/branches/master/package.tgz",
                 // "-fd", "false"
-				"-of", @"c:\temp\uploadfig-dump-daviniCRD-bundle.json",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
             Assert.AreEqual(211, result.successes);
-			Assert.AreEqual(0, result.failures);
-			Assert.AreEqual(2, result.validationErrors);
-		}
-	}
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(2, result.validationErrors);
+        }
+
+        [TestMethod]
+        public async Task CheckUvToolsLatest()
+        {
+            // "commandLineArgs": "-d https://localhost:44391 -pid hl7.fhir.us.core -pv 6.0.0-ballot -fd -pdv false"
+            var settings = ParseArguments(new[]
+            {
+                "-t",
+                "-vq",
+                "-pid", "hl7.fhir.uv.tools",
+            });
+            var result = await Program.UploadPackageInternal(settings);
+            Assert.AreEqual(0, result.Value);
+            await CheckTestResults(result);
+
+            Assert.AreEqual(92, result.successes);
+            Assert.AreEqual(0, result.failures);
+            Assert.AreEqual(0, result.validationErrors);
+        }
+    }
 }

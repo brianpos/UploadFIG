@@ -63,39 +63,39 @@ namespace UploadFIG
         /// </summary>
         public List<string> SelectFiles { get; set; }
 
-		/// <summary>
+        /// <summary>
         /// Set of additional packages to include in the processing
         /// These will be processes as though they are dependencies of the root package
         /// </summary>
         public List<string> AdditionalPackages { get; set; }
 
         /// <summary>
-		/// Any specific files that should be ignored/skipped when processing the package
-		/// (Is used as a filter on the root package only)
-		/// </summary>
-		public List<string> IgnoreFiles { get; set; }
+        /// Any specific files that should be ignored/skipped when processing the package
+        /// (Is used as a filter on the root package only)
+        /// </summary>
+        public List<string> IgnoreFiles { get; set; }
 
-		/// <summary>
-		/// Any specific Canonical URls that should be ignored/skipped when processing dependencies of resources
-		/// (applies to all packages when scanning dependencies)
-		/// </summary>
-		/// <remarks>
-		/// This will check for versioned, or un-versioned canonicals
-		/// e.g. Filtering a versioned canonical will only remove explicit references to that version
-		/// Filtering an un-versioned canonical will remove all references to that canonical (versioned or not)
-		/// </remarks>
-		public List<string> IgnoreCanonicals { get; set; }
+        /// <summary>
+        /// Any specific Canonical URls that should be ignored/skipped when processing dependencies of resources
+        /// (applies to all packages when scanning dependencies)
+        /// </summary>
+        /// <remarks>
+        /// This will check for versioned, or un-versioned canonicals
+        /// e.g. Filtering a versioned canonical will only remove explicit references to that version
+        /// Filtering an un-versioned canonical will remove all references to that canonical (versioned or not)
+        /// </remarks>
+        public List<string> IgnoreCanonicals { get; set; }
 
         /// <summary>
         /// while loading in dependencies, ignore these versioned packages. e.g. us.nlm.vsac|0.18.0
         /// </summary>
         public List<string> IgnorePackages { get; set; }
 
-		/// <summary>
-		/// The URL of the FHIR Server to upload the package contents to
-		/// </summary>
-		/// <remarks>If the TestPackageOnly is used, this is optional</remarks>
-		public string DestinationServerAddress { get; set; }
+        /// <summary>
+        /// The URL of the FHIR Server to upload the package contents to
+        /// </summary>
+        /// <remarks>If the TestPackageOnly is used, this is optional</remarks>
+        public string DestinationServerAddress { get; set; }
 
         /// <summary>
         /// Headers to add to the request to the destination FHIR Server
@@ -123,39 +123,39 @@ namespace UploadFIG
         /// </summary>
         public bool CheckAndCleanNarratives { get; set; }
 
-		/// <summary>
-		/// Strip all narratives from the resources in the package
-		/// </summary>
-		public bool StripNarratives { get; set; }
+        /// <summary>
+        /// Strip all narratives from the resources in the package
+        /// </summary>
+        public bool StripNarratives { get; set; }
 
-		/// <summary>
-		/// Generate the snapshots for any missing snapshots in StructureDefinitions
-		/// </summary>
-		public bool GenerateSnapshots { get; set; }
+        /// <summary>
+        /// Generate the snapshots for any missing snapshots in StructureDefinitions
+        /// </summary>
+        public bool GenerateSnapshots { get; set; }
 
-		/// <summary>
-		/// Re-Generate all snapshots in StructureDefinitions
-		/// </summary>
-		public bool ReGenerateSnapshots { get; set; }
+        /// <summary>
+        /// Re-Generate all snapshots in StructureDefinitions
+        /// </summary>
+        public bool ReGenerateSnapshots { get; set; }
 
-		/// <summary>
-		/// Remove all snapshots in StructureDefinitions
-		/// </summary>
-		public bool RemoveSnapshots { get; set; }
+        /// <summary>
+        /// Remove all snapshots in StructureDefinitions
+        /// </summary>
+        public bool RemoveSnapshots { get; set; }
 
-		/// <summary>
-		/// Patch canonical URL references to be version specific where they resolve within the package
-		/// </summary>
-		public bool PatchCanonicalVersions { get; set; }
+        /// <summary>
+        /// Patch canonical URL references to be version specific where they resolve within the package
+        /// </summary>
+        public bool PatchCanonicalVersions { get; set; }
 
-		/// <summary>
-		/// Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs
-		/// </summary>
-		/// <remarks>
-		/// The requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call.
-		/// Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation
-		/// </remarks>
-		public bool PreventDuplicateCanonicalVersions { get; set; } = true;
+        /// <summary>
+        /// Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs
+        /// </summary>
+        /// <remarks>
+        /// The requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call.
+        /// Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation
+        /// </remarks>
+        public bool PreventDuplicateCanonicalVersions { get; set; } = true;
 
         /// <summary>
         /// Download and check the package and compare with the contents of the FHIR Server,
@@ -179,52 +179,52 @@ namespace UploadFIG
         /// </summary>
         public bool IncludeReferencedDependencies { get; set; }
 
-		/// <summary>
-		/// validate resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
-		/// </summary>
-		public bool ValidateReferencedDependencies { get; set; }
+        /// <summary>
+        /// validate resources that are referenced by our IG (directly or indirectly - excluding core/terminology/extensions packs)
+        /// </summary>
+        public bool ValidateReferencedDependencies { get; set; } // = true;
 
-		/// <summary>
-		/// The filename to write a json batch bundle to write all of the resources to (could be used in place of directly deploying the IG)
-		/// </summary>
-		public string OutputBundle { get; set; }
+        /// <summary>
+        /// The filename to write a json batch bundle to write all of the resources to (could be used in place of directly deploying the IG)
+        /// </summary>
+        public string OutputBundle { get; set; }
 
-		/// <summary>
-		/// The filename of a file to write the discovered dependencies of this IG to
-		/// </summary>
-		public string OutputDependenciesFile { get; set; }
+        /// <summary>
+        /// The filename of a file to write the discovered dependencies of this IG to
+        /// </summary>
+        public string OutputDependenciesFile { get; set; }
 
-		/// <summary>
-		/// The URL of an external FHIR registry to use for resolving dependencies
-		/// </summary>
-		public string ExternalRegistry { get; set; }
+        /// <summary>
+        /// The URL of an external FHIR registry to use for resolving dependencies
+        /// </summary>
+        public string ExternalRegistry { get; set; }
 
-		/// <summary>
-		/// Additional headers to supply when accessing the external FHIR registry
-		/// </summary>
-		public List<string> ExternalRegistryHeaders { get; set; }
+        /// <summary>
+        /// Additional headers to supply when accessing the external FHIR registry
+        /// </summary>
+        public List<string> ExternalRegistryHeaders { get; set; }
 
-		/// <summary>
-		/// The filename of a file to write the json bundle of downloaded registry resources to
-		/// </summary>
-		public string ExternalRegistryExportFile { get; set; }
+        /// <summary>
+        /// The filename of a file to write the json bundle of downloaded registry resources to
+        /// </summary>
+        public string ExternalRegistryExportFile { get; set; }
 
-		/// <summary>
-		/// The URL of an external terminology server to use for resolving terminology dependencies
-		/// for expansions where a local terminology server is not available, and is too complex
-		/// for the Firely SDK's built-in terminology service to handle
-		/// </summary>
-		public string ExternalTerminologyServer { get; set; } // = "https://r4.ontoserver.csiro.au/fhir"; // = "https://tx.dev.hl7.org.au/fhir"
+        /// <summary>
+        /// The URL of an external terminology server to use for resolving terminology dependencies
+        /// for expansions where a local terminology server is not available, and is too complex
+        /// for the Firely SDK's built-in terminology service to handle
+        /// </summary>
+        public string ExternalTerminologyServer { get; set; } // = "https://r4.ontoserver.csiro.au/fhir"; // = "https://tx.dev.hl7.org.au/fhir"
 
-		/// <summary>
-		/// Additional headers to supply when accessing the external FHIR registry
-		/// </summary>
-		public List<string> ExternalTerminologyServerHeaders { get; set; }
+        /// <summary>
+        /// Additional headers to supply when accessing the external FHIR registry
+        /// </summary>
+        public List<string> ExternalTerminologyServerHeaders { get; set; }
 
-		/// <summary>
-		/// When leveraging an external terminology server, the maximum number of codes to expand to
-		/// (where the Firely SDK can't handle the ValueSet itself)
-		/// </summary>
-		public long? MaxExpansionSize { get; set; } = 1000;
-	}
+        /// <summary>
+        /// When leveraging an external terminology server, the maximum number of codes to expand to
+        /// (where the Firely SDK can't handle the ValueSet itself)
+        /// </summary>
+        public long? MaxExpansionSize { get; set; } = 1000;
+    }
 }
