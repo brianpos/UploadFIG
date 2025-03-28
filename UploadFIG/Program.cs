@@ -422,6 +422,17 @@ namespace UploadFIG
             List<Resource> additionalResourcesFromRegistry = await ScanExternalRegistry(pd, settings, versionAgnosticProcessor, depChecker, externalCanonicals, allUnresolvedCanonicals, registryCanonicals);
             dependencyResourcesToLoad.InsertRange(0, additionalResourcesFromRegistry);
 
+            // Recheck the unresolvedCanonicals to see if they were resolved from within the regular packages
+            foreach (var urc in allUnresolvedCanonicals.ToList())
+            {
+                if (urc.resource != null)
+                {
+                    // It was actually resolved
+                    allUnresolvedCanonicals.Remove(urc);
+                    dependencyResourcesToLoad.Add(urc.resource);
+                }
+            }
+
             Console.WriteLine();
             ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
             ConsoleEx.WriteLine(ConsoleColor.White, "Package Processing Summary:");
