@@ -648,36 +648,38 @@ namespace UploadFIG
 
             if (errs.Any() || errFiles.Any())
             {
-                ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                Console.WriteLine(String.Join("\r\n", errs));
-                ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                Console.WriteLine(String.Join("\r\n", errFiles));
+                if (errs.Any())
+                {
+                    ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
+                    Console.WriteLine(String.Join("\r\n", errs));
+                }
+                if (errFiles.Any())
+                {
+                    ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
+                    Console.WriteLine(String.Join("\r\n", errFiles));
+                }
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
                 Console.WriteLine();
             }
             if (settings.TestPackageOnly)
             {
                 // A canonical resource review table
+                var allResourcesOutput = alternativeOutputBundle.Entry.Select(e => e.Resource).ToList();
+                var allCanonicalResources = allResourcesOutput.OfType<IVersionableConformanceResource>().Where(r => r.Url != null).ToList();
                 Console.WriteLine();
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                Console.WriteLine($"Package Canonical content summary: {resourcesFromMainPackage.Count}");
-                Console.WriteLine("\tCanonical Url\tCanonical Version\tStatus\tName");
-                foreach (var resource in resourcesFromMainPackage.OfType<IVersionableConformanceResource>().OrderBy(f => $"{f.Url}|{f.Version}"))
+                Console.WriteLine($"Canonical content summary: {allCanonicalResources.Count}");
+                Console.WriteLine("\tResource Type\tCanonical Url\tCanonical Version\tStatus\tSource");
+                foreach (var details in allCanonicalResources.OrderBy(f => $"{f.Url}|{f.Version}"))
                 {
-                    Console.WriteLine($"\t{resource.Url}\t{resource.Version}\t{resource.Status}\t{resource.Name}");
-                }
-
-                // Dependent Canonical Resources
-                Console.WriteLine();
-                ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                ReportDependentCanonicalResourcesToConsole(settings, dependencyResourcesToLoad.Where(r => !registryCanonicals.Any(c => c.resource == r)));
-
-                // Registry sourced Canonical Resources
-                if (registryCanonicals.Any())
-                {
+                    var resource = details as Resource;
+                    Console.Write($"\t{resource.TypeName}\t{details.Url}\t{details.Version}\t{details.Status}");
+                    if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                    {
+                        var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                        Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                    }
                     Console.WriteLine();
-                    ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                    ReportRegistryCanonicalResourcesToConsole(settings, registryCanonicals);
                 }
 
                 // Unresolvable Canonical Resources
@@ -687,13 +689,13 @@ namespace UploadFIG
 
                 Console.WriteLine();
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-                Console.WriteLine("Package Resource type summary:");
+                Console.WriteLine("Resource type summary:");
                 Console.WriteLine("\tType\tCount");
-                foreach (var resource in resourcesFromMainPackage.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+                foreach (var resource in allResourcesOutput.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
                 {
                     Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
                 }
-                Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count}");
+                Console.WriteLine($"\tTotal\t{allResourcesOutput.Count}");
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
                 // And the summary at the end
@@ -703,13 +705,14 @@ namespace UploadFIG
             }
             else
             {
-                Console.WriteLine("Package Resource type summary:");
+                Console.WriteLine("Resource type summary:");
                 Console.WriteLine("\tType\tCount");
-                foreach (var resource in resourcesFromMainPackage.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
+                var allResourcesOutput = alternativeOutputBundle.Entry.Select(e => e.Resource).ToList();
+                foreach (var resource in allResourcesOutput.GroupBy(f => f.TypeName).OrderBy(f => f.Key))
                 {
                     Console.WriteLine($"\t{resource.Key}\t{resource.Count()}");
                 }
-                Console.WriteLine($"\tTotal\t{resourcesFromMainPackage.Count}");
+                Console.WriteLine($"\tTotal\t{allResourcesOutput.Count}");
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
 
                 // And the summary at the end

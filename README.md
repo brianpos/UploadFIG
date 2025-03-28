@@ -249,9 +249,10 @@ The final column indicates the canonical version numbers that are currently on t
 
 ## Change history
 
-### 26 March 2025
+### 28 March 2025
 * Minor bug fixes from testing
 * Issue [#9](https://github.com/brianpos/UploadFIG/issues/9) Validate and set the json/xml format supported by the server automatically.
+* Reformat the summary output collapsing sections together and focusing on the total output, rather than just the root package.
 
 ### 20 March 2025
 * Added support for deploying/testing content directly from a folder via a pattern.
