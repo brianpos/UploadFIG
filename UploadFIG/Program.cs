@@ -432,6 +432,28 @@ namespace UploadFIG
                     dependencyResourcesToLoad.Add(urc.resource);
                 }
             }
+            // and reparse through for those that are still unresolved
+            allUnresolvedCanonicals = depChecker.UnresolvedCanonicals(pd).ToList();
+            foreach (var canonicalUrl in allUnresolvedCanonicals.ToArray())
+            {
+                // is this canonical in the list of resources....
+                var matches = depChecker.ResolveCanonical(pd, canonicalUrl, versionAgnosticProcessor, errFiles);
+                var useResource = CurrentCanonicalFromPackages.Current(matches);
+                if (useResource != null)
+                {
+                    var distinctVersionSources = matches.Select(m => ResourcePackageSource.PackageSourceVersion(m.resource as IVersionableConformanceResource)).Distinct();
+                    if (distinctVersionSources.Count() > 1 && settings.Verbose)
+                    {
+                        Console.Write($"    Resolved {canonicalUrl.Canonical}|{canonicalUrl.Version} with ");
+                        ConsoleEx.Write(ConsoleColor.Yellow, ResourcePackageSource.PackageSourceVersion(useResource));
+                        Console.WriteLine($" from {String.Join(", ", distinctVersionSources)}");
+                    }
+                    canonicalUrl.resource = useResource.resource as Resource;
+                    useResource.MarkUsedBy(canonicalUrl);
+                    allUnresolvedCanonicals.Remove(canonicalUrl);
+                }
+            }
+            allUnresolvedCanonicals = MergeDistinctCanonicalDetails(depChecker.UnresolvedCanonicals(pd)).ToList();
 
             Console.WriteLine();
             ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
@@ -691,6 +713,12 @@ namespace UploadFIG
                         Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
                     }
                     Console.WriteLine();
+                }
+
+                if (!settings.IncludeReferencedDependencies)
+                {
+                    ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
+                    ReportDependentCanonicalResourcesToConsole(settings, dependencyResourcesToLoad.Where(r => !registryCanonicals.Any(c => c.resource == r)));
                 }
 
                 // Unresolvable Canonical Resources
@@ -1167,6 +1195,13 @@ namespace UploadFIG
             List<Resource> additionalResources = new List<Resource>();
             if (!string.IsNullOrEmpty(settings.ExternalRegistry))
             {
+                PackageDetails pdRegistry = new PackageDetails()
+                {
+                    packageId = "registry",
+                    packageVersion = settings.ExternalRegistry,
+                };
+                pd.dependencies.Add(pdRegistry);
+
                 Console.WriteLine();
                 ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
                 ConsoleEx.WriteLine(ConsoleColor.White, $"Scanning external registry:\r\n\t{settings.ExternalRegistry}");
@@ -1224,8 +1259,27 @@ namespace UploadFIG
                             dc.resource.SetAnnotation(new ResourcePackageSource()
                             {
                                 PackageId = "registry",
-                                PackageVersion = settings.ExternalRegistry
+                                PackageVersion = settings.ExternalRegistry,
+                                Filename = $"{dc.resource.TypeName}/{dc.resource.Id}"
                             });
+
+                            var fd = new FileDetail()
+                            {
+                                filename = $"{dc.resource.TypeName}/{dc.resource.Id}",
+                                resourceType = dc.resource.TypeName,
+                                id = dc.resource.Id,
+                                url = dc.Canonical,
+                                version = dc.Version,
+                                resource = dc.resource,
+                            };
+                            fd.MarkUsedBy(dc);
+                            pdRegistry.Files.Add(fd);
+                            if (dc.resource is IVersionableConformanceResource vcr)
+                            {
+                                pdRegistry.CanonicalFiles.Add($"{vcr.Url}|{vcr.Version}", fd);
+                                if (!pdRegistry.CanonicalFiles.ContainsKey(vcr.Url))
+                                    pdRegistry.CanonicalFiles.Add(vcr.Url, fd);
+                            }
                         }
                         if (!r.Entry.Any())
                         {
@@ -1276,8 +1330,27 @@ namespace UploadFIG
                             dc.resource.SetAnnotation(new ResourcePackageSource()
                             {
                                 PackageId = "registry",
-                                PackageVersion = settings.ExternalRegistry
+                                PackageVersion = settings.ExternalRegistry,
+                                Filename = $"{dc.resource.TypeName}/{dc.resource.Id}"
                             });
+
+                            var fd = new FileDetail()
+                            {
+                                filename = $"{dc.resource.TypeName}/{dc.resource.Id}",
+                                resourceType = dc.resource.TypeName,
+                                id = dc.resource.Id,
+                                url = dc.Canonical,
+                                version = dc.Version,
+                                resource = dc.resource,
+                            };
+                            fd.MarkUsedBy(dc);
+                            pdRegistry.Files.Add(fd);
+                            if (dc.resource is IVersionableConformanceResource vcr)
+                            {
+                                pdRegistry.CanonicalFiles.Add($"{vcr.Url}|{vcr.Version}", fd);
+                                if (!pdRegistry.CanonicalFiles.ContainsKey(vcr.Url))
+                                    pdRegistry.CanonicalFiles.Add(vcr.Url, fd);
+                            }
                         }
                         if (!r.Entry.Any())
                         {

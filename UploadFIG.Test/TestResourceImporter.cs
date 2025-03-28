@@ -328,16 +328,17 @@ namespace UploadFIG.Test
                 // "-sf", "package/SearchParameter-valueset-extensions-ValueSet-end.json",
                 // "--verbose",
             };
-            var result = await Program.Main(args);
+            var settings = CheckImplementationGuides.ParseArguments(args);
+            var result = await Program.UploadPackageInternal(settings);
 
             string tempFIGpath = Path.Combine(Path.GetTempPath(), "UploadFIG");
             string unitTestPath = Path.Combine(tempFIGpath, "unit-test-data");
             int loadedResourceCount = Directory.EnumerateFiles(unitTestPath).Count();
 
             // run it again to ensure that we don't get any new versions of resources
-            result = await Program.Main(args);
+            result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(loadedResourceCount, Directory.EnumerateFiles(unitTestPath).Count());
-            Assert.AreEqual(0, result);
+            Assert.AreEqual(0, result.Value);
         }
     }
 }

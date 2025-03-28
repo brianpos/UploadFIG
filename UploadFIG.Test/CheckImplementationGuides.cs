@@ -444,7 +444,7 @@ namespace UploadFIG.Test
             Assert.AreEqual(0, result.Value);
             await CheckTestResults(result);
 
-            Assert.AreEqual(224, result.successes);
+            Assert.AreEqual(223, result.successes);
             Assert.AreEqual(0, result.failures);
             Assert.AreEqual(3, result.validationErrors); // the search parameter 'special' type creates an info message
         }
@@ -487,6 +487,9 @@ namespace UploadFIG.Test
                 // "-pcv",
                 // "-sf", "package/StructureDefinition-au-core-patient.json",
                 "-sn",
+
+                // resolve the NCTS content
+                // "-reg", "https://api.healthterminologies.gov.au/integration/R4/fhir",
             });
             var result = await Program.UploadPackageInternal(settings);
             Assert.AreEqual(0, result.Value);

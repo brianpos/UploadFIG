@@ -253,6 +253,7 @@ The final column indicates the canonical version numbers that are currently on t
 * Minor bug fixes from testing
 * Issue [#9](https://github.com/brianpos/UploadFIG/issues/9) Validate and set the json/xml format supported by the server automatically.
 * Reformat the summary output collapsing sections together and focusing on the total output, rather than just the root package.
+* Fix some minor discrepancies in the reporting of un-resolved canonicals related to registry sourced content
 
 ### 20 March 2025
 * Added support for deploying/testing content directly from a folder via a pattern.
