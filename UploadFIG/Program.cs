@@ -1903,7 +1903,7 @@ namespace UploadFIG
                             }
                             if (!string.IsNullOrEmpty(warningMessage))
                             {
-                                ConsoleEx.WriteLine(ConsoleColor.Yellow, $"\t{warningMessage}");
+                                ConsoleEx.Write(ConsoleColor.Yellow, $"\t{warningMessage}");
                             }
                             Console.WriteLine();
                             return original;
