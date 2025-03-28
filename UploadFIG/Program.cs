@@ -77,12 +77,12 @@ namespace UploadFIG
 
 
             // source parameters
-            var sourceOption = new Option<string>([ "-s", "--sourcePackagePath" ], () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
-            var packageIdOption = new Option<string>([ "-pid", "--packageId" ], () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)");
+            var sourceOption = new Option<string>(["-s", "--sourcePackagePath"], () => settings.SourcePackagePath, "The explicit path of a package to process (over-rides PackageId/Version)");
+            var packageIdOption = new Option<string>(["-pid", "--packageId"], () => settings.PackageId, "The Package ID of the package to upload (from the HL7 FHIR Package Registry)");
 
             // target/test mode parameters
-            var destinationServerOption = new Option<string>([ "-d", "--destinationServerAddress" ], () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
-            var testPackageOnlyOption = new Option<bool>([ "-t", "--testPackageOnly" ], () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
+            var destinationServerOption = new Option<string>(["-d", "--destinationServerAddress"], () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
+            var testPackageOnlyOption = new Option<bool>(["-t", "--testPackageOnly"], () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
 
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
@@ -395,15 +395,15 @@ namespace UploadFIG
 
                     try
                     {
-                            expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
-                        }
-                        catch (Exception ex)
-                        {
-                            ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
-                            System.Threading.Interlocked.Increment(ref result.failures);
-                            // DebugDumpOutputXml(resource);
-                            errFiles.Add(exampleName);
-                        }
+                        expressionValidator.Validate(exampleName, resource, ref result.failures, ref result.validationErrors, errFiles);
+                    }
+                    catch (Exception ex)
+                    {
+                        ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {ex.Message}");
+                        System.Threading.Interlocked.Increment(ref result.failures);
+                        // DebugDumpOutputXml(resource);
+                        errFiles.Add(exampleName);
+                    }
                 }
             }
 
@@ -506,7 +506,8 @@ namespace UploadFIG
 
                             if (resource is StructureDefinition sd)
                             {
-                                if (settings.ReGenerateSnapshots || settings.RemoveSnapshots) sd.Snapshot = null;
+                                if (settings.ReGenerateSnapshots || settings.RemoveSnapshots)
+                                    sd.Snapshot = null;
                                 if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
                                 {
                                     if (settings.Verbose || !settings.ReGenerateSnapshots)
@@ -596,7 +597,8 @@ namespace UploadFIG
 
                         if (resource is StructureDefinition sd)
                         {
-                            if (settings.ReGenerateSnapshots) sd.Snapshot = null;
+                            if (settings.ReGenerateSnapshots)
+                                sd.Snapshot = null;
                             if (settings.ReGenerateSnapshots || settings.GenerateSnapshots && sd.HasSnapshot == false)
                             {
                                 if (settings.Verbose || !settings.ReGenerateSnapshots)
@@ -770,7 +772,7 @@ namespace UploadFIG
             var comparer = new CanonicalDetailsComparer();
             foreach (var item in cds)
             {
-                var existing = result.FirstOrDefault((t) => comparer.Equals(t,item));
+                var existing = result.FirstOrDefault((t) => comparer.Equals(t, item));
                 if (existing != null)
                 {
                     existing.requiredBy.AddRange(item.requiredBy.Where(v => !existing.requiredBy.Contains(v)));
@@ -1340,7 +1342,7 @@ namespace UploadFIG
                 if (settings.DestinationFormat == upload_format.json)
                     clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Json;
                 if (settings.DestinationFormat == upload_format.xml)
-                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml; 
+                    clientFhir.Settings.PreferredFormat = Hl7.Fhir.Rest.ResourceFormat.Xml;
                 clientFhir.Settings.VerifyFhirVersion = false;
 
                 try
@@ -1404,7 +1406,7 @@ namespace UploadFIG
                                     switch (settings.FhirVersion)
                                     {
                                         case fhirVersion.R4:
-                                            manifest.FhirVersions = [FHIRVersion.N4_0.GetLiteral() ];
+                                            manifest.FhirVersions = [FHIRVersion.N4_0.GetLiteral()];
                                             break;
                                         case fhirVersion.R4B:
                                             manifest.FhirVersions = [FHIRVersion.N4_3.GetLiteral()];
@@ -1644,7 +1646,7 @@ namespace UploadFIG
         private static void ReportUnresolvedCanonicalResourcesToConsole(Settings settings, IEnumerable<CanonicalDetails> unresolvableCanonicals)
         {
             // Merge all the canonical details into a list de-duplicating the canonical versions and merging the RequiredBy into a single list
-            Dictionary<string, CanonicalDetails> mergedCDs = new ();
+            Dictionary<string, CanonicalDetails> mergedCDs = new();
             foreach (var cd in unresolvableCanonicals)
             {
                 var key = $"{cd.Canonical}|{cd.Version}";
@@ -1654,7 +1656,7 @@ namespace UploadFIG
                 }
                 else
                 {
-                    var newCd = new CanonicalDetails 
+                    var newCd = new CanonicalDetails
                     {
                         Canonical = cd.Canonical,
                         Name = cd.Name,
@@ -1729,7 +1731,8 @@ namespace UploadFIG
             try
             {
                 // reset properties that are set on the server anyway
-                if (resource.Meta == null) resource.Meta = new Meta();
+                if (resource.Meta == null)
+                    resource.Meta = new Meta();
                 resource.Meta.LastUpdated = null;
                 resource.Meta.VersionId = null;
 
