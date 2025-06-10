@@ -249,6 +249,9 @@ The final column indicates the canonical version numbers that are currently on t
 
 ## Change history
 
+### 11 June 2025
+* Update to the FirelySDK v5.11.4
+
 ### 28 March 2025
 * Minor bug fixes from testing
 * Issue [#9](https://github.com/brianpos/UploadFIG/issues/9) Validate and set the json/xml format supported by the server automatically.

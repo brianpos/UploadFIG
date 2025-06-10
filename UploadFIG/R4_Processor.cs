@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace UploadFIG
 {
-    internal class R4_Processor : Common_Processor
+    public class R4_Processor : Common_Processor
     {
         public R4_Processor()
         {

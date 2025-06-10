@@ -4,7 +4,7 @@ using Hl7.Fhir.Utility;
 namespace UploadFIG
 {
     // Logging/reporting functionality associated with the expression validations
-    internal class ExpressionValidatorBase
+    public class ExpressionValidatorBase
     {
         const string ErrorNamespace = "http://fhirpath-lab.com/CodeSystem/search-exp-errors";
         protected readonly static Coding InternalProcessingException = new(ErrorNamespace, "SE0001", "Unknown internal processing exception");

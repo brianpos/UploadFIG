@@ -15,7 +15,7 @@ namespace UploadFIG
 	/// <summary>
 	/// Version agnostic expression validations
 	/// </summary>
-	internal abstract class ExpressionValidator : ExpressionValidatorBase
+	public abstract class ExpressionValidator : ExpressionValidatorBase
 	{
 		protected Common_Processor _processor;
 		FhirPathCompiler _compiler;
@@ -37,7 +37,7 @@ namespace UploadFIG
 			_compiler = new FhirPathCompiler(symbolTable);
 		}
 
-		protected BaseFhirPathExpressionVisitor CreateFhirPathValidator()
+		public BaseFhirPathExpressionVisitor CreateFhirPathValidator()
 		{
 			return new ExtensionResolvingFhirPathExpressionVisitor(
 				_source,
@@ -221,7 +221,7 @@ namespace UploadFIG
 		}
 	}
 
-	internal class InMemoryResolver : IResourceResolver
+	public class InMemoryResolver : IResourceResolver
 	{
 		internal InMemoryResolver(PackageDetails pd, DependencyChecker depChecker, Common_Processor versionAgnosticProcessor, List<String> errFiles, bool verbose)
 		{

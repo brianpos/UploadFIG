@@ -1220,6 +1220,19 @@ namespace UploadFIG
 							}
 						}
 					}
+                    foreach (var exclude in vs.Compose?.Exclude)
+                    {
+                        if (!string.IsNullOrEmpty(exclude.System) && string.IsNullOrEmpty(exclude.Version))
+                        {
+                            var cd = pd.RequiresCanonicals.FirstOrDefault(c => c.Canonical == exclude.System);
+                            if (cd != null && cd.resource is IVersionableConformanceResource ivr)
+                            {
+                                exclude.Version = ivr.Version;
+                                if (_settings.Verbose)
+                                    Console.WriteLine($"        >  Patching {resource.TypeName}/{resource.Id} ValueSet.compose.exclude.version = {ivr.Version}");
+                            }
+                        }
+                    }
 				}
 			}
 

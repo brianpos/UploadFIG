@@ -13,7 +13,7 @@ using UploadFIG.PackageHelpers;
 namespace UploadFIG
 {
     // Adds the version specific search parameter validation
-    internal class ExpressionValidatorR5 : ExpressionValidator
+    public class ExpressionValidatorR5 : ExpressionValidator
     {
         public ExpressionValidatorR5(Common_Processor processor, bool validateQuestionnaire) : base(processor)
         {
