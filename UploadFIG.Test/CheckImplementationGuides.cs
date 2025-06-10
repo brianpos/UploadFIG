@@ -42,6 +42,8 @@ namespace UploadFIG.Test
         {
             string testResultPath = Path.Combine(System.IO.Path.GetTempPath(), "UploadFIG", "TestResult", caller);
             string actualResult = _sb.ToString();
+            if (Directory.Exists(testResultPath))
+                Directory.CreateDirectory(testResultPath);
 
             // output the current test runs results
             if (File.Exists(testResultPath + ".txt"))

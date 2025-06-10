@@ -10,20 +10,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.11.3-rc1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.11.3-rc1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.11.3-rc1" />
-    <PackageReference Include="Hl7.Fhir.R4" Version="5.11.3" Aliases="r4" />
-    <PackageReference Include="Hl7.Fhir.R4B" Version="5.11.3" Aliases="r4b" />
-    <PackageReference Include="Hl7.Fhir.R5" Version="5.11.3" Aliases="r5" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.2" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.8.2" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.8.2" />
+    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.11.4-rc1" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.11.4-rc1" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.11.4-rc1" />
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.11.4" Aliases="r4" />
+    <PackageReference Include="Hl7.Fhir.R4B" Version="5.11.4" Aliases="r4b" />
+    <PackageReference Include="Hl7.Fhir.R5" Version="5.11.4" Aliases="r5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.6" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.9.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.9.2" />
     <PackageReference Include="coverlet.collector" Version="3.2.0" />
 
-    <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.11.3" />
+    <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.11.4" />
   </ItemGroup>
 
   <ItemGroup>

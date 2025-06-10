@@ -14,7 +14,7 @@ using r4::Hl7.Fhir.StructuredDataCapture;
 namespace UploadFIG
 {
     // Adds the version specific search parameter validation
-    internal class ExpressionValidatorR4 : ExpressionValidator
+    public class ExpressionValidatorR4 : ExpressionValidator
     {
         public ExpressionValidatorR4(Common_Processor processor, bool validateQuestionnaire) : base(processor)
         {
