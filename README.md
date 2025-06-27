@@ -247,7 +247,15 @@ The final column indicates the canonical version numbers that are currently on t
 
 ---
 
+### Potential Future Changes
+* Check the cardinality on an extension against all it's uses in profiles for min/max
+* Check for contexts that are on Element alone
+* Check on contexts that are profiles on resources vs resources
+
 ## Change history
+
+### 26 June 2025
+* Resolve issue with targetProfile/type code reporting errors for contained types
 
 ### 11 June 2025
 * Update to the FirelySDK v5.11.4

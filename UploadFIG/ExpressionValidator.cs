@@ -164,11 +164,12 @@ namespace UploadFIG
 			return true;
 		}
 
-		protected void CheckElementType(string exampleName, ref long validationErrors, ElementDefinition element, ElementDefinition.TypeRefComponent t, string sourceElement)
+		public void CheckElementType(string exampleName, ref long validationErrors, ElementDefinition element, ElementDefinition.TypeRefComponent t, string sourceElement)
 		{
 			if (!IsValidType(t.Code))
 			{
-				if (!(element.Path.EndsWith(".resource") && _processor.ModelInspector.IsKnownResource(t.Code)))
+				if (!_processor.ModelInspector.IsKnownResource(t.Code)
+                    || (!element.Path.EndsWith(".resource") && !element.Path.EndsWith(".contained")))
 				{
 					ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: ({exampleName}) {sourceElement} Element {element.ElementId} has type `{t.Code}` which is not valid in FHIR v{_processor.ModelInspector.FhirVersion}");
 					validationErrors++;
