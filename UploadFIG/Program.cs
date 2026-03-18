@@ -107,6 +107,7 @@ namespace UploadFIG
                 new Option<bool>([ "-vq", "--validateQuestionnaires" ], () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
                 new Option<bool>([ "-vrd", "--validateReferencedDependencies" ], () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
                 new Option<bool>([ "-pdv", "--preventDuplicateCanonicalVersions" ], () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
+                new Option<bool>([ "-ddv", "--deleteDuplicateCanonicalVersions" ], () => settings.DeleteDuplicateCanonicalVersions, "Delete any other canonical versions of a resource found on the server before uploading the new version\r\nUse with caution as this will permanently remove resources from the destination server"),
                 new Option<bool>([ "-cn", "--checkAndCleanNarratives" ], () => settings.CheckAndCleanNarratives, "Check and clean any narratives in the package and remove suspect ones\r\n(based on the MS FHIR Server's rules)"),
                 new Option<bool>([ "-sn", "--stripNarratives" ], () => settings.StripNarratives, "Strip all narratives from the resources in the package"),
                 new Option<bool>([ "-c", "--checkPackageInstallationStateOnly" ], () => settings.CheckPackageInstallationStateOnly, "Download and check the package and compare with the contents of the FHIR Server,\r\n but do not update any of the contents of the FHIR Server"),
@@ -114,8 +115,8 @@ namespace UploadFIG
                 new Option<bool>([ "-rs", "--regenerateSnapshots" ], () => settings.ReGenerateSnapshots, "Re-Generate all snapshots in StructureDefinitions"),
                 new Option<bool>([ "-rms", "--removeSnapshots" ], () => settings.RemoveSnapshots, "Remove all snapshots in StructureDefinitions"),
                 new Option<bool>([ "-pcv", "--patchCanonicalVersions" ], () => settings.PatchCanonicalVersions, "Patch canonical URL references to be version specific if they resolve within the package"),
-                new Option<bool>([ "--includeReferencedDependencies" ], () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
-                new Option<bool>([ "--includeExamples" ], () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
+                new Option<bool>([ "-ird", "--includeReferencedDependencies" ], () => settings.IncludeReferencedDependencies, "Upload any referenced resources from resource dependencies being included"),
+                new Option<bool>([ "-ie", "--includeExamples" ], () => settings.IncludeExamples, "Also include files in the examples sub-directory\r\n(Still needs resource type specified)"),
                 new Option<bool>([ "--verbose" ], () => settings.Verbose, "Provide verbose diagnostic output while processing\r\n(e.g. Filenames processed)"),
                 new Option<string>([ "-of", "--outputBundle" ], () => settings.OutputBundle, "The filename to write a json batch bundle containing all of the processed resources into (could be used in place of directly deploying the IG)"),
                 new Option<string>([ "-odf", "--outputDependenciesFile" ], () => settings.OutputDependenciesFile, "Write the list of dependencies discovered in the IG into a json file for post-processing"),
@@ -1877,12 +1878,34 @@ namespace UploadFIG
 
                     if (otherCanonicalVersionNumbers.Any())
                     {
-                        if (settings.PreventDuplicateCanonicalVersions && resource.Id == null)
+                        if (settings.DeleteDuplicateCanonicalVersions)
+                        {
+                            // Delete the other canonical versions from the server
+                            var otherVersionResources = existingResources.Where(e => (e as IVersionableConformanceResource)?.Version != vcs.Version).ToList();
+                            foreach (var otherResource in otherVersionResources)
+                            {
+                                var otherVcs = otherResource as IVersionableConformanceResource;
+                                try
+                                {
+                                    await clientFhir.DeleteAsync($"{otherResource.TypeName}/{otherResource.Id}");
+                                    ConsoleEx.WriteLine(ConsoleColor.DarkYellow, $"    deleted\t{otherResource.TypeName}\t{otherVcs?.Url}|{otherVcs?.Version}\t(duplicate canonical version)");
+                                }
+                                catch (FhirOperationException dex)
+                                {
+                                    ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Failed to delete {otherResource.TypeName}/{otherResource.Id} ({otherVcs?.Url}|{otherVcs?.Version}): {dex.Message}");
+                                }
+                            }
+                            warningMessage = $"Deleted other versions ({string.Join(", ", otherCanonicalVersionNumbers)})";
+                        }
+                        else if (settings.PreventDuplicateCanonicalVersions && resource.Id == null)
                         {
                             ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Canonical {vcs.Url} already has other versions loaded - {string.Join(", ", otherCanonicalVersionNumbers)}, can't also load {vcs.Version}, adding may cause issues if the server can't determine which is the latest to use");
                             return null;
                         }
-                        warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
+                        else
+                        {
+                            warningMessage = $"Warning: other versions already loaded ({string.Join(", ", otherCanonicalVersionNumbers)})";
+                        }
                     }
 
                     if (resource.Id != null)

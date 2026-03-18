@@ -254,6 +254,14 @@ The final column indicates the canonical version numbers that are currently on t
 
 ## Change history
 
+### 18 March 2026
+* Added support for deleting duplicate canonical resources that are being loaded (similar to `-pdv`).
+  This is very useful for servers that don't support multiple canonical versions loaded at the same time.<br/>
+  `-ddv` or `--deleteDuplicateCanonicalVersions`
+* Also added command short aliases for:
+  * `-ird` = `--includeReferencedDependencies`
+  * `-ie` = `--includeExamples`
+
 ### 26 June 2025
 * Resolve issue with targetProfile/type code reporting errors for contained types
 

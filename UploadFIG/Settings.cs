@@ -158,6 +158,15 @@ namespace UploadFIG
         public bool PreventDuplicateCanonicalVersions { get; set; } = true;
 
         /// <summary>
+        /// Delete any other canonical versions of a resource found on the server before uploading the new version
+        /// </summary>
+        /// <remarks>
+        /// This will remove any other versions of the canonical resource from the server before uploading the new version.
+        /// Use with caution as this will permanently remove resources from the destination server.
+        /// </remarks>
+        public bool DeleteDuplicateCanonicalVersions { get; set; }
+
+        /// <summary>
         /// Download and check the package and compare with the contents of the FHIR Server,
         /// but do not update any of the contents of the FHIR Server
         /// </summary>

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -10,20 +10,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.11.4-rc1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.11.4-rc1" />
-    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.11.4-rc1" />
-    <PackageReference Include="Hl7.Fhir.R4" Version="5.11.4" Aliases="r4" />
-    <PackageReference Include="Hl7.Fhir.R4B" Version="5.11.4" Aliases="r4b" />
-    <PackageReference Include="Hl7.Fhir.R5" Version="5.11.4" Aliases="r5" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.6" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.6" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.9.2" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.9.2" />
+    <PackageReference Include="brianpos.Fhir.R4B.DemoFileSystemFhirServer" Version="5.13.2-rc1" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.AspNetCore" Version="5.13.2-rc1" />
+    <PackageReference Include="brianpos.Fhir.R4B.WebApi.Support" Version="5.13.2-rc1" />
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.13.2" Aliases="r4" />
+    <PackageReference Include="Hl7.Fhir.R4B" Version="5.13.2" Aliases="r4b" />
+    <PackageReference Include="Hl7.Fhir.R5" Version="5.13.2" Aliases="r5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.1.0" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.1.0" />
     <PackageReference Include="coverlet.collector" Version="3.2.0" />
 
-    <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.11.4" />
+    <PackageReference Include="Hl7.Fhir.Specification.Data.R4B" Version="5.13.2" />
   </ItemGroup>
 
   <ItemGroup>
