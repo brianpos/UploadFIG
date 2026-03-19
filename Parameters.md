@@ -42,6 +42,10 @@ Options:
                                                              Does not require a DestinationServerAddress, will not try to connect
                                                              to one if provided
                                                              [default: False]
+  --REMOVE_ALL                                               Remove all selected package content from the destination server.
+                                                             Intended to 'un-install' a package from a server, or to clean up a server before deploying a new version of a package.
+                                                             *Use with extreme caution as this will permanently remove resources from the destination server*
+                                                             [default: False]
   -vq, --validateQuestionnaires                              Include more extensive testing on Questionnaires (experimental)
                                                              [default: False]
   -vrd, --validateReferencedDependencies                     Validate any referenced resources from dependencies being installed 

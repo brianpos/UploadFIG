@@ -144,3 +144,10 @@ using the `-pcv` Patch Canonical Versions flag
             -pcv
             -of bundle.json
 ```
+
+## Remove all the resources from a server that are in an IG package
+To remove the US Core IG Package v6.1.0 from a local server (typically after having been deployed using this tool - using same config parameters)
+``` ps
+> UploadFIG -pid hl7.fhir.us.core -pv 6.1.0 -c -d https://localhost:44348 --REMOVE_ALL
+```
+> Note: If you included dependencies when installing, also include those parameters here too (or they will remain on the server)

@@ -108,6 +108,12 @@ namespace UploadFIG
         public upload_format? DestinationFormat { get; set; }
 
         /// <summary>
+        /// Instead of deploying this content to the destination server, remove anything that would be updated/added by this package from the destination server (based on the contents of the package)
+        /// To be used to "un-install" a package from a server, or to clean up a server before deploying a new version of a package.
+        /// </summary>
+        public bool REMOVE_ALL { get; set; }
+
+        /// <summary>
         /// Only perform download and static analysis checks on the Package.
         /// Does not require a DestinationServerAddress, will not try to connect to one if provided
         /// </summary>

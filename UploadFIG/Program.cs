@@ -84,6 +84,9 @@ namespace UploadFIG
             var destinationServerOption = new Option<string>(["-d", "--destinationServerAddress"], () => settings.DestinationServerAddress, "The URL of the FHIR Server to upload the package contents to");
             var testPackageOnlyOption = new Option<bool>(["-t", "--testPackageOnly"], () => settings.TestPackageOnly, "Only perform download and static analysis checks on the Package.\r\nDoes not require a DestinationServerAddress, will not try to connect to one if provided");
 
+            // remove all parameter
+            var removeAllOption = new Option<bool>(["--REMOVE_ALL"], () => settings.REMOVE_ALL, "Remove all selected package content from the destination server.\r\nIntended to 'un-install' a package from a server, or to clean up a server before deploying a new version of a package.\r\nUse with extreme caution as this will permanently remove resources from the destination server");
+
             var rootCommand = new RootCommand("HL7 FHIR Implementation Guide Uploader")
             {
                 // Mandatory parameters
@@ -104,6 +107,8 @@ namespace UploadFIG
                 new Option<List<string>>([ "-dh", "--destinationServerHeaders" ], () => settings.DestinationServerHeaders, "Headers to add to the request to the destination FHIR Server"),
                 new Option<upload_format>([ "-df", "--destinationFormat" ], () => settings.DestinationFormat ?? upload_format.xml, "The format to upload to the destination server"),
                 testPackageOnlyOption,
+                removeAllOption,
+
                 new Option<bool>([ "-vq", "--validateQuestionnaires" ], () => settings.ValidateQuestionnaires, "Include more extensive testing on Questionnaires (experimental)"),
                 new Option<bool>([ "-vrd", "--validateReferencedDependencies" ], () => settings.ValidateReferencedDependencies, "Validate any referenced resources from dependencies being installed"),
                 new Option<bool>([ "-pdv", "--preventDuplicateCanonicalVersions" ], () => settings.PreventDuplicateCanonicalVersions, "Permit the tool to upload canonical resources even if they would result in the server having multiple canonical versions of the same resource after it runs\r\nThe requires the server to be able to handle resolving canonical URLs to the correct version of the resource desired by a particular call. Either via the versioned canonical reference, or using the logic defined in the $current-canonical operation"),
@@ -143,6 +148,14 @@ namespace UploadFIG
                 conditionalRequiredParams2.AddRange(testPackageOnlyOption.Aliases);
                 if (!args.Any(a => conditionalRequiredParams2.Contains(a)))
                     result.ErrorMessage = "The destinationServerAddress and testPackageOnly are both missing, please provide one or the other to indicate if just testing, or uploading to a server";
+
+                if (args.Any(a => removeAllOption.Aliases.Contains(a)))
+                {
+                    if (args.Any(a => testPackageOnlyOption.Aliases.Contains(a)))
+                        result.ErrorMessage = "The --REMOVE_ALL parameter cannot be used with --testPackageOnly, as test mode does not connect to a server";
+                    if (!args.Any(a => destinationServerOption.Aliases.Contains(a)))
+                        result.ErrorMessage = "The --REMOVE_ALL parameter requires --destinationServerAddress to specify the server to remove resources from";
+                }
             });
             return rootCommand;
         }
@@ -588,7 +601,10 @@ namespace UploadFIG
             // Validate/upload the resources
             Console.WriteLine();
             ConsoleEx.WriteLine(ConsoleColor.White, "--------------------------------------");
-            ConsoleEx.WriteLine(ConsoleColor.White, "Validate/upload package content:");
+            if (!settings.REMOVE_ALL)
+                ConsoleEx.WriteLine(ConsoleColor.White, "Validate/upload package content:");
+            else
+                ConsoleEx.WriteLine(ConsoleColor.White, "Package content removed:");
             foreach (var resource in resourcesFromMainPackage)
             {
                 var exampleName = resource.Annotation<ResourcePackageSource>()?.Filename ?? $"Registry {resource.TypeName}/{resource.Id}";
@@ -673,7 +689,7 @@ namespace UploadFIG
 
 
             // Ensure that all direct and indirect canonical resources (excluding core spec/extensions) are installed in the server
-            if (!settings.TestPackageOnly)
+            if (!settings.TestPackageOnly && !settings.REMOVE_ALL)
                 await DependencyChecker.VerifyDependenciesOnServer(settings, clientFhir, externalCanonicals);
 
             sw.Stop();
@@ -1814,6 +1830,11 @@ namespace UploadFIG
 
         static async Task<Resource> UploadFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
         {
+            if (settings.REMOVE_ALL)
+            {
+                return await RemoveFile(settings, clientFhir, resource);
+            }
+
             // Check to see if the resource is the same on the server already
             // (except for text/version/modified)
             try
@@ -1978,6 +1999,119 @@ namespace UploadFIG
                 throw;
             }
             return result;
+        }
+
+        /// <summary>
+        /// The REMOVE_ALL setting seeks to remove the exact resources that are in the package, so it uses the same logic as the upload but instead
+        /// of creating/updating resources, it deletes them.
+        /// For canonical resources, it searches for any resource with the same canonical URL and deletes the specific version of this resource
+        /// </summary>
+        /// <param name="settings"></param>
+        /// <param name="clientFhir"></param>
+        /// <param name="resource"></param>
+        /// <returns></returns>
+        static async Task<Resource> RemoveFile(Settings settings, BaseFhirClient clientFhir, Resource resource)
+        {
+            // For canonical resources, search by canonical URL to find all matching versions on the server
+            if (resource is IVersionableConformanceResource vcs)
+            {
+                try
+                {
+                    var others = await clientFhir.SearchAsync(resource.TypeName, new[] { $"url={vcs.Url}" });
+                    var existingResources = others.Entry.Where(e => e.Resource?.TypeName == resource.TypeName).Select(e => e.Resource).ToList();
+
+                    if (!existingResources.Any())
+                    {
+                        Console.Write($"    not found\t{resource.TypeName}\t{vcs.Url}|{vcs.Version}");
+                        if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                        {
+                            var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                            Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                        }
+                        Console.WriteLine();
+                        return null;
+                    }
+
+                    // Delete the version we've been asked to delete.
+                    foreach (var existingResource in existingResources)
+                    {
+                        var existingVcs = existingResource as IVersionableConformanceResource;
+                        if (existingVcs.Version == vcs.Version && existingVcs.Url == vcs.Url)
+                        {
+                            try
+                            {
+                                await clientFhir.DeleteAsync($"{existingResource.TypeName}/{existingResource.Id}");
+                                ConsoleEx.Write(ConsoleColor.DarkYellow, $"    deleted\t{existingResource.TypeName}\t{existingVcs?.Url}|{existingVcs?.Version}");
+                                if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                                {
+                                    var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                                    ConsoleEx.Write(ConsoleColor.DarkYellow, $"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                                }
+                                Console.WriteLine();
+                                return existingResource;
+                            }
+                            catch (FhirOperationException dex)
+                            {
+                                ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Failed to delete {existingResource.TypeName}/{existingResource.Id} ({existingVcs?.Url}|{existingVcs?.Version}): {dex.Message}");
+                                resource.SetAnnotation(dex);
+                                throw;
+                            }
+                        }
+                    }
+                    return null;
+                }
+                catch (FhirOperationException fex) when (fex.Status == System.Net.HttpStatusCode.NotFound || fex.Status == System.Net.HttpStatusCode.Gone)
+                {
+                    Console.Write($"    not found\t{resource.TypeName}\t{vcs.Url}|{vcs.Version}");
+                    if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                    {
+                        var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                        Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                    }
+                    Console.WriteLine();
+                    return null;
+                }
+            }
+
+            // For non-canonical resources, delete by ID if available
+            if (!string.IsNullOrEmpty(resource.Id))
+            {
+                try
+                {
+                    var current = await clientFhir.GetAsync($"{resource.TypeName}/{resource.Id}");
+                    if (current != null)
+                    {
+                        await clientFhir.DeleteAsync($"{resource.TypeName}/{resource.Id}");
+                        ConsoleEx.Write(ConsoleColor.DarkYellow, $"    deleted\t{resource.TypeName}/{resource.Id}");
+                        if (resource.HasAnnotation<ResourcePackageSource>() == true)
+                        {
+                            var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                            ConsoleEx.Write(ConsoleColor.DarkYellow, $"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+                        }
+                        Console.WriteLine();
+                        return current;
+                    }
+                }
+                catch (FhirOperationException fex) when (fex.Status == System.Net.HttpStatusCode.NotFound || fex.Status == System.Net.HttpStatusCode.Gone)
+                {
+                    // Resource not found on server, nothing to delete
+                }
+                catch (FhirOperationException fex)
+                {
+                    ConsoleEx.WriteLine(ConsoleColor.Red, $"ERROR: Failed to delete {resource.TypeName}/{resource.Id}: {fex.Message}");
+                    resource.SetAnnotation(fex);
+                    throw;
+                }
+            }
+
+            Console.Write($"    not found\t{resource.TypeName}/{resource.Id}");
+            if (resource.HasAnnotation<ResourcePackageSource>() == true)
+            {
+                var sourceDetails = resource.Annotation<ResourcePackageSource>();
+                Console.Write($"\t({sourceDetails.PackageId}|{sourceDetails.PackageVersion})");
+            }
+            Console.WriteLine();
+            return null;
         }
     }
 }
