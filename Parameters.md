@@ -59,6 +59,9 @@ Options:
                                                              canonical reference, or using the logic defined in the
                                                              $current-canonical operation
                                                              [default: True]
+  -ddv, --deleteDuplicateCanonicalVersions                   Delete any other canonical versions of a resource found on the server before uploading the new version
+                                                             Use with caution as this will permanently remove resources from the destination server
+                                                             [default: False]
   -cn, --checkAndCleanNarratives                             Check and clean any narratives in the package and remove suspect ones
                                                              (based on the MS FHIR Server's rules)
                                                              [default: False]
