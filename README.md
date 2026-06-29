@@ -254,6 +254,9 @@ The final column indicates the canonical version numbers that are currently on t
 
 ## Change history
 
+### 3 June 2026
+* Updated to FirelySDK v5.13.4
+
 ### 20 March 2026
 * Added support for `--REMOVE_ALL` that is essentially an "unload" option that will attempt to delete all the resources in the package from the server based on canonical URL/Version (if applicable) or resource ID for examples.
   *This is a bit of a sledgehammer approach, but can be useful for cleaning up test servers after testing an IG deployment, or removing to put in a newer version.*

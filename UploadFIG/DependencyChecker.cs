@@ -259,7 +259,7 @@ namespace UploadFIG
 		internal bool IsCoreOrExtensionOrToolsCanonical(string canonicalUrl)
 		{
 			var canonical = new Canonical(canonicalUrl);
-			if (Uri.IsWellFormedUriString(canonical.Uri, UriKind.Absolute) && _inspector.IsCoreModelTypeUri(new Uri(canonicalUrl)))
+			if (Uri.IsWellFormedUriString(canonical.Uri, UriKind.Absolute) && _inspector.IsCoreModelTypeUri(new Uri(canonical.Uri)))
 				return true;
 
 			var extCanonicals = GetExtensionCanonicals(_fhirVersion);
@@ -1207,7 +1207,7 @@ namespace UploadFIG
 				}
 				if (resource is ValueSet vs)
 				{
-					foreach (var include in vs.Compose?.Include)
+					foreach (var include in vs.Compose?.Include ?? Enumerable.Empty<ValueSet.ConceptSetComponent>())
 					{
 						if (!string.IsNullOrEmpty(include.System) && string.IsNullOrEmpty(include.Version))
 						{
@@ -1220,7 +1220,7 @@ namespace UploadFIG
 							}
 						}
 					}
-                    foreach (var exclude in vs.Compose?.Exclude)
+                    foreach (var exclude in vs.Compose?.Exclude ?? Enumerable.Empty<ValueSet.ConceptSetComponent>())
                     {
                         if (!string.IsNullOrEmpty(exclude.System) && string.IsNullOrEmpty(exclude.Version))
                         {
